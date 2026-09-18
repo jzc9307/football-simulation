@@ -2797,6 +2797,33 @@ function weightedScorer(players){
   for(let i=0;i<pool.length;i++){ r -= weights[i]; if(r<=0) return pool[i].name; }
   return pool[pool.length-1].name;
 }
+// Minute-stamped goals: "Wirtz '32, '90+5" instead of "Wirtz x2".
+function pickUniqueMinute(used){
+  let m;
+  do { m = 1 + Math.floor(Math.random()*95); } while (used.has(m));
+  used.add(m);
+  return m;
+}
+function formatMinute(m){ return m<=90 ? `'${m}` : `'90+${m-90}`; }
+function buildGoalList(goalCount, players, usedMinutes){
+  const used = usedMinutes || new Set();
+  const list = [];
+  for (let i=0;i<goalCount;i++) list.push({ name: weightedScorer(players), minute: pickUniqueMinute(used) });
+  return list.sort((a,b)=>a.minute-b.minute);
+}
+function formatScorers(goalList){
+  if (!goalList || !goalList.length) return "";
+  const byName = {};
+  goalList.forEach(g => { (byName[g.name] = byName[g.name]||[]).push(g.minute); });
+  return Object.entries(byName).map(([name,mins]) => `${name} ${mins.sort((a,b)=>a-b).map(formatMinute).join(", ")}`).join(", ");
+}
+// ~7% chance one of the lineup's outfield players is sent off. Independent of the fixed score outcome.
+function rollRedCard(players){
+  const outfield = players.filter(p => p.group !== "GK");
+  if (!outfield.length || Math.random() >= 0.07) return null;
+  const player = outfield[Math.floor(Math.random()*outfield.length)];
+  return { id: player.id, name: player.name };
+}
 function roundRobin(teamIds){
   const ids = [...teamIds];
   if (ids.length % 2 !== 0) ids.push(null);
@@ -2861,11 +2888,12 @@ function autoLineup(formationSlots, players){
   });
   return lineup;
 }
-function getMatchPlayers(s){
+function getMatchPlayers(s, competition="domestic"){
   const myClub = s.clubs.find(c=>c.id===s.myClubId);
+  const suspended = new Set((s.suspensions && s.suspensions[competition]) || []);
   const ids = Object.values(s.lineup).filter(Boolean);
-  const chosen = myClub.players.filter(p=>ids.includes(p.id));
-  return chosen.length >= 7 ? chosen : topXI(myClub.players);
+  const chosen = myClub.players.filter(p=>ids.includes(p.id) && !suspended.has(p.id));
+  return chosen.length >= 7 ? chosen : topXI(myClub.players.filter(p=>!suspended.has(p.id)));
 }
 function simulateRound(s, round, gw){
   const lineupPlayers = getMatchPlayers(s);
@@ -2884,10 +2912,10 @@ function simulateRound(s, round, gw){
       const isHome = home===s.myClubId;
       const opponent = s.clubs.find(c=>c.id===(isHome?away:home));
       const myGoals = isHome?goalsA:goalsB, oppGoals = isHome?goalsB:goalsA;
-      const scorers = Array.from({length:myGoals}, () => weightedScorer(lineupPlayers));
-      const counts = {}; scorers.forEach(n => counts[n]=(counts[n]||0)+1);
-      const scorerStr = Object.entries(counts).map(([n,c]) => c>1?`${n} x${c}`:n).join(", ");
-      userResult = { gw, opponent: opponent.name, opponentColor: opponent.color, isHome, myGoals, oppGoals, scorerStr, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
+      const goalList = buildGoalList(myGoals, lineupPlayers);
+      const scorerStr = formatScorers(goalList);
+      const redCard = rollRedCard(lineupPlayers);
+      userResult = { gw, opponent: opponent.name, opponentColor: opponent.color, opponentId: opponent.id, isHome, myGoals, oppGoals, scorerStr, goalList, redCard, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
     }
   });
   return { updates, userResult };
@@ -2989,10 +3017,10 @@ function simulateCupMatch(s, comp, round){
   let wentToPens = false, wonPens = null;
   if (myGoals === oppGoals){ wentToPens = true; wonPens = Math.random() < 0.5; }
   const won = myGoals > oppGoals || (wentToPens && wonPens);
-  const scorers = Array.from({length:myGoals}, () => weightedScorer(lineupPlayers));
-  const counts = {}; scorers.forEach(n => counts[n]=(counts[n]||0)+1);
-  const scorerStr = Object.entries(counts).map(([n,c]) => c>1?`${n} x${c}`:n).join(", ");
-  const matchResult = { comp, round, opponent:opp.name, opponentColor:opp.color, homeA, myGoals, oppGoals, wentToPens, wonPens, won, scorerStr };
+  const goalList = buildGoalList(myGoals, lineupPlayers);
+  const scorerStr = formatScorers(goalList);
+  const redCard = rollRedCard(lineupPlayers);
+  const matchResult = { comp, round, opponent:opp.name, opponentColor:opp.color, opponentId:opp.id, homeA, myGoals, oppGoals, wentToPens, wonPens, won, scorerStr, goalList, redCard };
   const record = { ...cs.record };
   record.gf += myGoals; record.ga += oppGoals;
   if (myGoals > oppGoals) record.w++; else if (myGoals < oppGoals) record.l++; else record.d++;
@@ -3013,7 +3041,7 @@ function uclZoneBg(rank, isMe){
   return "#241414";
 }
 function simulateUclMatch(s, homeClub, awayClub){
-  const lineupPlayers = getMatchPlayers(s);
+  const lineupPlayers = getMatchPlayers(s, "ucl");
   const homePlayers = homeClub.id===s.myClubId ? lineupPlayers : topXI(homeClub.players);
   const awayPlayers = awayClub.id===s.myClubId ? lineupPlayers : topXI(awayClub.players);
   const homeTactics = homeClub.id===s.myClubId ? myTactics(s) : aiTactics(homeClub);
@@ -3032,19 +3060,19 @@ function simulateUclRound(s, uclClubs, round){
       const isHome = home===s.myClubId;
       const opponent = isHome ? awayClub : homeClub;
       const myGoals = isHome?goalsA:goalsB, oppGoals = isHome?goalsB:goalsA;
-      const lineupPlayers = getMatchPlayers(s);
-      const scorers = Array.from({length:myGoals}, () => weightedScorer(lineupPlayers));
-      const counts = {}; scorers.forEach(n => counts[n]=(counts[n]||0)+1);
-      const scorerStr = Object.entries(counts).map(([n,c]) => c>1?`${n} x${c}`:n).join(", ");
+      const lineupPlayers = getMatchPlayers(s, "ucl");
+      const goalList = buildGoalList(myGoals, lineupPlayers);
+      const scorerStr = formatScorers(goalList);
+      const redCard = rollRedCard(lineupPlayers);
       userResult = { stage:"League Phase", opponent:opponent.name, opponentColor:opponent.color, opponentId:opponent.id,
-        isHome, myGoals, oppGoals, scorerStr, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
+        isHome, myGoals, oppGoals, scorerStr, goalList, redCard, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
     }
   });
   return { updates, userResult };
 }
-function simulateUclSingleMatch(s, opponent, stageLabel){
-  const lineupPlayers = getMatchPlayers(s);
-  const isHome = Math.random() < 0.5;
+function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, allowPens=true){
+  const lineupPlayers = getMatchPlayers(s, "ucl");
+  const isHome = forcedIsHome!==undefined ? forcedIsHome : Math.random() < 0.5;
   const oppPlayers = topXI(opponent.players);
   const oppTactics = aiTactics(opponent);
   const myTac = myTactics(s);
@@ -3054,13 +3082,13 @@ function simulateUclSingleMatch(s, opponent, stageLabel){
   );
   const myGoals = isHome?goalsA:goalsB, oppGoals = isHome?goalsB:goalsA;
   let wentToPens = false, wonPens = null;
-  if (myGoals === oppGoals){ wentToPens = true; wonPens = Math.random() < 0.5; }
+  if (allowPens && myGoals === oppGoals){ wentToPens = true; wonPens = Math.random() < 0.5; }
   const won = myGoals > oppGoals || (wentToPens && wonPens);
-  const scorers = Array.from({length:myGoals}, () => weightedScorer(lineupPlayers));
-  const counts = {}; scorers.forEach(n => counts[n]=(counts[n]||0)+1);
-  const scorerStr = Object.entries(counts).map(([n,c]) => c>1?`${n} x${c}`:n).join(", ");
+  const goalList = buildGoalList(myGoals, lineupPlayers);
+  const scorerStr = formatScorers(goalList);
+  const redCard = rollRedCard(lineupPlayers);
   return { stage:stageLabel, opponent:opponent.name, opponentColor:opponent.color, opponentId:opponent.id,
-    isHome, myGoals, oppGoals, scorerStr, wentToPens, wonPens, won, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
+    isHome, myGoals, oppGoals, scorerStr, goalList, redCard, wentToPens, wonPens, won, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
 }
 function pickKnockoutOpponent(u, myClubId){
   const faced = u.knockoutFaced || [];
@@ -3070,14 +3098,40 @@ function pickKnockoutOpponent(u, myClubId){
 }
 
 // Builds a minute-by-minute event script for the live match ticker. The final score is already decided
-// (by simMatchSmart) — this just dramatizes how it plausibly happened, so the score never contradicts events.
+// (by simMatchSmart, with pre-assigned goal minutes/scorers) — this dramatizes how it plausibly happened,
+// including penalties, free-kicks, corners, VAR reviews and offside calls, without ever contradicting the score.
 const CHANCE_TEXTS = ["shoots just wide!", "denied by a brilliant save!", "heads it over the bar!", "strikes the post!", "forces a smart stop!", "can't quite connect with the cross!"];
-function buildMatchTimeline(myName, myPlayers, oppName, oppPlayers, myGoals, oppGoals){
+const GOAL_METHODS = [
+  { key:"open", w:65, type:"goal", text:(n)=>`${n} scores!` },
+  { key:"penalty", w:12, type:"penalty", text:(n)=>`${n} converts the penalty!` },
+  { key:"freekick", w:10, type:"freekick", text:(n)=>`${n} curls in a free-kick!` },
+  { key:"corner", w:13, type:"corner", text:(n)=>`${n} heads home from the corner!` },
+];
+function pickGoalMethod(){
+  const total = GOAL_METHODS.reduce((s,m)=>s+m.w,0);
+  let r = Math.random()*total;
+  for (const m of GOAL_METHODS){ r -= m.w; if (r<=0) return m; }
+  return GOAL_METHODS[0];
+}
+function buildMatchTimeline(myName, myPlayers, oppName, oppPlayers, myGoalList, oppGoalList, redCard){
   const events = [];
-  const usedMinutes = new Set();
-  const pickMinute = () => { let m; do { m = 1 + Math.floor(Math.random()*90); } while (usedMinutes.has(m)); usedMinutes.add(m); return m; };
-  for (let i=0;i<myGoals;i++) events.push({ minute:pickMinute(), type:"goal", teamName:myName, text:`${weightedScorer(myPlayers)} scores!` });
-  for (let i=0;i<oppGoals;i++) events.push({ minute:pickMinute(), type:"goal", teamName:oppName, text:`${weightedScorer(oppPlayers)} scores!` });
+  const used = new Set();
+  [...myGoalList, ...oppGoalList].forEach(g => used.add(g.minute));
+  const pickMinute = () => pickUniqueMinute(used);
+
+  function addGoalEvents(goalList, teamName){
+    goalList.forEach(g => {
+      const method = pickGoalMethod();
+      if (method.key === "penalty"){
+        const awardMinute = g.minute>1 && !used.has(g.minute-1) ? g.minute-1 : null;
+        if (awardMinute){ events.push({ minute:awardMinute, type:"var", teamName, text:`Penalty awarded to ${teamName}!` }); used.add(awardMinute); }
+      }
+      events.push({ minute:g.minute, type:method.type, teamName, text:method.text(g.name) });
+    });
+  }
+  addGoalEvents(myGoalList, myName);
+  addGoalEvents(oppGoalList, oppName);
+
   const cardCount = Math.floor(Math.random()*4);
   for (let i=0;i<cardCount;i++){
     const mine = Math.random()<0.5;
@@ -3085,30 +3139,162 @@ function buildMatchTimeline(myName, myPlayers, oppName, oppPlayers, myGoals, opp
     const player = pool[Math.floor(Math.random()*pool.length)];
     events.push({ minute:pickMinute(), type:"yellow", teamName:mine?myName:oppName, text:`Yellow card — ${player.name}` });
   }
-  if (Math.random() < 0.12){
-    const mine = Math.random()<0.5;
-    const pool = mine?myPlayers:oppPlayers;
-    const player = pool[Math.floor(Math.random()*pool.length)];
-    events.push({ minute:pickMinute(), type:"red", teamName:mine?myName:oppName, text:`RED CARD! ${player.name} is sent off` });
+  if (redCard) events.push({ minute:pickMinute(), type:"red", teamName:myName, text:`RED CARD! ${redCard.name} is sent off` });
+  if (Math.random() < 0.05){
+    const player = oppPlayers[Math.floor(Math.random()*oppPlayers.length)];
+    events.push({ minute:pickMinute(), type:"red", teamName:oppName, text:`RED CARD! ${player.name} is sent off` });
   }
-  const chanceCount = 2 + Math.floor(Math.random()*3);
-  for (let i=0;i<chanceCount;i++){
+  const flavorCount = 3 + Math.floor(Math.random()*3);
+  for (let i=0;i<flavorCount;i++){
     const mine = Math.random()<0.5;
     const pool = mine?myPlayers:oppPlayers;
     const player = pool[Math.floor(Math.random()*pool.length)];
-    events.push({ minute:pickMinute(), type:"chance", teamName:mine?myName:oppName, text:`${player.name} ${CHANCE_TEXTS[Math.floor(Math.random()*CHANCE_TEXTS.length)]}` });
+    const teamName = mine?myName:oppName;
+    const roll = Math.random();
+    let type, text;
+    if (roll < 0.15){ type="var"; text=`GOAL disallowed! VAR flags ${player.name} offside`; }
+    else if (roll < 0.28){ type="offside"; text=`${player.name} flagged offside`; }
+    else if (roll < 0.38){ type="penalty"; text=`Penalty missed! ${player.name} fires wide from the spot`; }
+    else if (roll < 0.50){ type="corner"; text=`${player.name} heads a corner just over`; }
+    else { type="chance"; text=`${player.name} ${CHANCE_TEXTS[Math.floor(Math.random()*CHANCE_TEXTS.length)]}`; }
+    events.push({ minute:pickMinute(), type, teamName, text });
   }
   events.sort((a,b) => a.minute-b.minute);
   return events;
 }
-function buildLiveMatchContext(s, userResult, oppClub){
+// Full-time totals for the live stats panel, generated once from the same ratings/tactics that decided the
+// score (not just random) so the numbers stay consistent with who actually won and how.
+function computeMatchStats(rHome, rAway, styleHome, styleAway, goalsHome, goalsAway){
+  const styleBias = { tiki:8, gegen:3, bus:-8, counter:-6, direct:-4, balanced:0 };
+  let posHome = rHome.attack + rHome.defense + 4 + (styleBias[styleHome]||0);
+  let posAway = rAway.attack + rAway.defense + (styleBias[styleAway]||0);
+  const totalPos = posHome + posAway;
+  const possessionHome = clamp(Math.round(posHome/totalPos*100), 28, 72);
+  const possessionAway = 100 - possessionHome;
+
+  const shotsHome = clamp(Math.round(8 + rHome.attack/10 + goalsHome*1.3 + Math.random()*4), 4, 24);
+  const shotsAway = clamp(Math.round(8 + rAway.attack/10 + goalsAway*1.3 + Math.random()*4), 4, 24);
+  const sotHome = clamp(Math.round(shotsHome*(0.3+Math.random()*0.25)), goalsHome, shotsHome);
+  const sotAway = clamp(Math.round(shotsAway*(0.3+Math.random()*0.25)), goalsAway, shotsAway);
+  const xgHome = Math.max(0.1, +(goalsHome*0.85 + Math.random()*1.2 + shotsHome*0.05).toFixed(2));
+  const xgAway = Math.max(0.1, +(goalsAway*0.85 + Math.random()*1.2 + shotsAway*0.05).toFixed(2));
+  const touchesHome = shotsHome*2 + Math.round(Math.random()*6);
+  const touchesAway = shotsAway*2 + Math.round(Math.random()*6);
+  const bigHome = clamp(goalsHome + Math.round(Math.random()*2), goalsHome, goalsHome+3);
+  const bigAway = clamp(goalsAway + Math.round(Math.random()*2), goalsAway, goalsAway+3);
+  const passesHome = Math.round(300 + possessionHome*3 + Math.random()*40);
+  const passesAway = Math.round(300 + possessionAway*3 + Math.random()*40);
+  const passAccHome = clamp(Math.round(72 + (styleHome==="tiki"?8:0) + Math.random()*10), 65, 94);
+  const passAccAway = clamp(Math.round(72 + (styleAway==="tiki"?8:0) + Math.random()*10), 65, 94);
+  const foulsHome = clamp(Math.round(9 + (styleHome==="gegen"?3:0) + Math.random()*6), 4, 20);
+  const foulsAway = clamp(Math.round(9 + (styleAway==="gegen"?3:0) + Math.random()*6), 4, 20);
+
+  return {
+    possession: [possessionHome, possessionAway],
+    xg: [xgHome, xgAway],
+    shots: [shotsHome, shotsAway],
+    sot: [sotHome, sotAway],
+    touches: [touchesHome, touchesAway],
+    bigChances: [bigHome, bigAway],
+    bigChancesMissed: [Math.max(0,bigHome-goalsHome), Math.max(0,bigAway-goalsAway)],
+    passes: [passesHome, passesAway],
+    accPasses: [Math.round(passesHome*passAccHome/100), Math.round(passesAway*passAccAway/100)],
+    passAcc: [passAccHome, passAccAway],
+    fouls: [foulsHome, foulsAway],
+    offsides: [Math.round(Math.random()*3), Math.round(Math.random()*3)],
+    corners: [clamp(Math.round(shotsHome*0.4+Math.random()*3),1,14), clamp(Math.round(shotsAway*0.4+Math.random()*3),1,14)],
+  };
+}
+// Reveals the final stats progressively as the live minute counter advances (possession wobbles toward its
+// final split; everything else accumulates roughly linearly), same trick as the event timeline.
+function revealStats(stats, minute){
+  const frac = Math.max(0.03, Math.min(1, minute/90));
+  const jitter = Math.sin(minute/6) * 4 * (1-frac);
+  const posHome = clamp(Math.round(stats.possession[0] + jitter), 15, 85);
+  const r = (v) => Math.round(v*frac);
+  const rf = (v) => +(v*frac).toFixed(2);
+  return {
+    possession: [posHome, 100-posHome],
+    xg: [rf(stats.xg[0]), rf(stats.xg[1])],
+    shots: [r(stats.shots[0]), r(stats.shots[1])],
+    sot: [Math.min(r(stats.sot[0]), r(stats.shots[0])), Math.min(r(stats.sot[1]), r(stats.shots[1]))],
+    touches: [r(stats.touches[0]), r(stats.touches[1])],
+    bigChances: [r(stats.bigChances[0]), r(stats.bigChances[1])],
+    bigChancesMissed: [r(stats.bigChancesMissed[0]), r(stats.bigChancesMissed[1])],
+    accPasses: [r(stats.accPasses[0]), r(stats.accPasses[1])],
+    passAcc: stats.passAcc,
+    fouls: [r(stats.fouls[0]), r(stats.fouls[1])],
+    offsides: [r(stats.offsides[0]), r(stats.offsides[1])],
+    corners: [r(stats.corners[0]), r(stats.corners[1])],
+  };
+}
+// Exposes the exact deterministic math simMatchSmart used (ratings, formation edge, style matchup, defensive
+// line/trap) so the result screen can explain *why* the match went the way it did.
+function analyzeMatchup(myPlayers, oppPlayers, myTac, oppTac){
+  const rMe = teamRatings(myPlayers), rOpp = teamRatings(oppPlayers);
+  const formationEdge = tacticalModifier(myTac.formation, oppTac.formation);
+  const hints = tacticalHints(myTac.formation, oppTac.formation);
+  const styleMe = STYLES[myTac.style] || STYLES.balanced;
+  const styleOpp = STYLES[oppTac.style] || STYLES.balanced;
+  const styleBonusMe = styleMe.attack + styleMatchupBonus(myTac.style, oppTac.style);
+  const styleBonusOpp = styleOpp.attack + styleMatchupBonus(oppTac.style, myTac.style);
+  const lineMe = lineModifier(myTac.line, myTac.trap, rMe.defense, rOpp.attack);
+  const lineOpp = lineModifier(oppTac.line, oppTac.trap, rOpp.defense, rMe.attack);
+  const effAttackMe = rMe.attack * (1 + styleBonusMe + lineMe.attackAdj);
+  const effAttackOpp = rOpp.attack * (1 + styleBonusOpp + lineOpp.attackAdj);
+  const effDefenseMe = rMe.defense * (1 + styleMe.defense + lineMe.defenseAdj);
+  const effDefenseOpp = rOpp.defense * (1 + styleOpp.defense + lineOpp.defenseAdj);
+  return { ratings:{me:rMe, opp:rOpp}, formationEdge, hints,
+    styleMeName: styleMe.name, styleOppName: styleOpp.name, styleBonusMe, styleBonusOpp,
+    lineMe, lineOpp, effAttackMe, effAttackOpp, effDefenseMe, effDefenseOpp };
+}
+function findClubAnywhere(s, id){
+  const pools = [s.clubs, s.championshipClubs, s.plClubs, s.laligaClubs, s.serieaClubs, s.bundesligaClubs, s.ligue1Clubs];
+  for (const pool of pools){ if (pool){ const found = pool.find(c=>c.id===id); if (found) return found; } }
+  return null;
+}
+// Removes any suspended player currently sitting in the lineup and refills that slot with the best
+// eligible replacement, so a red card doesn't silently leave you playing a player short next time out.
+function cleanLineupOfSuspended(formation, players, lineup, suspendedIds){
+  const suspended = new Set(suspendedIds || []);
+  const hasSuspendedStarter = Object.values(lineup).some(pid => pid && suspended.has(pid));
+  if (!hasSuspendedStarter) return lineup;
+  const slots = FORMATIONS[formation] || [];
+  const newLineup = {};
+  const used = new Set();
+  Object.entries(lineup).forEach(([idx,pid]) => {
+    if (pid && !suspended.has(pid)){ newLineup[idx] = pid; used.add(pid); }
+  });
+  slots.forEach((slot,i) => {
+    if (newLineup[i]) return;
+    const eligible = players.filter(p=>!used.has(p.id) && !suspended.has(p.id));
+    const pick = eligible.filter(p=>p.role===slot.role).sort((a,b)=>b.ovr-a.ovr)[0]
+      || eligible.filter(p=>(ROLE_COMPAT[slot.role]||[]).includes(p.role)).sort((a,b)=>b.ovr-a.ovr)[0]
+      || eligible.filter(p=>p.group===ROLE_GROUP[slot.role]).sort((a,b)=>b.ovr-a.ovr)[0];
+    if (pick){ newLineup[i] = pick.id; used.add(pick.id); }
+  });
+  return newLineup;
+}
+function buildLiveMatchContext(s, userResult, oppClub, competition="ucl"){
   const myClubObj = s.clubs.find(c=>c.id===s.myClubId);
-  const lineupPlayers = getMatchPlayers(s);
+  const lineupPlayers = getMatchPlayers(s, competition);
   const oppPlayers = topXI(oppClub.players);
   const homeName = userResult.isHome ? myClubObj.name : oppClub.name;
   const awayName = userResult.isHome ? oppClub.name : myClubObj.name;
-  const timeline = buildMatchTimeline(myClubObj.name, lineupPlayers, oppClub.name, oppPlayers, userResult.myGoals, userResult.oppGoals);
-  return { timeline, homeName, awayName };
+  const usedMinutes = new Set((userResult.goalList||[]).map(g=>g.minute));
+  const oppGoalList = buildGoalList(userResult.oppGoals, oppPlayers, usedMinutes);
+  const timeline = buildMatchTimeline(myClubObj.name, lineupPlayers, oppClub.name, oppPlayers, userResult.goalList||[], oppGoalList, userResult.redCard);
+  const myTac = myTactics(s);
+  const oppTac = aiTactics(oppClub);
+  const rMe = teamRatings(lineupPlayers), rOpp = teamRatings(oppPlayers);
+  const rHome = userResult.isHome ? rMe : rOpp, rAway = userResult.isHome ? rOpp : rMe;
+  const styleHome = userResult.isHome ? myTac.style : oppTac.style;
+  const styleAway = userResult.isHome ? oppTac.style : myTac.style;
+  const goalsHome = userResult.isHome ? userResult.myGoals : userResult.oppGoals;
+  const goalsAway = userResult.isHome ? userResult.oppGoals : userResult.myGoals;
+  const stats = computeMatchStats(rHome, rAway, styleHome, styleAway, goalsHome, goalsAway);
+  const analysis = analyzeMatchup(lineupPlayers, oppPlayers, myTac, oppTac);
+  return { timeline, homeName, awayName, myName: myClubObj.name, oppName: oppClub.name, stats, analysis, myTacStyle: myTac.style, oppTacStyle: oppTac.style };
 }
 
 function freshState(){
@@ -3122,6 +3308,7 @@ function freshState(){
     plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, championshipClubs: buildChampionshipClubs(),
     myClubId: null, simMode: null,
     formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, offsideTrap: false,
+    suspensions: { domestic: [], ucl: [] },
     half: 1, roundIndex: 0, roundsHalf1: null, roundsHalf2: null, tableRaw: null, lastResult: null,
     results1: [], results2: [], table1: null, tableFinal: null,
     cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus() }, lastCupResult: null,
@@ -3293,26 +3480,37 @@ export default function App(){
       const rounds = half===1 ? cur.roundsHalf1 : cur.roundsHalf2;
       let tableRaw = cur.tableRaw;
       let cupStatus = { ...cur.cupStatus };
+      let domesticSuspended = [...((cur.suspensions&&cur.suspensions.domestic) || [])];
       const results = [];
       rounds.forEach((round, idx) => {
         const slot = pendingCupSlot(cur.myClubId, half, idx, cupStatus, cur.league);
         if (slot){
-          const { updatedCs } = simulateCupMatch({ ...cur, cupStatus }, slot.comp, slot.round);
+          const liveState = { ...cur, cupStatus, suspensions: { ...cur.suspensions, domestic: domesticSuspended } };
+          const { updatedCs, matchResult } = simulateCupMatch(liveState, slot.comp, slot.round);
           cupStatus = { ...cupStatus, [slot.comp]: updatedCs };
+          domesticSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
         }
         const gw = (half===1?0:19) + idx + 1;
-        const { updates, userResult } = simulateRound(cur, round, gw);
+        const liveState2 = { ...cur, suspensions: { ...cur.suspensions, domestic: domesticSuspended } };
+        const { updates, userResult } = simulateRound(liveState2, round, gw);
         tableRaw = applyUpdates(tableRaw, updates);
         if (userResult) results.push(userResult);
+        domesticSuspended = userResult && userResult.redCard ? [userResult.redCard.id] : [];
       });
       if (half===2){
         const slot = pendingCupSlot(cur.myClubId, half, 19, cupStatus, cur.league);
-        if (slot){ const { updatedCs } = simulateCupMatch({ ...cur, cupStatus }, slot.comp, slot.round); cupStatus = { ...cupStatus, [slot.comp]: updatedCs }; }
+        if (slot){
+          const liveState = { ...cur, cupStatus, suspensions: { ...cur.suspensions, domestic: domesticSuspended } };
+          const { updatedCs, matchResult } = simulateCupMatch(liveState, slot.comp, slot.round);
+          cupStatus = { ...cupStatus, [slot.comp]: updatedCs };
+          domesticSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
+        }
       }
       const tableArr = computeTableArray(tableRaw, cur.clubs);
       return { ...cur, tableRaw, cupStatus, stage: half===1?"half-results":"full-results",
         results1: half===1?results:cur.results1, results2: half===2?results:cur.results2,
-        table1: half===1?tableArr:cur.table1, tableFinal: half===2?tableArr:cur.tableFinal };
+        table1: half===1?tableArr:cur.table1, tableFinal: half===2?tableArr:cur.tableFinal,
+        suspensions: { ...cur.suspensions, domestic: domesticSuspended } };
     });
   }
   function beginMatchday(half){
@@ -3325,16 +3523,29 @@ export default function App(){
       const gw = (s.half===1?0:19) + s.roundIndex + 1;
       const { updates, userResult } = simulateRound(s, round, gw);
       const tableRaw = applyUpdates(s.tableRaw, updates);
-      return { ...s, tableRaw, lastResult: userResult, stage: "matchday-result",
+      const oppClub = findClubAnywhere(s, userResult.opponentId);
+      const liveContext = oppClub ? buildLiveMatchContext(s, userResult, oppClub, "domestic") : null;
+      const newSuspended = userResult.redCard ? [userResult.redCard.id] : [];
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
+      return { ...s, tableRaw, lastResult: userResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "matchday-live" : "matchday-result",
         results1: s.half===1 ? [...s.results1, userResult] : s.results1,
-        results2: s.half===2 ? [...s.results2, userResult] : s.results2 };
+        results2: s.half===2 ? [...s.results2, userResult] : s.results2,
+        suspensions: { ...s.suspensions, domestic: newSuspended } };
     });
   }
   function playCupMatch(comp, round){
     setState(s => {
       const { updatedCs, matchResult } = simulateCupMatch(s, comp, round);
-      return { ...s, cupStatus: { ...s.cupStatus, [comp]: updatedCs }, lastCupResult: matchResult, stage: "cup-result" };
+      const oppClub = findClubAnywhere(s, matchResult.opponentId);
+      const liveContext = oppClub ? buildLiveMatchContext(s, { ...matchResult, isHome: matchResult.homeA }, oppClub, "domestic") : null;
+      const newSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
+      return { ...s, cupStatus: { ...s.cupStatus, [comp]: updatedCs }, lastCupResult: matchResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "cup-live" : "cup-result",
+        suspensions: { ...s.suspensions, domestic: newSuspended } };
     });
+  }
+  function finishDomesticLive(){
+    setState(s => ({ ...s, stage: s.stage==="matchday-live" ? "matchday-result" : s.stage==="cup-live" ? "cup-result" : s.stage }));
   }
   function continueAfterCup(){ setState(s => ({ ...s, stage: "matchday-prep" })); }
   function nextMatch(){
@@ -3373,8 +3584,9 @@ export default function App(){
       return { ...s, stage: "ucl", ucl: {
         stage: "hub", clubs, rounds, roundIndex: 0, tableRaw: initTable(ids), lastMatch: null,
         campaignResults: [], campaignRecord: { w:0,d:0,l:0,gf:0,ga:0 },
-        phaseTable: null, qualification: null, playoffOpponentId: null,
-        knockoutRounds: [], knockoutRoundIndex: 0, knockoutFaced: [], currentKnockoutOpponentId: null, outcome: null,
+        phaseTable: null, qualification: null,
+        knockoutRounds: [], knockoutRoundIndex: 0, knockoutFaced: [], currentKnockoutOpponentId: null,
+        leg: 1, aggregate: { mine:0, opp:0 }, firstLegHomeA: undefined, outcome: null,
       }};
     });
   }
@@ -3390,13 +3602,17 @@ export default function App(){
       if (userResult.myGoals>userResult.oppGoals) record.w++; else if (userResult.myGoals<userResult.oppGoals) record.l++; else record.d++;
       const oppClub = u.clubs.find(c=>c.id===userResult.opponentId);
       const liveContext = buildLiveMatchContext(s, userResult, oppClub);
+      const newUclSuspended = userResult.redCard ? [userResult.redCard.id] : [];
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newUclSuspended);
       return { ...s, ucl: { ...u, tableRaw, lastMatch: userResult, liveContext, stage: "match-live",
-        campaignResults: [...u.campaignResults, userResult], campaignRecord: record } };
+        campaignResults: [...u.campaignResults, userResult], campaignRecord: record },
+        lineup: cleanedLineup,
+        suspensions: { ...s.suspensions, ucl: newUclSuspended } };
     });
   }
   function uclFinishLiveMatch(){
     setState(s => {
-      const map = { "match-live":"match-result", "playoff-live":"playoff-result", "knockout-live":"knockout-result" };
+      const map = { "match-live":"match-result", "knockout-live":"knockout-result" };
       return { ...s, ucl: { ...s.ucl, stage: map[s.ucl.stage] || s.ucl.stage } };
     });
   }
@@ -3412,6 +3628,8 @@ export default function App(){
       return { ...s, ucl: { ...u, roundIndex: u.roundIndex+1, stage: "hub" } };
     });
   }
+  // Knockout Playoff, Round of 16, Quarter-Final and Semi-Final are all two-legged (aggregate score,
+  // penalties if level after the second leg) — only the Final is a single match, same as the real competition.
   function uclContinueAfterPhaseSummary(){
     setState(s => {
       const u = s.ucl;
@@ -3419,38 +3637,17 @@ export default function App(){
         const outcome = "LEAGUE PHASE EXIT";
         return { ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
       }
+      let opp, knockoutRounds;
       if (u.qualification === "playoff"){
+        knockoutRounds = ["Playoff","Round of 16","Quarter-Final","Semi-Final","Final"];
         const zone = u.phaseTable.slice(8,24).filter(r=>r.id!==s.myClubId);
-        const oppRow = zone[Math.floor(Math.random()*zone.length)];
-        return { ...s, ucl: { ...u, playoffOpponentId: oppRow.club.id, stage: "playoff-prep" } };
+        opp = zone[Math.floor(Math.random()*zone.length)].club;
+      } else {
+        knockoutRounds = ["Round of 16","Quarter-Final","Semi-Final","Final"];
+        opp = pickKnockoutOpponent({ ...u, knockoutFaced: [] }, s.myClubId);
       }
-      const knockoutRounds = ["Round of 16","Quarter-Final","Semi-Final","Final"];
-      const opp = pickKnockoutOpponent({ ...u, knockoutFaced: [] }, s.myClubId);
-      return { ...s, ucl: { ...u, knockoutRounds, knockoutRoundIndex:0, knockoutFaced:[], currentKnockoutOpponentId: opp.id, stage: "knockout-prep" } };
-    });
-  }
-  function uclPlayPlayoff(){
-    setState(s => {
-      const u = s.ucl;
-      const opp = u.clubs.find(c=>c.id===u.playoffOpponentId);
-      const result = simulateUclSingleMatch(s, opp, "Playoff");
-      const record = { ...u.campaignRecord };
-      record.gf+=result.myGoals; record.ga+=result.oppGoals;
-      if (result.myGoals>result.oppGoals) record.w++; else if (result.myGoals<result.oppGoals) record.l++; else record.d++;
-      const liveContext = buildLiveMatchContext(s, result, opp);
-      return { ...s, ucl: { ...u, lastMatch: result, liveContext, stage: "playoff-live", campaignResults:[...u.campaignResults,result], campaignRecord:record } };
-    });
-  }
-  function uclContinueAfterPlayoff(){
-    setState(s => {
-      const u = s.ucl;
-      if (!u.lastMatch.won){
-        const outcome = "PLAYOFF ROUND EXIT";
-        return { ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
-      }
-      const knockoutRounds = ["Round of 16","Quarter-Final","Semi-Final","Final"];
-      const opp = pickKnockoutOpponent({ ...u, knockoutFaced: [u.playoffOpponentId] }, s.myClubId);
-      return { ...s, ucl: { ...u, knockoutRounds, knockoutRoundIndex:0, knockoutFaced:[u.playoffOpponentId], currentKnockoutOpponentId: opp.id, stage: "knockout-prep" } };
+      return { ...s, ucl: { ...u, knockoutRounds, knockoutRoundIndex:0, knockoutFaced:[], currentKnockoutOpponentId: opp.id,
+        leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     });
   }
   function uclPlayKnockout(){
@@ -3458,21 +3655,42 @@ export default function App(){
       const u = s.ucl;
       const opp = u.clubs.find(c=>c.id===u.currentKnockoutOpponentId);
       const roundName = u.knockoutRounds[u.knockoutRoundIndex];
-      const result = simulateUclSingleMatch(s, opp, roundName);
+      const isFinal = roundName === "Final";
+      const leg = u.leg || 1;
+      let isHome;
+      if (isFinal || leg===1) isHome = Math.random()<0.5;
+      else isHome = !u.firstLegHomeA;
+      const allowPens = isFinal || leg===2;
+      const result = simulateUclSingleMatch(s, opp, isFinal ? "Final" : `${roundName} — Leg ${leg}`, isHome, allowPens);
       const record = { ...u.campaignRecord };
       record.gf+=result.myGoals; record.ga+=result.oppGoals;
       if (result.myGoals>result.oppGoals) record.w++; else if (result.myGoals<result.oppGoals) record.l++; else record.d++;
       const liveContext = buildLiveMatchContext(s, result, opp);
-      return { ...s, ucl: { ...u, lastMatch: result, liveContext, stage: "knockout-live",
-        campaignResults:[...u.campaignResults,result], campaignRecord:record, knockoutFaced:[...(u.knockoutFaced||[]), opp.id] } };
+      const aggregate = isFinal ? u.aggregate : { mine:(u.aggregate?.mine||0)+result.myGoals, opp:(u.aggregate?.opp||0)+result.oppGoals };
+      const newUclSuspended = result.redCard ? [result.redCard.id] : [];
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newUclSuspended);
+      return { ...s, ucl: { ...u, lastMatch: result, liveContext, aggregate,
+          firstLegHomeA: (!isFinal && leg===1) ? isHome : u.firstLegHomeA,
+          stage: "knockout-live",
+          campaignResults:[...u.campaignResults,result], campaignRecord:record,
+          knockoutFaced: (isFinal || leg===2) ? [...(u.knockoutFaced||[]), opp.id] : (u.knockoutFaced||[]) },
+        lineup: cleanedLineup,
+        suspensions: { ...s.suspensions, ucl: result.redCard ? [result.redCard.id] : [] } };
     });
   }
   function uclContinueAfterKnockout(){
     setState(s => {
       const u = s.ucl;
+      const roundName = u.knockoutRounds[u.knockoutRoundIndex];
+      const isFinal = roundName === "Final";
+      const leg = u.leg || 1;
+      if (!isFinal && leg===1){
+        return { ...s, ucl: { ...u, leg:2, stage:"knockout-prep" } };
+      }
+      const won = u.lastMatch.won;
       const isLastRound = u.knockoutRoundIndex === u.knockoutRounds.length-1;
-      if (!u.lastMatch.won){
-        const outcome = u.knockoutRounds[u.knockoutRoundIndex]==="Final" ? "RUNNER-UP" : `${u.knockoutRounds[u.knockoutRoundIndex].toUpperCase()} EXIT`;
+      if (!won){
+        const outcome = roundName==="Final" ? "RUNNER-UP" : `${roundName.toUpperCase()} EXIT`;
         return { ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
       }
       if (isLastRound){
@@ -3481,14 +3699,15 @@ export default function App(){
       }
       const nextIdx = u.knockoutRoundIndex+1;
       const opp = pickKnockoutOpponent(u, s.myClubId);
-      return { ...s, ucl: { ...u, knockoutRoundIndex: nextIdx, currentKnockoutOpponentId: opp.id, stage: "knockout-prep" } };
+      return { ...s, ucl: { ...u, knockoutRoundIndex: nextIdx, currentKnockoutOpponentId: opp.id,
+        leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     });
   }
   function uclBackToSeason(){ setState(s => ({ ...s, stage: myClub ? (s.tableFinal ? "summary" : "squad") : "select" })); }
   const uclActions = { enterUcl, uclGoToPrep, uclPlayLeagueMatch, uclFinishLiveMatch, uclContinueAfterMatch, uclContinueAfterPhaseSummary,
-    uclPlayPlayoff, uclContinueAfterPlayoff, uclPlayKnockout, uclContinueAfterKnockout, uclBackToSeason };
+    uclPlayKnockout, uclContinueAfterKnockout, uclBackToSeason };
 
-  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: ()=>setCupsOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot };
+  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: ()=>setCupsOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: (state.suspensions && state.suspensions.domestic) || [] };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
@@ -3558,6 +3777,7 @@ export default function App(){
         {r.wentToPens && <div style={{ fontSize:12, color:"#e8b84b", marginBottom:6 }}>Decided on penalties — {r.wonPens ? "you won" : "you lost"} the shootout</div>}
         <ResultBadge result={r.won ? "W" : "L"} />
         {r.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {r.scorerStr}</div>}
+        {r.redCard && <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {r.redCard.name} sent off — suspended for your next domestic match</div>}
         <div style={{ marginTop:10, fontSize:13, fontWeight:700, color: r.won ? "#7fd88f" : "#e08a8a" }}>
           {r.won ? (r.round==="Final" ? "🏆 Champions!" : "Through to the next round") : (r.round==="Final" ? "Runners-up" : "Knocked out")}
         </div>
@@ -3580,6 +3800,7 @@ export default function App(){
         </div>
         <ResultBadge result={r.result} />
         {r.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {r.scorerStr}</div>}
+        {r.redCard && <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {r.redCard.name} sent off — suspended for your next domestic match</div>}
         <div style={{ marginTop:26 }}>
           <button onClick={nextMatch} style={primaryBtnStyle}>{isLast ? "View Half-Time Table →" : "Next Fixture →"}</button>
         </div>
@@ -3804,7 +4025,8 @@ function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverS
   );
 }
 
-function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true }){
+function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, suspendedIds }){
+  const suspendedSet = new Set(suspendedIds || []);
   const usedIds = new Set(Object.values(state.lineup).filter(Boolean));
   const filledSlots = Object.values(state.lineup).filter(Boolean).length;
   const order = ["GK","DEF","MID","FWD"];
@@ -3850,14 +4072,16 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
         <div>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:"#cfe8cf" }}>Squad ({myClub.players.length})</div>
           <div data-bench="true" style={{ maxHeight:460, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
-            {sorted.map(p => (
-              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, background: usedIds.has(p.id)?"#132513":"#0e150e", border:"1px solid #1c2b1c", borderRadius:8, padding:"6px 10px" }}>
-                <div onPointerDown={(e)=>onDragStart(e, p, { source:"squad" })}
-                  style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0, cursor:"grab", touchAction:"none" }}>
+            {sorted.map(p => {
+              const suspended = suspendedSet.has(p.id);
+              return (
+              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, background: suspended?"#2b1414":usedIds.has(p.id)?"#132513":"#0e150e", border: suspended?"1px solid #6b2d2d":"1px solid #1c2b1c", borderRadius:8, padding:"6px 10px", opacity: suspended?0.7:1 }}>
+                <div onPointerDown={suspended?undefined:(e)=>onDragStart(e, p, { source:"squad" })}
+                  style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0, cursor: suspended?"not-allowed":"grab", touchAction:"none" }}>
                   <div style={{ width:8,height:8,borderRadius:"50%", background:GROUP_COLOR[p.group], flexShrink:0 }}/>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                      {p.name}{p.loan && <span style={{color:"#e8b84b",fontSize:10}}> (loan)</span>}{usedIds.has(p.id) && <span style={{color:"#7fd88f",fontSize:10}}> · starting</span>}
+                      {p.name}{p.loan && <span style={{color:"#e8b84b",fontSize:10}}> (loan)</span>}{usedIds.has(p.id) && !suspended && <span style={{color:"#7fd88f",fontSize:10}}> · starting</span>}{suspended && <span style={{color:"#e08a8a",fontSize:10}}> · 🚫 suspended</span>}
                     </div>
                     <div style={{ fontSize:10, color:"#6a8a6a" }}>{p.role} · Age {p.age} · OVR {p.ovr} · {fmtM(p.value)}</div>
                   </div>
@@ -3867,7 +4091,8 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
                 <button onClick={()=>onLoanOut(p.id)} title="Loan out" style={{ background:"transparent", border:"1px solid #2a3a2a", color:"#9ab89a", borderRadius:6, fontSize:10, padding:"5px 7px" }}>Loan</button>
                 <button onClick={()=>onSell(p.id)} title="Sell" style={{ background:"transparent", border:"1px solid #5a2a2a", color:"#e08a8a", borderRadius:6, fontSize:10, padding:"5px 7px" }}>Sell</button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -4252,7 +4477,7 @@ function UclMatchPrep({ state, myClub, squadCommonProps, onPlay }){
     <div>
       <UclBanner text={isHome ? `${myClub.name} vs ${opponent.name}` : `${opponent.name} vs ${myClub.name}`} sub={`League Phase · Matchday ${u.roundIndex+1} of 8`} />
       <div className="ucl-prep-grid">
-        <SquadScreen {...squadCommonProps} onSimulate={onPlay} simulateLabel={`Kick Off vs ${opponent.name}`} showMarketBar={false} />
+        <SquadScreen {...squadCommonProps} onSimulate={onPlay} simulateLabel={`Kick Off vs ${opponent.name}`} showMarketBar={false} suspendedIds={state.suspensions.ucl} />
         <div>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:"#cfe8cf" }}>Rival Squad</div>
           <RivalSquadPanel club={opponent} />
@@ -4273,6 +4498,7 @@ function UclMatchResult({ myClub, result, onContinue }){
       </div>
       <ResultBadge result={result.result} />
       {result.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {result.scorerStr}</div>}
+      {result.redCard && <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {result.redCard.name} sent off — suspended for your next Champions League match</div>}
       <div style={{ marginTop:26 }}>
         <button onClick={onContinue} style={primaryBtnStyle}>Back to Table →</button>
       </div>
@@ -4303,7 +4529,7 @@ function UclSingleMatchPrep({ myClub, opponent, roundLabel, subLabel, squadCommo
     <div>
       <UclBanner text={roundLabel} sub={subLabel || `${myClub.name} vs ${opponent.name}`} />
       <div className="ucl-prep-grid">
-        <SquadScreen {...squadCommonProps} onSimulate={onPlay} simulateLabel={`Kick Off — ${roundLabel}`} showMarketBar={false} />
+        <SquadScreen {...squadCommonProps} onSimulate={onPlay} simulateLabel={`Kick Off — ${roundLabel}`} showMarketBar={false} suspendedIds={squadCommonProps.state.suspensions.ucl} />
         <div>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:"#cfe8cf" }}>Rival Squad</div>
           <RivalSquadPanel club={opponent} />
@@ -4313,20 +4539,40 @@ function UclSingleMatchPrep({ myClub, opponent, roundLabel, subLabel, squadCommo
   );
 }
 
-function UclSingleMatchResult({ myClub, result, roundLabel, isCampaignOver, onContinue }){
+function UclSingleMatchResult({ myClub, result, roundLabel, isCampaignOver, aggregate, isLeg1, onContinue }){
+  const redCardLine = result.redCard ? <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {result.redCard.name} sent off — suspended for your next Champions League match</div> : null;
+  if (isLeg1){
+    return (
+      <div style={{ textAlign:"center", padding:"20px 0" }}>
+        <UclBanner text={`Full Time — ${roundLabel}`} />
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10, flexWrap:"wrap" }}>
+          <div style={{ fontWeight:700, fontSize:15 }}>{result.isHome ? myClub.name : result.opponent}</div>
+          <div style={{ fontSize:32, fontWeight:800 }}>{result.isHome?result.myGoals:result.oppGoals} - {result.isHome?result.oppGoals:result.myGoals}</div>
+          <div style={{ fontWeight:700, fontSize:15 }}>{result.isHome ? result.opponent : myClub.name}</div>
+        </div>
+        {result.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {result.scorerStr}</div>}
+        {redCardLine}
+        <div style={{ marginTop:10, fontSize:13, fontWeight:700, color:"#9ab8e8" }}>First leg complete — second leg to come</div>
+        <div style={{ marginTop:26 }}>
+          <button onClick={onContinue} style={primaryBtnStyle}>Play Second Leg →</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ textAlign:"center", padding:"20px 0" }}>
-      <UclBanner text={`Full Time — ${roundLabel}`} />
+      <UclBanner text={`Full Time — ${roundLabel}`} sub={aggregate ? `Aggregate: ${aggregate.mine}-${aggregate.opp}` : null} />
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10, flexWrap:"wrap" }}>
         <div style={{ fontWeight:700, fontSize:15 }}>{result.isHome ? myClub.name : result.opponent}</div>
         <div style={{ fontSize:32, fontWeight:800 }}>{result.isHome?result.myGoals:result.oppGoals} - {result.isHome?result.oppGoals:result.myGoals}</div>
         <div style={{ fontWeight:700, fontSize:15 }}>{result.isHome ? result.opponent : myClub.name}</div>
       </div>
-      {result.wentToPens && <div style={{ fontSize:12, color:"#e8b84b", marginBottom:6 }}>Decided on penalties — {result.wonPens ? "you won" : "you lost"} the shootout</div>}
+      {result.wentToPens && <div style={{ fontSize:12, color:"#e8b84b", marginBottom:6 }}>Level on aggregate — decided on penalties, {result.wonPens ? "you won" : "you lost"} the shootout</div>}
       <ResultBadge result={result.won ? "W" : "L"} />
       {result.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {result.scorerStr}</div>}
+      {redCardLine}
       <div style={{ marginTop:10, fontSize:13, fontWeight:700, color: result.won ? "#7fd88f" : "#e08a8a" }}>
-        {result.won ? (isCampaignOver ? "🏆 Champions of Europe!" : "Through to the next round") : (roundLabel==="Final" ? "Runners-up" : "Knocked out")}
+        {result.won ? (isCampaignOver ? "🏆 Champions of Europe!" : "Through to the next round") : (roundLabel.startsWith("Final") ? "Runners-up" : "Knocked out")}
       </div>
       <div style={{ marginTop:26 }}>
         <button onClick={onContinue} style={primaryBtnStyle}>{(!result.won || isCampaignOver) ? "View Campaign Summary →" : "Continue →"}</button>
@@ -4366,9 +4612,74 @@ function UclFinal({ myClub, rec, onBack }){
   );
 }
 
-function LiveMatchScreen({ homeName, awayName, timeline, onDone, banner }){
+function PossessionBar({ home, away }){
+  return (
+    <div style={{ display:"flex", borderRadius:8, overflow:"hidden", height:36, marginBottom:14 }}>
+      <div style={{ width:`${home}%`, background:"#8b2020", display:"flex", alignItems:"center", justifyContent:"flex-start", paddingLeft:12, color:"#fff", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{home}%</div>
+      <div style={{ width:`${away}%`, background:"#e8e8e8", display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:12, color:"#111", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{away}%</div>
+    </div>
+  );
+}
+function StatRow({ label, left, right }){
+  return (
+    <div style={{ display:"flex", alignItems:"center", padding:"7px 0", fontSize:12, borderTop:"1px solid #1c2b1c" }}>
+      <div style={{ width:64, textAlign:"left", fontWeight:700 }}>{left}</div>
+      <div style={{ flex:1, textAlign:"center", color:"#9ab89a" }}>{label}</div>
+      <div style={{ width:64, textAlign:"right", fontWeight:700 }}>{right}</div>
+    </div>
+  );
+}
+function MatchStatsPanel({ stats, minute }){
+  const s = revealStats(stats, minute);
+  return (
+    <div style={{ marginBottom:20 }}>
+      <PossessionBar home={s.possession[0]} away={s.possession[1]} />
+      <StatRow label="Expected goals (xG)" left={s.xg[0].toFixed(2)} right={s.xg[1].toFixed(2)} />
+      <StatRow label="Total shots" left={s.shots[0]} right={s.shots[1]} />
+      <StatRow label="Shots on target" left={s.sot[0]} right={s.sot[1]} />
+      <StatRow label="Touches in opposition box" left={s.touches[0]} right={s.touches[1]} />
+      <StatRow label="Big chances" left={s.bigChances[0]} right={s.bigChances[1]} />
+      <StatRow label="Big chances missed" left={s.bigChancesMissed[0]} right={s.bigChancesMissed[1]} />
+      <StatRow label="Accurate passes" left={`${s.accPasses[0]} (${s.passAcc[0]}%)`} right={`${s.accPasses[1]} (${s.passAcc[1]}%)`} />
+      <StatRow label="Fouls committed" left={s.fouls[0]} right={s.fouls[1]} />
+      <StatRow label="Offsides" left={s.offsides[0]} right={s.offsides[1]} />
+      <StatRow label="Corners" left={s.corners[0]} right={s.corners[1]} />
+    </div>
+  );
+}
+function fmtPct(n){ return `${n>=0?"+":""}${Math.round(n*100)}%`; }
+function TacticalBreakdown({ analysis, myName, oppName }){
+  const a = analysis;
+  return (
+    <div style={{ background:"#0e150e", border:"1px solid #1c2b1c", borderRadius:10, padding:14, marginBottom:20 }}>
+      <div style={{ fontSize:12, fontWeight:700, color:"#cfe8cf", marginBottom:10 }}>📊 How This Is Being Calculated</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, fontSize:11, color:"#9ab89a", marginBottom:10 }}>
+        <div>
+          <div style={{ fontWeight:700, color:"#e8ede8", marginBottom:3 }}>{myName}</div>
+          <div>Attack {a.ratings.me.attack.toFixed(1)} · Defense {a.ratings.me.defense.toFixed(1)}</div>
+          <div>Style: {a.styleMeName} ({fmtPct(a.styleBonusMe)} attack)</div>
+          <div>Line/trap: {fmtPct(a.lineMe.attackAdj)} att, {fmtPct(a.lineMe.defenseAdj)} def</div>
+        </div>
+        <div>
+          <div style={{ fontWeight:700, color:"#e8ede8", marginBottom:3 }}>{oppName}</div>
+          <div>Attack {a.ratings.opp.attack.toFixed(1)} · Defense {a.ratings.opp.defense.toFixed(1)}</div>
+          <div>Style: {a.styleOppName} ({fmtPct(a.styleBonusOpp)} attack)</div>
+          <div>Line/trap: {fmtPct(a.lineOpp.attackAdj)} att, {fmtPct(a.lineOpp.defenseAdj)} def</div>
+        </div>
+      </div>
+      <div style={{ fontSize:11, color: a.formationEdge>0?"#7fd88f":a.formationEdge<0?"#e8b84b":"#9ab89a", marginBottom:8 }}>
+        Formation matchup: {fmtPct(a.formationEdge)} · {a.hints.map(h=>h.text).join(" · ")}
+      </div>
+      <div style={{ fontSize:12, fontWeight:700, color:"#e8ede8", paddingTop:8, borderTop:"1px solid #1c2b1c" }}>
+        Effective attack {a.effAttackMe.toFixed(1)} vs their effective defense {a.effDefenseOpp.toFixed(1)} — and vice versa ({a.effAttackOpp.toFixed(1)} vs {a.effDefenseMe.toFixed(1)}) — feed the goal-expectancy model that decided this match.
+      </div>
+    </div>
+  );
+}
+function LiveMatchScreen({ homeName, awayName, myName, oppName, timeline, stats, analysis, onDone, banner }){
   const [minute, setMinute] = useState(0);
   const [done, setDone] = useState(false);
+  const [tab, setTab] = useState("events");
   const timerRef = useRef(null);
   const feedRef = useRef(null);
 
@@ -4391,9 +4702,16 @@ function LiveMatchScreen({ homeName, awayName, timeline, onDone, banner }){
     setDone(true);
   }
 
-  const homeGoals = revealed.filter(e => e.type==="goal" && e.teamName===homeName).length;
-  const awayGoals = revealed.filter(e => e.type==="goal" && e.teamName===awayName).length;
-  const ICONS = { goal:"⚽", yellow:"🟨", red:"🟥", chance:"➡️" };
+  const GOAL_TYPES = ["goal","penalty","freekick","corner"];
+  const homeGoals = revealed.filter(e => GOAL_TYPES.includes(e.type) && e.teamName===homeName).length;
+  const awayGoals = revealed.filter(e => GOAL_TYPES.includes(e.type) && e.teamName===awayName).length;
+  const ICONS = { goal:"⚽", penalty:"🎯", freekick:"🌀", corner:"🚩", yellow:"🟨", red:"🟥", chance:"➡️", var:"📺", offside:"🚫" };
+  const tabBtn = (key, label) => (
+    <button onClick={()=>setTab(key)} style={{
+      flex:1, padding:"8px 0", fontSize:12, fontWeight:700, borderRadius:8, border:"none", cursor:"pointer",
+      background: tab===key ? "#2d6b3f" : "transparent", color: tab===key ? "#fff" : "#9ab89a"
+    }}>{label}</button>
+  );
 
   return (
     <div>
@@ -4406,16 +4724,30 @@ function LiveMatchScreen({ homeName, awayName, timeline, onDone, banner }){
           <div style={{ fontWeight:700, fontSize:16 }}>{awayName}</div>
         </div>
       </div>
-      <div ref={feedRef} style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, marginBottom:20, padding:"2px 4px", background:"#0a120a", border:"1px solid #1c2b1c", borderRadius:10 }}>
-        {revealed.length===0 && <div style={{ textAlign:"center", color:"#6a8a6a", fontSize:12, padding:"16px 0" }}>Kick-off…</div>}
-        {revealed.map((e,i) => (
-          <div key={i} style={{ display:"flex", alignItems:"center", gap:10, background: e.type==="goal"?"#132513":"#0e150e", border:"1px solid #1c2b1c", borderRadius:8, padding:"6px 12px", fontSize:12, margin:"0 6px" }}>
-            <span style={{ color:"#6a8a6a", minWidth:28, fontWeight:700 }}>{e.minute}'</span>
-            <span style={{ fontSize:14 }}>{ICONS[e.type]}</span>
-            <span>{e.text} <span style={{ color:"#6a8a6a" }}>({e.teamName})</span></span>
-          </div>
-        ))}
-      </div>
+
+      {stats && (
+        <div style={{ display:"flex", gap:6, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:4, marginBottom:16 }}>
+          {tabBtn("events", "Events")}{tabBtn("stats", "Stats")}{analysis && tabBtn("analysis", "Analysis")}
+        </div>
+      )}
+
+      {tab==="events" || !stats ? (
+        <div ref={feedRef} style={{ maxHeight:340, overflowY:"auto", display:"flex", flexDirection:"column", gap:6, marginBottom:20, padding:"2px 4px", background:"#0a120a", border:"1px solid #1c2b1c", borderRadius:10 }}>
+          {revealed.length===0 && <div style={{ textAlign:"center", color:"#6a8a6a", fontSize:12, padding:"16px 0" }}>Kick-off…</div>}
+          {revealed.map((e,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, background: GOAL_TYPES.includes(e.type)?"#132513":"#0e150e", border:"1px solid #1c2b1c", borderRadius:8, padding:"6px 12px", fontSize:12, margin:"0 6px" }}>
+              <span style={{ color:"#6a8a6a", minWidth:28, fontWeight:700 }}>{e.minute}'</span>
+              <span style={{ fontSize:14 }}>{ICONS[e.type]}</span>
+              <span>{e.text} <span style={{ color:"#6a8a6a" }}>({e.teamName})</span></span>
+            </div>
+          ))}
+        </div>
+      ) : tab==="stats" ? (
+        <MatchStatsPanel stats={stats} minute={minute} />
+      ) : (
+        <TacticalBreakdown analysis={analysis} myName={myName} oppName={oppName} />
+      )}
+
       <div style={{ textAlign:"center" }}>
         {!done ? (
           <button onClick={skip} style={{ background:"transparent", border:"1px solid #2a3a2a", color:"#9ab89a", fontWeight:600, fontSize:13, padding:"10px 20px", borderRadius:9 }}>Skip to Full Time</button>
@@ -4432,28 +4764,35 @@ function UclPage({ state, myClub, squadCommonProps, actions }){
   if (!u) return null;
   if (u.stage === "hub") return <UclHub state={state} myClub={myClub} onPlayNext={actions.uclGoToPrep} />;
   if (u.stage === "match-prep") return <UclMatchPrep state={state} myClub={myClub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayLeagueMatch} />;
-  if (u.stage === "match-live") return <LiveMatchScreen homeName={u.liveContext.homeName} awayName={u.liveContext.awayName} timeline={u.liveContext.timeline} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text="Kick-Off" sub={`League Phase · vs ${u.lastMatch.opponent}`} />} />;
+  if (u.stage === "match-live") return <LiveMatchScreen homeName={u.liveContext.homeName} awayName={u.liveContext.awayName} myName={u.liveContext.myName} oppName={u.liveContext.oppName} timeline={u.liveContext.timeline} stats={u.liveContext.stats} analysis={u.liveContext.analysis} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text="Kick-Off" sub={`League Phase · vs ${u.lastMatch.opponent}`} />} />;
   if (u.stage === "match-result") return <UclMatchResult myClub={myClub} result={u.lastMatch} onContinue={actions.uclContinueAfterMatch} />;
   if (u.stage === "phase-summary") return <UclPhaseSummary state={state} onContinue={actions.uclContinueAfterPhaseSummary} />;
-  if (u.stage === "playoff-prep"){
-    const opp = u.clubs.find(c=>c.id===u.playoffOpponentId);
-    return <UclSingleMatchPrep myClub={myClub} opponent={opp} roundLabel="Knockout Playoff" squadCommonProps={squadCommonProps} onPlay={actions.uclPlayPlayoff} />;
-  }
-  if (u.stage === "playoff-live") return <LiveMatchScreen homeName={u.liveContext.homeName} awayName={u.liveContext.awayName} timeline={u.liveContext.timeline} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text="Kick-Off — Knockout Playoff" />} />;
-  if (u.stage === "playoff-result") return <UclSingleMatchResult myClub={myClub} result={u.lastMatch} roundLabel="Playoff" isCampaignOver={!u.lastMatch.won} onContinue={actions.uclContinueAfterPlayoff} />;
   if (u.stage === "knockout-prep"){
     const opp = u.clubs.find(c=>c.id===u.currentKnockoutOpponentId);
     const roundName = u.knockoutRounds[u.knockoutRoundIndex];
-    return <UclSingleMatchPrep myClub={myClub} opponent={opp} roundLabel={roundName} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayKnockout} />;
+    const isFinal = roundName === "Final";
+    const leg = u.leg || 1;
+    const label = isFinal ? "Final" : `${roundName} — Leg ${leg} of 2`;
+    const sub = isFinal ? `${myClub.name} vs ${opp.name}` : (leg===1 ? `${myClub.name} vs ${opp.name} — first leg` : `Aggregate ${u.aggregate.mine}-${u.aggregate.opp} · second leg`);
+    return <UclSingleMatchPrep myClub={myClub} opponent={opp} roundLabel={label} subLabel={sub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayKnockout} />;
   }
   if (u.stage === "knockout-live"){
     const roundName = u.knockoutRounds[u.knockoutRoundIndex];
-    return <LiveMatchScreen homeName={u.liveContext.homeName} awayName={u.liveContext.awayName} timeline={u.liveContext.timeline} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text={`Kick-Off — ${roundName}`} />} />;
+    const isFinal = roundName === "Final";
+    const leg = u.leg || 1;
+    const label = isFinal ? "Final" : `${roundName} — Leg ${leg}`;
+    return <LiveMatchScreen homeName={u.liveContext.homeName} awayName={u.liveContext.awayName} myName={u.liveContext.myName} oppName={u.liveContext.oppName} timeline={u.liveContext.timeline} stats={u.liveContext.stats} analysis={u.liveContext.analysis} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text={`Kick-Off — ${label}`} />} />;
   }
   if (u.stage === "knockout-result"){
     const roundName = u.knockoutRounds[u.knockoutRoundIndex];
-    const isCampaignOver = !u.lastMatch.won || roundName === "Final";
-    return <UclSingleMatchResult myClub={myClub} result={u.lastMatch} roundLabel={roundName} isCampaignOver={isCampaignOver} onContinue={actions.uclContinueAfterKnockout} />;
+    const isFinal = roundName === "Final";
+    const leg = u.leg || 1;
+    const isDecidingLeg = isFinal || leg===2;
+    const isCampaignOver = isDecidingLeg && (!u.lastMatch.won || isFinal);
+    const label = isFinal ? "Final" : `${roundName} — Leg ${leg}`;
+    return <UclSingleMatchResult myClub={myClub} result={u.lastMatch} roundLabel={label}
+      aggregate={isFinal?null:u.aggregate} isLeg1={!isFinal && leg===1}
+      isCampaignOver={isCampaignOver} onContinue={actions.uclContinueAfterKnockout} />;
   }
   if (u.stage === "final") return <UclFinal myClub={myClub} rec={{ results:u.campaignResults, record:u.campaignRecord, outcome:u.outcome }} onBack={actions.uclBackToSeason} />;
   return null;
