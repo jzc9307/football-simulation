@@ -63,8 +63,11 @@ export function startNextSeason(s){
   const development=[];
   clubs=clubs.map(c=>({...c,players:c.players.map(p=>{
     const delta=p.age<24&&p.appearances>=10?1:p.age>=32?-1:0;
-    if(c.id===s.myClubId&&delta)development.push(`${p.name}: ${p.ovr} → ${clamp(p.ovr+delta,45,95)}`);
-    return {...p,age:p.age+1,ovr:clamp(p.ovr+delta,45,95),value:Math.max(1,Math.round(p.value*(delta>0?1.08:delta<0?0.9:1))),condition:100,appearances:0};
+    if(c.id===s.myClubId&&delta)development.push({
+      id:p.id,name:p.name,from:p.ovr,to:clamp(p.ovr+delta,45,95),delta
+    });
+    return {...p,age:p.age+1,ovr:clamp(p.ovr+delta,45,95),value:Math.max(1,Math.round(p.value*(delta>0?1.08:delta<0?0.9:1))),condition:100,appearances:0,
+      confidence:0,seasonGoals:0,seasonAssists:0,ratingTotal:0,ratedMatches:0,bestRating:0,motm:0,seasonMinutes:0,lastRating:null,lastConfidenceChange:0};
   })}));
   const rank=s.tableFinal.findIndex(r=>r.id===s.myClubId)+1;
   const grant=10+(s.clubs.length-rank+1)*2;

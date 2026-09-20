@@ -65,7 +65,30 @@ function TacticalBreakdown({ analysis, myName, oppName }){
     </div>
   );
 }
-export default function LiveMatchScreen({ homeName, awayName, myName, oppName, timeline, stats, analysis, onDone, banner }){
+function ratingColor(rating){return rating>=8?"#83e29a":rating>=7?"#c6db75":rating>=6?"#e8d39a":"#ec8d8d";}
+function PlayerRatingsPanel({ ratings, manOfTheMatch, homeName, awayName, done }){
+  if(!done)return <div className="ratings-wait"><span>★</span><strong>Player ratings unlock at full time</strong><small>Goals, assists, chances, clean sheets, the result and discipline all contribute.</small></div>;
+  if(!ratings)return null;
+  return (
+    <div className="match-ratings">
+      {manOfTheMatch&&<div className="motm-card">
+        <span className="motm-star">★</span><div><small>MAN OF THE MATCH</small><strong>{manOfTheMatch.name}</strong><span>{manOfTheMatch.side===0?homeName:awayName} · {manOfTheMatch.goals||0}G {manOfTheMatch.assists||0}A</span></div>
+        <b>{manOfTheMatch.rating.toFixed(1)}</b>
+      </div>}
+      <div className="ratings-columns">
+        {[homeName,awayName].map((teamName,side)=><div className="ratings-team" key={teamName}>
+          <div className="ratings-team-name">{teamName}</div>
+          {[...(ratings[side]||[])].sort((a,b)=>b.rating-a.rating).map(player=><div className={`player-rating-row ${player.isMotm?"is-motm":""}`} key={player.playerId}>
+            <span className="rating-role">{player.group}</span><span className="rating-name"><strong>{player.name}</strong><small>{player.minutes}&apos; · {player.goals||0}G {player.assists||0}A{player.red?" · sent off":""}</small></span>
+            <span className="rating-confidence">{player.confidenceDelta>0?`Form +${player.confidenceDelta}`:player.confidenceDelta<0?`Form ${player.confidenceDelta}`:"Steady"}</span>
+            <b style={{color:ratingColor(player.rating)}}>{player.rating.toFixed(1)}</b>
+          </div>)}
+        </div>)}
+      </div>
+    </div>
+  );
+}
+export default function LiveMatchScreen({ homeName, awayName, myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, onDone, banner }){
   const [minute, setMinute] = useState(0);
   const endMinute=Math.max(95,...timeline.map(e=>e.minute));
   const done=minute>=endMinute;
@@ -115,7 +138,7 @@ export default function LiveMatchScreen({ homeName, awayName, myName, oppName, t
 
       {stats && (
         <div style={{ display:"flex", gap:6, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:4, marginBottom:16 }}>
-          {tabBtn("events", "Events")}{tabBtn("stats", "Stats")}{analysis && tabBtn("analysis", "Analysis")}
+          {tabBtn("events", "Events")}{tabBtn("stats", "Stats")}{analysis && tabBtn("analysis", "Analysis")}{playerRatings&&tabBtn("ratings", "Player Ratings")}
         </div>
       )}
 
@@ -132,11 +155,13 @@ export default function LiveMatchScreen({ homeName, awayName, myName, oppName, t
         </div>
       ) : tab==="stats" ? (
         <MatchStatsPanel stats={stats} minute={minute} />
-      ) : (
+      ) : tab==="analysis" ? (
         <TacticalBreakdown analysis={analysis} myName={myName} oppName={oppName} />
+      ) : (
+        <PlayerRatingsPanel ratings={playerRatings} manOfTheMatch={manOfTheMatch} homeName={homeName} awayName={awayName} done={done}/>
       )}
 
-      <div style={{ textAlign:"center" }}>
+      <div className="live-match-action">
         {!done ? (
           <button onClick={skip} style={{ background:"transparent", border:"1px solid #2a3a2a", color:"#9ab89a", fontWeight:600, fontSize:13, padding:"10px 20px", borderRadius:9 }}>Skip to Full Time</button>
         ) : (
@@ -146,4 +171,3 @@ export default function LiveMatchScreen({ homeName, awayName, myName, oppName, t
     </div>
   );
 }
-

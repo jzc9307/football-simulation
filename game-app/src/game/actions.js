@@ -1,4 +1,4 @@
-import { lineupIssue, applyUpdates, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyMatchFitness } from "./engine.js";
+import { lineupIssue, applyUpdates, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyMatchFitness, applyPerformanceUpdates } from "./engine.js";
 function requireLineup(s,competition="domestic"){const issue=lineupIssue(s,competition);if(issue)throw new Error(issue);}
 export function simulateHalf(s, half){
       requireLineup(s);
@@ -8,16 +8,18 @@ export function simulateHalf(s, half){
         let slot;
         while((slot=pendingCupSlot(cur.myClubId,half,idx,cur.cupStatus,cur.league))){
           const {updatedCs,matchResult}=simulateCupMatch(cur,slot.comp,slot.round);
-          cur=applyMatchFitness({...cur,cupStatus:{...cur.cupStatus,[slot.comp]:updatedCs}},matchResult);
+          cur=applyPerformanceUpdates({...cur,cupStatus:{...cur.cupStatus,[slot.comp]:updatedCs}},matchResult.performanceUpdates);
+          cur=applyMatchFitness(cur,matchResult);
           const suspended=matchResult.redCard?[matchResult.redCard.id]:[];
           cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,suspended)};
         }
       };
       rounds.forEach((round,idx)=>{
         playDueCups(idx);
-        const {updates,userResult}=simulateRound(cur,round,(half===1?0:cur.roundsHalf1.length)+idx+1);
+        const {updates,userResult,performanceUpdates}=simulateRound(cur,round,(half===1?0:cur.roundsHalf1.length)+idx+1);
         results.push(userResult);
-        cur=applyMatchFitness({...cur,tableRaw:applyUpdates(cur.tableRaw,updates)},userResult);
+        cur=applyPerformanceUpdates({...cur,tableRaw:applyUpdates(cur.tableRaw,updates)},performanceUpdates);
+        cur=applyMatchFitness(cur,userResult);
         const suspended=userResult.redCard?[userResult.redCard.id]:[];
         cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,suspended)};
       });
@@ -32,13 +34,15 @@ export function playLeagueRound(s){
       const rounds = s.half===1 ? s.roundsHalf1 : s.roundsHalf2;
       const round = rounds[s.roundIndex];
       const gw = (s.half===1?0:s.roundsHalf1.length) + s.roundIndex + 1;
-      const { updates, userResult } = simulateRound(s, round, gw);
+      const { updates, userResult, performanceUpdates } = simulateRound(s, round, gw);
       const tableRaw = applyUpdates(s.tableRaw, updates);
       const oppClub = findClubAnywhere(s, userResult.opponentId);
       const liveContext = oppClub ? buildLiveMatchContext(s, userResult, oppClub, "domestic") : null;
       const newSuspended = userResult.redCard ? [userResult.redCard.id] : [];
       const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
-      return { ...applyMatchFitness(s,userResult), tableRaw, lastResult: userResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "matchday-live" : "matchday-result",
+      let next=applyPerformanceUpdates({...s,tableRaw},performanceUpdates);
+      next=applyMatchFitness(next,userResult);
+      return { ...next, lastResult: userResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "matchday-live" : "matchday-result",
         results1: s.half===1 ? [...s.results1, userResult] : s.results1,
         results2: s.half===2 ? [...s.results2, userResult] : s.results2,
         suspensions: { ...s.suspensions, domestic: newSuspended } };
@@ -51,7 +55,9 @@ export function playDomesticCup(s, comp, round){
       const liveContext = oppClub ? buildLiveMatchContext(s, { ...matchResult, isHome: matchResult.homeA }, oppClub, "domestic") : null;
       const newSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
       const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
-      return { ...applyMatchFitness(s,matchResult), cupStatus: { ...s.cupStatus, [comp]: updatedCs }, lastCupResult: matchResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "cup-live" : "cup-result",
+      let next=applyPerformanceUpdates({...s,cupStatus:{...s.cupStatus,[comp]:updatedCs}},matchResult.performanceUpdates);
+      next=applyMatchFitness(next,matchResult);
+      return { ...next, lastCupResult: matchResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "cup-live" : "cup-result",
         suspensions: { ...s.suspensions, domestic: newSuspended } };
     }
 
@@ -83,7 +89,9 @@ export function playEuropeanKnockout(s){
       const aggregate = isFinal ? u.aggregate : { mine:(u.aggregate?.mine||0)+result.myGoals, opp:(u.aggregate?.opp||0)+result.oppGoals };
       const newUclSuspended = result.redCard ? [result.redCard.id] : [];
       const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newUclSuspended);
-      return { ...applyMatchFitness(s,result), ucl: { ...u, lastMatch: result, liveContext, aggregate,
+      let next=applyPerformanceUpdates({...s,ucl:{...u}},result.performanceUpdates);
+      next=applyMatchFitness(next,result);
+      return { ...next, ucl: { ...next.ucl, lastMatch: result, liveContext, aggregate,
           firstLegHomeA: (!isFinal && leg===1) ? isHome : u.firstLegHomeA,
           stage: "knockout-live",
           campaignResults:[...u.campaignResults,result], campaignRecord:record,
@@ -115,4 +123,3 @@ export function advanceEuropeanKnockout(s){
       return { ...s, ucl: { ...u, knockoutRoundIndex: nextIdx, currentKnockoutOpponentId: opp.id,
         leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     }
-

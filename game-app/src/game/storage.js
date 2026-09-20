@@ -1,13 +1,14 @@
-import { freshState, ensureFixtures, computeTableArray, STYLES } from './engine.js';
+import { freshState, ensureFixtures, computeTableArray, STYLES, clamp } from './engine.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
+const SAVE_VERSION=3;
 const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl']);
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 export function validateSave(raw){
-  const input=raw?.version===1?raw.state:raw;
+  const input=raw?.version&&raw?.state?raw.state:raw;
   requireValid(input&&typeof input==='object'&&!Array.isArray(input),'invalid format.');
-  requireValid(!raw.version||raw.version===1,'unsupported save version.');
+  requireValid(!raw.version||[1,2,SAVE_VERSION].includes(raw.version),'unsupported save version.');
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
@@ -24,6 +25,7 @@ export function validateSave(raw){
       for(const p of c.players){
         requireValid(typeof p.id==='string'&&!ids.has(p.id)&&typeof p.name==='string'&&ROLE_GROUP[p.role]&&p.group===ROLE_GROUP[p.role]&&Number.isFinite(p.ovr)&&p.ovr>0&&p.ovr<=100&&Number.isFinite(p.age)&&Number.isFinite(p.value)&&p.value>=0,'invalid player.');
         requireValid(p.condition===undefined||(Number.isFinite(p.condition)&&p.condition>=0&&p.condition<=100),'invalid player condition.');
+        requireValid(p.confidence===undefined||(Number.isFinite(p.confidence)&&p.confidence>=-2&&p.confidence<=2),'invalid player confidence.');
         ids.add(p.id);
         if(key==='clubs'){requireValid(!playerIds.has(p.id),'duplicate player.');playerIds.add(p.id);}
       }
@@ -73,6 +75,20 @@ export function validateSave(raw){
     if(s.ucl.stage.endsWith('-live')&&!s.ucl.liveContext?.timeline?.every(e=>typeof e.isGoal==='boolean'||!['goal','penalty','freekick','corner'].includes(e.type)))s.ucl.stage=s.ucl.stage.replace('-live','-result');
   }
   if(s.stage==='ucl')requireValid(s.ucl,'missing European campaign.');
+  // Version 1 used a cumulative fatigue formula that could strand a squad near
+  // 30% condition. Version 2 uses next-fixture readiness, whose valid floor is
+  // 82%, so repair older saves as they are loaded.
+  if(!raw.version||raw.version===1){
+    for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
+      s[key]=s[key].map(c=>({...c,players:c.players.map(p=>({...p,condition:clamp(p.condition??100,82,100)}))}));
+    }
+  }
+  for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
+    s[key]=s[key].map(c=>({...c,players:c.players.map(p=>({...p,
+      confidence:clamp(p.confidence||0,-2,2),seasonGoals:p.seasonGoals||0,seasonAssists:p.seasonAssists||0,
+      ratingTotal:p.ratingTotal||0,ratedMatches:p.ratedMatches||0,bestRating:p.bestRating||0,motm:p.motm||0,
+      seasonMinutes:p.seasonMinutes||0,lastRating:p.lastRating??null,lastConfidenceChange:p.lastConfidenceChange||0}))}));
+  }
   // Legacy loan flags do not contain ownership; block resale instead of inventing an owner.
   return s;
 }
@@ -83,7 +99,7 @@ export function loadGame(storage){
 }
 export function saveGame(storage,state){
   // Detailed events stay in the active replay. Historical results retain scores/scorers.
-  const json=JSON.stringify({version:1,state},(key,value)=>key==='match'?undefined:value);
+  const json=JSON.stringify({version:SAVE_VERSION,state},(key,value)=>key==='match'?undefined:value);
   storage.setItem(KEY,json);
 }
-export function exportGame(state){return JSON.stringify({version:1,state},(key,value)=>key==='match'?undefined:value,2);}
+export function exportGame(state){return JSON.stringify({version:SAVE_VERSION,state},(key,value)=>key==='match'?undefined:value,2);}

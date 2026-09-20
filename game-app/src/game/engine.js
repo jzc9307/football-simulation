@@ -59,7 +59,7 @@ export function playersForLineup(players, lineup, formation){
 export function avg(arr, fallback){ return arr.length ? arr.reduce((s,p)=>s+p.ovr,0)/arr.length : fallback; }
 
 export function teamRatings(players){
-  players = players.map(p => ({...p, ovr:p.ovr*(0.65 + 0.35*(p.condition ?? 100)/100)}));
+  players = players.map(p => ({...p, ovr:(p.ovr+(p.confidence||0))*(0.65 + 0.35*(p.condition ?? 100)/100)}));
   const gk = players.filter(p=>p.group==="GK");
   const def = players.filter(p=>p.group==="DEF");
   const mid = players.filter(p=>p.group==="MID");
@@ -129,6 +129,7 @@ export function aiTactics(club){
 export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacticsB, rng=Math.random){
   const active = [teamAPlayers,teamBPlayers].map(team=>team.map(p=>({...p})));
   const initialPlayers = active.map(team=>team.map(p=>({...p})));
+  const playerLogs = initialPlayers.map(team=>new Map(team.map(p=>[p.id,{playerId:p.id,name:p.name,role:p.role,group:p.group,start:0,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,red:false}])));
   const tactics = [tacticsA,tacticsB].map(t=>({...t}));
   const events = [], goals = [0,0], goalLists = [[],[]], redCards = [null,null];
   const totals = {shots:[0,0],sot:[0,0],xg:[0,0],touches:[0,0],bigChances:[0,0],bigChancesMissed:[0,0],passes:[0,0],accPasses:[0,0],fouls:[0,0],offsides:[0,0],corners:[0,0]};
@@ -156,6 +157,8 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
           if(!incoming) continue;
           unavailable.add(incoming.id);substitutions++;
           active[side]=active[side].map(p=>p.id===out.id?{...incoming,assignedRole:role,group:ROLE_GROUP[role]}:p);
+          const outLog=playerLogs[side].get(out.id);if(outLog)outLog.end=minute;
+          playerLogs[side].set(incoming.id,{playerId:incoming.id,name:incoming.name,role:incoming.role,group:ROLE_GROUP[role],start:minute,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,red:false});
           events.push({minute,side,type:"sub",playerId:incoming.id,outId:out.id,text:`${incoming.name} replaces ${out.name}`});
         }
       }
@@ -166,6 +169,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
           const p=outfield[Math.floor(rng()*outfield.length)];
           redCards[side]={id:p.id,name:p.name,minute};
           active[side]=active[side].filter(x=>x.id!==p.id);
+          const log=playerLogs[side].get(p.id);if(log){log.end=minute;log.red=true;}
           events.push({minute,side,type:"red",playerId:p.id,text:`RED CARD! ${p.name} is sent off`});
         }
       }
@@ -193,24 +197,116 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         const methodRoll=rng(),method=methodRoll<0.03?"penalty":methodRoll<0.10?"freekick":methodRoll<0.25?"corner":"goal";
         const xg=method==="penalty"?0.76:clamp(0.10*ratio*(0.55+rng()),0.02,0.48);
         const scored=rng()<xg;
+        const shotLog=playerLogs[side].get(shooter.id);if(shotLog){shotLog.shots++;shotLog.xg+=xg;}
         totals.shots[side]++;totals.xg[side]+=xg;totals.touches[side]+=2;
-        if(scored||rng()<0.34)totals.sot[side]++;
+        const onTarget=scored||rng()<0.34;
+        if(onTarget){totals.sot[side]++;if(shotLog)shotLog.sot++;}
         if(method==="corner")totals.corners[side]++;
         if(xg>=0.25){totals.bigChances[side]++;if(!scored)totals.bigChancesMissed[side]++;}
-        if(scored){goals[side]++;goalLists[side].push({name:shooter.name,playerId:shooter.id,minute});}
+        let assist=null;
+        if(scored){
+          goals[side]++;if(shotLog)shotLog.goals++;
+          if(method!=="penalty"&&rng()<0.78){
+            const creators=active[side].filter(p=>p.id!==shooter.id&&p.group!=="GK");
+            if(creators.length){
+              const creatorWeights=creators.map(p=>p.group==="MID"?3:p.group==="FWD"?2:1);
+              let assistPick=rng()*creatorWeights.reduce((a,b)=>a+b,0);assist=creators.at(-1);
+              for(let i=0;i<creators.length;i++){assistPick-=creatorWeights[i];if(assistPick<=0){assist=creators[i];break;}}
+              const assistLog=playerLogs[side].get(assist.id);if(assistLog)assistLog.assists++;
+            }
+          }
+          goalLists[side].push({name:shooter.name,playerId:shooter.id,minute,assistName:assist?.name,assistId:assist?.id});
+        }
         events.push({minute,side,isGoal:scored,playerId:shooter.id,type:scored?method:method==="penalty"?"penalty-miss":method==="corner"?"corner-miss":"chance",
-          text:scored?`${shooter.name} scores${method==="goal"?"!":` from a ${method}!`}`:method==="penalty"?`Penalty missed! ${shooter.name}`:`${shooter.name} misses the chance`});
+          ...(assist?{assistId:assist.id,assistName:assist.name}:{}),
+          text:scored?`${shooter.name} scores${method==="goal"?"!":` from a ${method}!`}${assist?` · assisted by ${assist.name}`:""}`:method==="penalty"?`Penalty missed! ${shooter.name}`:`${shooter.name} misses the chance`});
       }
     }
     history.push(snapshot());
   }
-  const match={events,endMinute,initialPlayers,goalLists,redCards,stats:{...snapshot(),history}};
+  const playerRatings=playerLogs.map((logs,side)=>[...logs.values()].map(log=>{
+    const minutes=Math.max(1,log.end-log.start);
+    const resultBonus=goals[side]>goals[1-side]?0.45:goals[side]===goals[1-side]?0.1:-0.25;
+    const cleanSheetBonus=goals[1-side]===0?(log.group==="GK"?0.55:log.group==="DEF"?0.4:0):0;
+    const goalWeight=log.group==="GK"||log.group==="DEF"?1.45:log.group==="MID"?1.1:0.9;
+    const teamImpact=clamp((goals[side]-goals[1-side])*0.12+(totals.xg[side]-totals.xg[1-side])*0.08,-0.35,0.35);
+    const keeperImpact=log.group==="GK"?Math.max(0,totals.sot[1-side]-goals[1-side])*0.08-goals[1-side]*0.12:0;
+    const cameo=minutes<20?-0.15:0;
+    const raw=6.2+resultBonus+cleanSheetBonus+goalWeight*log.goals+0.65*log.assists+0.08*log.sot-0.05*Math.max(0,log.shots-log.sot)+teamImpact+keeperImpact+(log.red?-1.8:0)+cameo+(rng()-0.5)*0.7;
+    return {...log,minutes,side,rating:+clamp(raw,3,10).toFixed(1)};
+  }));
+  const allRatings=playerRatings.flat();
+  const manOfTheMatch=[...allRatings].sort((a,b)=>b.rating-a.rating||b.goals-a.goals||b.assists-a.assists)[0];
+  for(const rating of allRatings){
+    rating.isMotm=rating===manOfTheMatch;
+    rating.confidenceDelta=rating.red?-2:rating.rating<=5.5?-2:rating.rating<6?-1:(rating.isMotm||rating.goals>=3)?2:(rating.goals+rating.assists>0||rating.rating>=7.4)?1:0;
+  }
+  const match={events,endMinute,initialPlayers,goalLists,redCards,playerRatings,manOfTheMatch:{...manOfTheMatch},stats:{...snapshot(),history}};
   return {goalsA:goals[0],goalsB:goals[1],match};
 }
 export function matchFields(sim,isHome){
   const side=isHome?0:1;
   return {match:sim.match,goalList:sim.match.goalLists[side],oppGoalList:sim.match.goalLists[1-side],redCard:sim.match.redCards[side],
+    playerRatings:sim.match.playerRatings,manOfTheMatch:sim.match.manOfTheMatch,
     scorerStr:formatScorers(sim.match.goalLists[side])};
+}
+
+export function performanceUpdatesForMatch(simulation,homeClubId,awayClubId){
+  return [
+    {clubId:homeClubId,ratings:simulation.match.playerRatings[0]},
+    {clubId:awayClubId,ratings:simulation.match.playerRatings[1]},
+  ];
+}
+export function applyPerformanceUpdates(s,updates=[]){
+  const byClub=new Map();
+  for(const update of updates){
+    if(!byClub.has(update.clubId))byClub.set(update.clubId,[]);
+    byClub.get(update.clubId).push(...update.ratings);
+  }
+  const updateClub=club=>{
+    const ratings=byClub.get(club.id);if(!ratings)return club;
+    const byPlayer=new Map(ratings.map(r=>[r.playerId,r]));
+    return {...club,players:club.players.map(player=>{
+      const r=byPlayer.get(player.id);if(!r)return player;
+      const oldConfidence=player.confidence||0;
+      const faded=oldConfidence>0?oldConfidence-1:oldConfidence<0?oldConfidence+1:0;
+      return {...player,
+        appearances:(player.appearances||0)+1,
+        seasonGoals:(player.seasonGoals||0)+r.goals,
+        seasonAssists:(player.seasonAssists||0)+r.assists,
+        ratingTotal:+((player.ratingTotal||0)+r.rating).toFixed(2),
+        ratedMatches:(player.ratedMatches||0)+1,
+        bestRating:Math.max(player.bestRating||0,r.rating),
+        motm:(player.motm||0)+(r.isMotm?1:0),
+        seasonMinutes:(player.seasonMinutes||0)+r.minutes,
+        lastRating:r.rating,
+        lastConfidenceChange:r.confidenceDelta,
+        confidence:clamp(faded+r.confidenceDelta,-2,2)};
+    })};
+  };
+  const poolKeys=["clubs","plClubs","laligaClubs","serieaClubs","bundesligaClubs","ligue1Clubs","championshipClubs"];
+  const next={...s};
+  for(const key of poolKeys)if(Array.isArray(s[key]))next[key]=s[key].map(updateClub);
+  if(s.ucl?.clubs)next.ucl={...s.ucl,clubs:s.ucl.clubs.map(updateClub)};
+  return next;
+}
+export function playerSeasonAverage(player){return player.ratedMatches?player.ratingTotal/player.ratedMatches:0;}
+export function seasonPlayerRows(clubs){
+  return clubs.flatMap(club=>club.players.filter(p=>(p.ratedMatches||0)>0).map(player=>({player,club,average:playerSeasonAverage(player)})));
+}
+export function seasonBestXI(clubs){
+  const rows=seasonPlayerRows(clubs);
+  const ordered=[...rows].sort((a,b)=>b.average-a.average||(b.player.ratedMatches||0)-(a.player.ratedMatches||0)||(b.player.seasonGoals||0)-(a.player.seasonGoals||0));
+  const used=new Set();
+  return FORMATIONS["4-3-3"].flatMap(slot=>{
+    const available=ordered.filter(r=>!used.has(r.player.id));
+    const pick=available.find(r=>r.player.role===slot.role)
+      || available.find(r=>(ROLE_COMPAT[slot.role]||[]).includes(r.player.role))
+      || available.find(r=>r.player.group===ROLE_GROUP[slot.role]);
+    if(!pick)return [];
+    used.add(pick.player.id);
+    return [{...pick,selectedRole:slot.role}];
+  });
 }
 export function resolveTie(myGoals,oppGoals,prior={mine:0,opp:0},deciding=true,rng=Math.random){
   const aggregate={mine:prior.mine+myGoals,opp:prior.opp+oppGoals};
@@ -333,7 +429,7 @@ export function getMatchPlayers(s, competition="domestic"){
 export function simulateRound(s, round, gw){
   const lineupPlayers = getMatchPlayers(s);
   let userResult = null;
-  const updates = [];
+  const updates = [],performanceUpdates=[];
   round.forEach(([home, away]) => {
     const homeClub = s.clubs.find(c=>c.id===home), awayClub = s.clubs.find(c=>c.id===away);
     const homePlayers = home===s.myClubId ? lineupPlayers : topXI(homeClub.players,homeClub.preferredFormation);
@@ -342,6 +438,7 @@ export function simulateRound(s, round, gw){
     const awayTactics = away===s.myClubId ? myTactics(s) : aiTactics(awayClub);
     const simulation = simMatchSmart(homePlayers, awayPlayers, true, homeTactics, awayTactics);
     const {goalsA,goalsB}=simulation;
+    performanceUpdates.push(...performanceUpdatesForMatch(simulation,home,away));
     updates.push({ clubId:home, gf:goalsA, ga:goalsB });
     updates.push({ clubId:away, gf:goalsB, ga:goalsA });
     if (home===s.myClubId || away===s.myClubId){
@@ -353,7 +450,7 @@ export function simulateRound(s, round, gw){
       userResult = { ...matchFields(simulation,isHome), gw, opponent: opponent.name, opponentColor: opponent.color, opponentId: opponent.id, isHome, myGoals, oppGoals, scorerStr, goalList, redCard, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
     }
   });
-  return { updates, userResult };
+  return { updates, userResult, performanceUpdates };
 }
 export function ensureFixtures(s){
   if (s.roundsHalf1) return s;
@@ -424,13 +521,14 @@ export function simulateCupMatch(s, comp, round){
     homeA?lineupPlayers:oppPlayers, homeA?oppPlayers:lineupPlayers, true,
     homeA?myTac:oppTactics, homeA?oppTactics:myTac
   );
+  const performanceUpdates=performanceUpdatesForMatch(simulation,homeA?s.myClubId:opp.id,homeA?opp.id:s.myClubId);
   const {goalsA,goalsB}=simulation;
   const myGoals = homeA?goalsA:goalsB, oppGoals = homeA?goalsB:goalsA;
   let wentToPens = false, wonPens = null;
   if (myGoals === oppGoals){ wentToPens = true; wonPens = Math.random() < 0.5; }
   const won = myGoals > oppGoals || (wentToPens && wonPens);
   const {goalList,scorerStr,redCard}=matchFields(simulation,homeA);
-  const matchResult = { ...matchFields(simulation,homeA), comp, round, opponent:opp.name, opponentColor:opp.color, opponentId:opp.id, homeA, myGoals, oppGoals, wentToPens, wonPens, won, scorerStr, goalList, redCard };
+  const matchResult = { ...matchFields(simulation,homeA), performanceUpdates, comp, round, opponent:opp.name, opponentColor:opp.color, opponentId:opp.id, homeA, myGoals, oppGoals, wentToPens, wonPens, won, scorerStr, goalList, redCard };
   const record = { ...cs.record };
   record.gf += myGoals; record.ga += oppGoals;
   if (myGoals > oppGoals) record.w++; else if (myGoals < oppGoals) record.l++; else record.d++;
@@ -459,12 +557,13 @@ export function simulateUclMatch(s, homeClub, awayClub){
   return simMatchSmart(homePlayers, awayPlayers, true, homeTactics, awayTactics);
 }
 export function simulateUclRound(s, uclClubs, round){
-  const updates = [];
+  const updates = [],performanceUpdates=[];
   let userResult = null;
   round.forEach(([home, away]) => {
     const homeClub = uclClubs.find(c=>c.id===home), awayClub = uclClubs.find(c=>c.id===away);
     const simulation = simulateUclMatch(s, homeClub, awayClub);
     const {goalsA,goalsB}=simulation;
+    performanceUpdates.push(...performanceUpdatesForMatch(simulation,home,away));
     updates.push({ clubId:home, gf:goalsA, ga:goalsB });
     updates.push({ clubId:away, gf:goalsB, ga:goalsA });
     if (home===s.myClubId || away===s.myClubId){
@@ -477,7 +576,7 @@ export function simulateUclRound(s, uclClubs, round){
         isHome, myGoals, oppGoals, scorerStr, goalList, redCard, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
     }
   });
-  return { updates, userResult };
+  return { updates, userResult, performanceUpdates };
 }
 export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, allowPens=true, prior={mine:0,opp:0}){
   const lineupPlayers = getMatchPlayers(s, "ucl");
@@ -489,11 +588,12 @@ export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, al
     isHome?lineupPlayers:oppPlayers, isHome?oppPlayers:lineupPlayers, true,
     isHome?myTac:oppTactics, isHome?oppTactics:myTac
   );
+  const performanceUpdates=performanceUpdatesForMatch(simulation,isHome?s.myClubId:opponent.id,isHome?opponent.id:s.myClubId);
   const {goalsA,goalsB}=simulation;
   const myGoals = isHome?goalsA:goalsB, oppGoals = isHome?goalsB:goalsA;
   const {wentToPens,wonPens,won}=resolveTie(myGoals,oppGoals,prior,allowPens);
   const {goalList,scorerStr,redCard}=matchFields(simulation,isHome);
-  return { ...matchFields(simulation,isHome), stage:stageLabel, opponent:opponent.name, opponentColor:opponent.color, opponentId:opponent.id,
+  return { ...matchFields(simulation,isHome), performanceUpdates, stage:stageLabel, opponent:opponent.name, opponentColor:opponent.color, opponentId:opponent.id,
     isHome, myGoals, oppGoals, scorerStr, goalList, redCard, wentToPens, wonPens, won, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
 }
 export function pickKnockoutOpponent(u, myClubId){
@@ -587,7 +687,8 @@ export function buildLiveMatchContext(s, userResult, oppClub, competition="ucl")
   const myTac=myTactics(s),oppTac=aiTactics(oppClub);
   const stats=match?.stats;
   const analysis = analyzeMatchup(lineupPlayers, oppPlayers, myTac, oppTac);
-  return { timeline, homeName, awayName, myName: myClubObj.name, oppName: oppClub.name, stats, analysis, myTacStyle: myTac.style, oppTacStyle: oppTac.style };
+  return { timeline, homeName, awayName, myName: myClubObj.name, oppName: oppClub.name, stats, analysis,
+    playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,myTacStyle: myTac.style, oppTacStyle: oppTac.style };
 }
 
 export function freshState(){
@@ -620,9 +721,19 @@ export function applyMatchFitness(s,result){
     if(e.type==="sub"){minutes.set(e.outId,e.minute);minutes.set(e.playerId,match.endMinute-e.minute);}
     if(e.type==="red")minutes.set(e.playerId,Math.min(minutes.get(e.playerId)??match.endMinute,e.minute));
   }
-  return {...s,clubs:s.clubs.map(c=>c.id!==s.myClubId?c:{...c,players:c.players.map(p=>({...p,
-    condition:clamp((p.condition??100)-(minutes.get(p.id)||0)*(s.tacticalStyle==="gegen"?0.43:0.27)+16,30,100),
-    appearances:(p.appearances||0)+(minutes.has(p.id)?1:0)}))})};
+  // `condition` is readiness for the next fixture, not energy remaining at
+  // full time. The old formula subtracted a full match's exertion on every
+  // round and only restored 16 points. A fixed XI therefore fell towards 30%
+  // while AI teams started each match fresh. Weekly recovery now prevents that
+  // compounding penalty while still rewarding substitutions and squad rotation.
+  const exertionPerMinute=s.tacticalStyle==="gegen"?0.08:0.06;
+  return {...s,clubs:s.clubs.map(c=>c.id!==s.myClubId?c:{...c,players:c.players.map(p=>{
+    const played=minutes.get(p.id);
+    return {...p,
+      condition:played===undefined
+        ? clamp((p.condition??100)+12,82,100)
+        : clamp(100-played*exertionPerMinute,82,100)};
+  })})};
 }
 export function seasonLabel(s){const y=2026+(s.season||1)-1;return `${y}/${String(y+1).slice(-2)}`;}
 export const LEAGUE_NAMES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1"};
