@@ -23,6 +23,7 @@ Football Simulation is a browser-based management game that puts you in charge o
 - 🧩 **Drag-and-drop lineup editing**, formations, tactics, and defensive line settings
 - 🩹 **Condition & fitness system**, automatic substitutions, suspensions
 - ⏱️ **Match-by-match simulation** or instant half-season simulation
+- 📊 **Club-colour live match centre** with momentum, possession, shot-map and player-rating views
 - 💾 **Local autosave**, JSON export/import, save validation, and old-save migration
 
 ## 🏟️ Game Structure
@@ -136,6 +137,10 @@ Strength ratio      = effective attack / effective defence
 Shot probability = 0.145 × strength ratio × home/away multiplier × (1 + formation matchup)
 ```
 
+### Live Match Momentum
+
+The live match centre turns match events into a smoothed, minute-by-minute momentum chart. The home team is shown above the baseline and the away team below it; each area and its legend swatch use that club's theme colour. The compact chart stays within the match-centre layout while highlighting periods of pressure, goals and red cards.
+
 ### Shooter Selection & Shot Type
 
 | Player group | Weight |
@@ -220,6 +225,7 @@ Tied matches after 95 minutes go to a 50/50 shootout calculation (no extra time,
 
 - 36-team league phase, 8 matches per club
 - **1–8:** direct Round of 16 · **9–24:** knockout playoff · **25–36:** eliminated
+- The knockout tree is seeded: ranks **1/8/5/4** occupy one half and **3/6/7/2** the other, keeping 1 and 2 apart until a possible final. Each seeded Round of 16 slot receives the winner of its linked playoff.
 - Playoff → R16 → QF → SF are two-legged (aggregate score; 50/50 shootout if tied)
 - Final is a single match (same shootout rule if tied)
 

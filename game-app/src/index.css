@@ -566,6 +566,8 @@ a { color: #a8d0f0; }
 .ucl-bracket-club b { color:#c9d2e8; }
 .ucl-bracket-club.advanced { color:#fff; font-weight:850; }
 .ucl-bracket-club.advanced b { color:#b8d0ff; }
+.ucl-bracket-club.ucl-bracket-qualifier { color:#7182a5; font-style:italic; }
+.ucl-seed { display:inline-block; margin-right:4px; color:#89aaf5; font-size:8px; font-style:normal; font-weight:900; letter-spacing:.04em; }
 .ucl-bracket-tie>small { display:block; color:#e5cb83; font-size:8px; text-align:right; }
 .ucl-bracket-await { padding:13px 3px; color:#687796; font-size:10px; text-align:center; }
 @media(max-width:1150px){.ucl-table-bracket{grid-template-columns:1fr}}
@@ -649,15 +651,17 @@ a { color: #a8d0f0; }
 @media(max-width:800px){.save-warning-widget small{display:none}.league-standings.is-ucl td:nth-child(2){min-width:130px}}
 
 /* Continuous event-based momentum curve, in the compact broadcast-style panel. */
-.live-match-page .match-pulse { max-width:1120px; margin:0 auto 18px; padding:13px 18px 8px; border-color:#353b44; border-radius:14px; background:#202124; }
+.live-match-page .match-pulse { max-width:960px; margin:0 auto 18px; padding:12px 16px 7px; border-color:#353b44; border-radius:14px; background:#202124; }
 .live-match-page .match-pulse h2 { margin:0; color:#f5f5f5; font-size:21px; font-weight:700; text-align:center; }
-.momentum-legend { display:flex; justify-content:space-between; gap:16px; margin:1px 24px -5px; color:#c8d0da; font-size:10px; font-weight:750; }
+.momentum-legend { display:flex; justify-content:space-between; gap:16px; margin:1px 18px -5px; color:#c8d0da; font-size:10px; font-weight:750; }
 .momentum-legend span { display:flex; align-items:center; gap:6px; }
-.momentum-legend span i { width:11px; height:11px; border-radius:3px; background:#4cb2f2; }
-.momentum-legend span:last-child i { background:#275897; }
-.momentum-svg { display:block; width:100%; height:auto; max-height:318px; }
+.momentum-legend span i { width:11px; height:11px; border-radius:3px; background:var(--momentum-home); }
+.momentum-legend span:last-child i { background:var(--momentum-away); }
+.momentum-svg { display:block; width:100%; height:220px; }
 .momentum-baseline { stroke:#7897ab; stroke-width:1.5; }
 .momentum-halftime { stroke:#6e7784; stroke-width:1.5; stroke-dasharray:2 8; }
+.momentum-home-area { fill:var(--momentum-home); fill-opacity:.76; stroke:var(--momentum-home); stroke-width:1.5; }
+.momentum-away-area { fill:var(--momentum-away); fill-opacity:.76; stroke:var(--momentum-away); stroke-width:1.5; }
 .momentum-axis { fill:#f1f4f7; font-size:19px; font-weight:850; }
 .momentum-note { color:#9caab5; font-size:9px; text-align:center; }
 
@@ -683,16 +687,20 @@ a { color: #a8d0f0; }
 
 /* Match statistics are grouped by the part of play they describe. */
 .match-stats-dashboard { max-width:1120px; margin:0 auto 18px; }
-.match-possession-card { padding:13px 15px 0; border:1px solid #2b4036; border-radius:12px; background:#111d18; }
-.match-possession-card>div:first-child { display:flex; justify-content:space-between; margin-bottom:8px; }
-.match-possession-card span { color:#95b6a3; font-size:10px; font-weight:900; letter-spacing:.12em; }
-.match-possession-card strong { color:#f5faf7; font-size:16px; }.match-possession-card strong i { color:#82a390; font-size:10px; font-style:normal; }
-.match-possession-card>div:last-child { height:17px!important; margin-bottom:0!important; }
-.match-possession-card>div:last-child>div { font-size:10px!important; }
+.match-possession-card { box-sizing:border-box; overflow:hidden; padding:14px; border:1px solid #2b4036; border-radius:12px; background:linear-gradient(135deg,#14221b,#0d1712); }
+.match-possession-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:10px; }
+.match-possession-header>div { display:flex; flex-direction:column; gap:3px; }
+.match-possession-header span { color:#95b6a3; font-size:10px; font-weight:900; letter-spacing:.12em; }
+.match-possession-header small { color:#71877b; font-size:9px; }
+.match-possession-header strong { flex:0 0 auto; color:#f5faf7; font-size:16px; }.match-possession-header strong i { color:#82a390; font-size:10px; font-style:normal; }
+.match-possession-meter { display:flex; box-sizing:border-box; width:100%; height:28px; overflow:hidden; border:1px solid #ffffff24; border-radius:8px; background:#09110d; box-shadow:inset 0 1px 2px #0007; }
+.match-possession-side { display:flex; box-sizing:border-box; min-width:0; align-items:center; padding:0 10px; color:#fff; font-size:10px; font-weight:900; transition:flex-grow 300ms ease; }
+.home-possession { justify-content:flex-start; background:linear-gradient(90deg,color-mix(in srgb,var(--home-club) 78%,#fff),var(--home-club)); }.away-possession { justify-content:flex-end; background:linear-gradient(90deg,var(--away-club),color-mix(in srgb,var(--away-club) 78%,#fff)); }
+.match-possession-side span { overflow:hidden; text-overflow:clip; white-space:nowrap; }
 .match-stat-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; }
 .match-stat-group { padding:11px 14px; border:1px solid #2b4036; border-radius:12px; background:#111c17; }
 .match-stat-group>header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:2px 0 8px; }
 .match-stat-group>header strong { color:#8ed8ae; font-size:11px; letter-spacing:.14em; }
 .match-stat-group>header small { color:#8b9f93; font-size:9px; }
 .match-stat-group>div { padding:6px 0!important; }
-@media(max-width:650px){.shot-map-layout,.match-stat-sections{grid-template-columns:1fr}.live-match-page .match-pulse{padding:10px 7px}.momentum-axis{font-size:23px}.momentum-legend{font-size:8px}}
+@media(max-width:650px){.shot-map-layout,.match-stat-sections{grid-template-columns:1fr}.live-match-page .match-pulse{padding:10px 7px}.momentum-svg{height:auto}.momentum-axis{font-size:23px}.momentum-legend{font-size:8px}.match-possession-card{padding:12px}.match-possession-side{padding:0 7px}}

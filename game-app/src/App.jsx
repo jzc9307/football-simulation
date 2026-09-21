@@ -1155,20 +1155,22 @@ function UclBanner({ text, sub }){
 function UclBracket({bracket,clubs,myClubId}){
   const names=["Playoff","Round of 16","Quarter-Final","Semi-Final","Final"];
   const byId=new Map(clubs.map(club=>[club.id,club]));
+  const seedRanks=new Map(bracket.top8.map((id,index)=>[id,index+1]));
   return <section className="ucl-bracket competition-theme" style={competitionTheme("UCL")}>
     <header><CompetitionMark id="UCL"/><div><span>KNOCKOUT ROAD</span><strong>Road to the final</strong><small>Aggregate scores · advancing clubs highlighted</small></div></header>
-    <div className="ucl-bracket-scroll"><div className="ucl-bracket-grid"><svg className="ucl-bracket-lines" viewBox="0 0 910 1200" preserveAspectRatio="none" aria-hidden="true">{[16,8,4,2].flatMap((count,col)=>Array.from({length:count/2},(_,pair)=>{
+    <div className="ucl-bracket-scroll"><div className="ucl-bracket-grid"><svg className="ucl-bracket-lines" viewBox="0 0 910 1200" preserveAspectRatio="none" aria-hidden="true">{Array.from({length:8},(_,index)=>{const y=70+(index+.5)/8*1100;return <path key={`playoff-${index}`} d={`M170 ${y} H185`}/>;})}{[8,4,2].flatMap((count,col)=>Array.from({length:count/2},(_,pair)=>{
       const y1=70+(2*pair+.5)/count*1100,y2=70+(2*pair+1.5)/count*1100,yn=70+(pair+.5)/(count/2)*1100;
-      const x=col*185+170,xm=x+7.5,xn=(col+1)*185;
+      const x=(col+1)*185+170,xm=x+7.5,xn=(col+2)*185;
       return <g key={`${col}-${pair}`}><path d={`M${x} ${y1} H${xm} V${y2} H${x}`}/><path d={`M${xm} ${yn} H${xn}`}/></g>;
     }))}</svg>{names.map((name,idx)=>{
       const stage=bracket.stages.find(item=>item.name===name);
-      const count=16/Math.pow(2,idx);
+      const count=idx===0?8:8/Math.pow(2,idx-1);
       return <div className="ucl-bracket-round" key={name}><h4>{name}</h4>{Array.from({length:count},(_,i)=>{
-        const tie=stage?.ties[i];
+        const tie=stage?.ties[i],seedRank=stage?.key==='round16'?seedRanks.get(tie?.aId):null;
         return <div style={{top:70+(i+.5)/count*1100-31}} className={`ucl-bracket-tie ${tie?.winnerId?"decided":""} ${tie&&(tie.aId===myClubId||tie.bId===myClubId)?"my-tie":""}`} key={i}>{tie?[tie.aId,tie.bId].map((id,j)=>{
+          if(!id)return <div className="ucl-bracket-club ucl-bracket-qualifier" key={`awaiting-${j}`}><span>Awaiting playoff winner</span><b>—</b></div>;
           const club=byId.get(id);
-          return <div className={`ucl-bracket-club ${tie.winnerId===id?"advanced":""}`} key={id}><ClubBadge club={club} size="xs"/><span>{club?.name||id}</span><b>{tie.winnerId||tie.leg1?j===0?tie.aGoals:tie.bGoals:"—"}</b></div>;
+          return <div className={`ucl-bracket-club ${tie.winnerId===id?"advanced":""}`} key={id}><ClubBadge club={club} size="xs"/><span>{seedRank&&j===0&&<em className="ucl-seed">#{seedRank}</em>}{club?.name||id}</span><b>{tie.winnerId||tie.leg1?j===0?tie.aGoals:tie.bGoals:"—"}</b></div>;
         }):<div className="ucl-bracket-await">Awaiting qualifiers</div>}{tie?.pens&&<small>Decided on penalties</small>}</div>;
       })}</div>;
     })}</div></div>

@@ -8,9 +8,9 @@ function ScoreCrest({clubId,name}){const src=CLUB_LOGOS[`../assets/club-logos/${
 const primaryBtnStyle={background:"#2d6b3f",color:"white",padding:"12px 28px",borderRadius:10,border:0};
 function PossessionBar({ home, away }){
   return (
-    <div style={{ display:"flex", borderRadius:8, overflow:"hidden", height:36, marginBottom:14 }}>
-      <div style={{ width:`${home}%`, background:"var(--home-club)", display:"flex", alignItems:"center", justifyContent:"flex-start", paddingLeft:12, color:"#fff", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{home}%</div>
-      <div style={{ width:`${away}%`, background:"var(--away-club)", display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:12, color:"#fff", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{away}%</div>
+    <div className="match-possession-meter" aria-label={`Possession: home ${home}%, away ${away}%`}>
+      <div className="match-possession-side home-possession" style={{ flexGrow:home }}><span>{home}%</span></div>
+      <div className="match-possession-side away-possession" style={{ flexGrow:away }}><span>{away}%</span></div>
     </div>
   );
 }
@@ -50,7 +50,7 @@ function MatchStatsPanel({ stats, minute, events=[] }){
       ['Fouls committed',number('fouls',0),number('fouls',1)],['Yellow cards',number('yellowCards',0),number('yellowCards',1)],['Red cards',number('redCards',0),number('redCards',1)],
     ]},
   ];
-  return <div className="match-stats-dashboard"><section className="match-possession-card"><div><span>POSSESSION</span><strong>{s.possession[0]}% <i>vs</i> {s.possession[1]}%</strong></div><PossessionBar home={s.possession[0]} away={s.possession[1]}/></section>
+  return <div className="match-stats-dashboard"><section className="match-possession-card"><div className="match-possession-header"><div><span>POSSESSION</span><small>Control of the ball</small></div><strong>{s.possession[0]}% <i>vs</i> {s.possession[1]}%</strong></div><PossessionBar home={s.possession[0]} away={s.possession[1]}/></section>
     <div className="match-stat-sections">{sections.map(section=><section className="match-stat-group" key={section.title}><header><strong>{section.title}</strong><small>{section.note}</small></header>{section.rows.map(([label,left,right])=><StatRow key={label} label={label} left={left} right={right}/>)}</section>)}</div>
   </div>;
 }
@@ -114,17 +114,17 @@ function pulseArea(series,side){
   const points=series.map((value,i)=>`${40+i/95*920},${baseline-(side===0?Math.max(0,value):-Math.max(0,-value))*112}`);
   return `M40,${baseline} L${points.join(' L')} L960,${baseline} Z`;
 }
-function MatchPulse({events,minute,homeName,awayName}){
+function MatchPulse({events,minute,homeName,awayName,homeColor,awayColor}){
   const series=momentumSeries(events,minute);
   const marks=events.filter(event=>event.minute<=minute&&(event.isGoal||event.type==='red'));
-  return <section className="match-pulse" aria-label="Live match momentum"><h2>Momentum</h2>
+  const colors={"--momentum-home":homeColor||"#9c2736","--momentum-away":awayColor||"#3667a4"};
+  return <section className="match-pulse" style={colors} aria-label="Live match momentum"><h2>Momentum</h2>
     <div className="momentum-legend"><span><i/> {homeName}</span><span><i/> {awayName}</span></div>
     <svg className="momentum-svg" viewBox="0 0 1000 320" role="img" aria-label={`Momentum by minute, ${homeName} above the line and ${awayName} below`}>
-      <defs><linearGradient id="momentum-home-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#56b9f7"/><stop offset="1" stopColor="#2d88d2"/></linearGradient><linearGradient id="momentum-away-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#245997"/><stop offset="1" stopColor="#193866"/></linearGradient></defs>
       <line x1="40" y1="156" x2="960" y2="156" className="momentum-baseline"/>
       <line x1="505" y1="18" x2="505" y2="285" className="momentum-halftime"/>
-      <path d={pulseArea(series,0)} fill="url(#momentum-home-fill)" stroke="#54b7f4" strokeWidth="1.5"/>
-      <path d={pulseArea(series,1)} fill="url(#momentum-away-fill)" stroke="#315d9b" strokeWidth="1.5"/>
+      <path d={pulseArea(series,0)} className="momentum-home-area"/>
+      <path d={pulseArea(series,1)} className="momentum-away-area"/>
       {marks.map((event,i)=><g key={`${event.minute}-${i}`} transform={`translate(${40+event.minute/95*920},${event.side===0?37:274})`}><text textAnchor="middle" fontSize="22" fill="#fff">{event.type==='red'?'🟥':'⚽'}</text></g>)}
       <text x="40" y="308" className="momentum-axis">0′</text><text x="505" y="308" textAnchor="middle" className="momentum-axis">HT</text><text x="960" y="308" textAnchor="end" className="momentum-axis">FT</text>
     </svg>
@@ -197,7 +197,7 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
         <div className="scoreboard-live-data"><div><span>POSSESSION</span><strong>{currentStats?`${currentStats.possession[0]}% — ${currentStats.possession[1]}%`:"—"}</strong></div><div><span>SHOTS</span><strong>{currentStats?`${currentStats.shots[0]} — ${currentStats.shots[1]}`:"—"}</strong></div><div><span>EXPECTED GOALS</span><strong>{currentStats?`${currentStats.xg[0].toFixed(2)} — ${currentStats.xg[1].toFixed(2)}`:"—"}</strong></div></div>
         <div className="scoreboard-trim"/>
       </section>
-      <MatchPulse events={revealed} minute={minute} homeName={homeName} awayName={awayName}/>
+      <MatchPulse events={revealed} minute={minute} homeName={homeName} awayName={awayName} homeColor={homeColor} awayColor={awayColor}/>
 
       {stats && (
         <div style={{ display:"flex", gap:6, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:4, marginBottom:16 }}>
