@@ -35,6 +35,7 @@
   - [Fouls, Cards & Offsides](#fouls-cards--offsides)
   - [Possession](#possession)
   - [Fitness](#fitness)
+  - [Momentum System](#momentum-system)
 - [Competitions](#-competitions)
 - [Club Management](#-club-management)
 - [Why a Strong Team Can Still Lose](#-why-a-strong-team-can-still-lose)
@@ -352,6 +353,40 @@ Clamped to 82%–100%; unused players recover +12 condition, up to 100%.
 
 > **Balance note:** AI squads generally start matches at database condition (~100%), while your squad carries recent workload. The gap is small (the formula is gentle) but real.
 
+### Momentum System
+
+The live match centre renders a **broadcast-style momentum curve** — a smoothed, home-minus-away "pressure" line running across the full 95 minutes, drawn as a filled area above/below a centre baseline (home above, away below), with a half-time marker at minute 45.
+
+It's built purely from **generated match events**, in three steps:
+
+**1. Per-minute impulse** — each shot-type event (goal, penalty, free kick, corner, open-play chance, or a missed penalty/corner) contributes:
+
+```
+impulse = 0.28 + min(0.8, xG × 2) + (1.15 if it's a goal)
+```
+
+A red card contributes a flat **−0.75** impulse to the team that lost the man. Every impulse is signed by side (home positive, away negative) and added to that match minute.
+
+**2. Gaussian smoothing** — each minute's value is replaced with a weighted average of the minutes around it (±4 minutes, σ = 2.1), so the curve reads as a flowing wave of pressure rather than a spiky bar chart:
+
+```
+smoothed[minute] = Σ impulse[minute + offset] × e^(−offset² / (2σ²))  for offset in [−4, 4]
+                    ────────────────────────────────────────────────
+                    Σ e^(−offset² / (2σ²))
+```
+
+**3. Normalization** — the whole series is scaled by its own peak absolute value (floor of 0.25, so a quiet match doesn't get visually exaggerated) and clamped to **[−1, +1]**, which is what actually drives the SVG curve height.
+
+```mermaid
+flowchart LR
+    A[Match Events<br/>goals · shots · reds] --> B["Per-minute impulse<br/>0.28 + min(0.8, xG×2) + 1.15 if goal<br/>−0.75 on a red card"]
+    B --> C["Gaussian smoothing<br/>±4 min window, σ = 2.1"]
+    C --> D["Normalize to −1 … +1<br/>(scaled to the match's own peak)"]
+    D --> E["📈 Momentum curve<br/>home above baseline / away below"]
+```
+
+In short: **big chances and goals spike momentum toward the scoring side, red cards swing it hard the other way, and the smoothing turns raw events into a readable "who's on top" narrative** — purely descriptive, it doesn't feed back into the simulation itself.
+
 ---
 
 ## 🏆 Competitions
@@ -377,7 +412,21 @@ flowchart TD
     H --> I["🏆 Champion<br/>(50/50 shootout if tied)"]
 ```
 
-Table sorting mirrors the domestic league rules.
+Table sorting mirrors the domestic league rules (points → goal difference → goals scored).
+
+**Playoff pairing (ranks 9–24):** the pool of 16 is paired best-vs-worst — rank 9 plays rank 24, rank 10 plays rank 23, and so on — so the strongest of the group gets the easiest playoff draw on paper.
+
+```
+playoff pairs = pool[i] vs pool[15 − i],  for i = 0 … 7
+```
+
+**Round of 16 seeding (ranks 1–8):** the 8 direct qualifiers are placed in a standard seeded bracket, not straight 1-vs-8/2-vs-7 order — the seeding keeps **rank 1 and rank 2 apart until a possible final**, and keeps the 1/4 and 2/3 pairings on separate semi-final paths:
+
+| Seed slot | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Paired with rank | 1st | 8th | 5th | 4th | 3rd | 6th | 7th | 2nd |
+
+Each Round of 16 slot then meets the winner of the matching playoff tie. From the Round of 16 onward, every round (including the semi-finals) is decided over two legs on **aggregate score**, with the current 50/50 shootout used whenever a tie is level after the second leg. The final is a single match with the same shootout rule.
 
 ---
 
