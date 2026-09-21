@@ -1,11 +1,16 @@
 import { revealStats } from "../game/engine.js";
+import { isShotEvent, momentumSeries } from "../game/matchVisuals.js";
+import { CompetitionMark } from "./CompetitionBrand.jsx";
+import { competitionBrand, competitionTheme } from "./competitionBrand.js";
 import {useState,useEffect,useRef} from "react";
+const CLUB_LOGOS=import.meta.glob("../assets/club-logos/*.png",{eager:true,query:"?url",import:"default"});
+function ScoreCrest({clubId,name}){const src=CLUB_LOGOS[`../assets/club-logos/${clubId}.png`];return <span className="score-crest">{src?<img src={src} alt={`${name} crest`}/>:<b>{name?.slice(0,2).toUpperCase()}</b>}</span>;}
 const primaryBtnStyle={background:"#2d6b3f",color:"white",padding:"12px 28px",borderRadius:10,border:0};
 function PossessionBar({ home, away }){
   return (
     <div style={{ display:"flex", borderRadius:8, overflow:"hidden", height:36, marginBottom:14 }}>
-      <div style={{ width:`${home}%`, background:"#8b2020", display:"flex", alignItems:"center", justifyContent:"flex-start", paddingLeft:12, color:"#fff", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{home}%</div>
-      <div style={{ width:`${away}%`, background:"#e8e8e8", display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:12, color:"#111", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{away}%</div>
+      <div style={{ width:`${home}%`, background:"var(--home-club)", display:"flex", alignItems:"center", justifyContent:"flex-start", paddingLeft:12, color:"#fff", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{home}%</div>
+      <div style={{ width:`${away}%`, background:"var(--away-club)", display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:12, color:"#fff", fontWeight:800, fontSize:14, transition:"width 300ms" }}>{away}%</div>
     </div>
   );
 }
@@ -18,23 +23,36 @@ function StatRow({ label, left, right }){
     </div>
   );
 }
-function MatchStatsPanel({ stats, minute }){
+function MatchStatsPanel({ stats, minute, events=[] }){
   const s = revealStats(stats, minute);
-  return (
-    <div style={{ marginBottom:20 }}>
-      <PossessionBar home={s.possession[0]} away={s.possession[1]} />
-      <StatRow label="Expected goals (xG)" left={s.xg[0].toFixed(2)} right={s.xg[1].toFixed(2)} />
-      <StatRow label="Total shots" left={s.shots[0]} right={s.shots[1]} />
-      <StatRow label="Shots on target" left={s.sot[0]} right={s.sot[1]} />
-      <StatRow label="Touches in opposition box" left={s.touches[0]} right={s.touches[1]} />
-      <StatRow label="Big chances" left={s.bigChances[0]} right={s.bigChances[1]} />
-      <StatRow label="Big chances missed" left={s.bigChancesMissed[0]} right={s.bigChancesMissed[1]} />
-      <StatRow label="Accurate passes" left={`${s.accPasses[0]} (${s.passAcc[0]}%)`} right={`${s.accPasses[1]} (${s.passAcc[1]}%)`} />
-      <StatRow label="Fouls committed" left={s.fouls[0]} right={s.fouls[1]} />
-      <StatRow label="Offsides" left={s.offsides[0]} right={s.offsides[1]} />
-      <StatRow label="Corners" left={s.corners[0]} right={s.corners[1]} />
-    </div>
-  );
+  const number=(key,side)=>s[key]?.[side]??0;
+  const goals=side=>events.filter(event=>event.isGoal===true&&event.side===side).length;
+  const percent=(value,total)=>total?`${Math.round(value/total*100)}%`:'0%';
+  const sections=[
+    {title:'ATTACK',note:'Chances and finishing',rows:[
+      ['Goals',goals(0),goals(1)],['Expected goals (xG)',number('xg',0).toFixed(2),number('xg',1).toFixed(2)],
+      ['Shots',number('shots',0),number('shots',1)],['On target',number('sot',0),number('sot',1)],
+      ['Off target',number('shots',0)-number('sot',0),number('shots',1)-number('sot',1)],
+      ['Shot accuracy',percent(number('sot',0),number('shots',0)),percent(number('sot',1),number('shots',1))],
+      ['Big chances',number('bigChances',0),number('bigChances',1)],['Big chances missed',number('bigChancesMissed',0),number('bigChancesMissed',1)],
+      ['Touches in box',number('touches',0),number('touches',1)],['Corners',number('corners',0),number('corners',1)],
+      ['Crosses',number('crosses',0),number('crosses',1)],['Successful crosses',number('successfulCrosses',0),number('successfulCrosses',1)],
+    ]},
+    {title:'BUILD-UP',note:'Control of the ball',rows:[
+      ['Passes attempted',number('passes',0),number('passes',1)],['Accurate passes',number('accPasses',0),number('accPasses',1)],
+      ['Pass completion',`${number('passAcc',0)}%`,`${number('passAcc',1)}%`],['Offsides',number('offsides',0),number('offsides',1)],
+    ]},
+    {title:'DEFENCE',note:'Winning it back',rows:[
+      ['Tackles won',number('tacklesWon',0),number('tacklesWon',1)],['Interceptions',number('interceptions',0),number('interceptions',1)],
+      ['Clearances',number('clearances',0),number('clearances',1)],['Goalkeeper saves',number('saves',0),number('saves',1)],
+    ]},
+    {title:'DISCIPLINE',note:'Pressure and control',rows:[
+      ['Fouls committed',number('fouls',0),number('fouls',1)],['Yellow cards',number('yellowCards',0),number('yellowCards',1)],['Red cards',number('redCards',0),number('redCards',1)],
+    ]},
+  ];
+  return <div className="match-stats-dashboard"><section className="match-possession-card"><div><span>POSSESSION</span><strong>{s.possession[0]}% <i>vs</i> {s.possession[1]}%</strong></div><PossessionBar home={s.possession[0]} away={s.possession[1]}/></section>
+    <div className="match-stat-sections">{sections.map(section=><section className="match-stat-group" key={section.title}><header><strong>{section.title}</strong><small>{section.note}</small></header>{section.rows.map(([label,left,right])=><StatRow key={label} label={label} left={left} right={right}/>)}</section>)}</div>
+  </div>;
 }
 function fmtPct(n){ return `${n>=0?"+":""}${Math.round(n*100)}%`; }
 function TacticalBreakdown({ analysis, myName, oppName }){
@@ -48,12 +66,14 @@ function TacticalBreakdown({ analysis, myName, oppName }){
           <div>Attack {a.ratings.me.attack.toFixed(1)} · Defense {a.ratings.me.defense.toFixed(1)}</div>
           <div>Style: {a.styleMeName} ({fmtPct(a.styleBonusMe)} attack)</div>
           <div>Line/trap: {fmtPct(a.lineMe.attackAdj)} att, {fmtPct(a.lineMe.defenseAdj)} def</div>
+          <div>Defensive aggression: {a.aggressionMe??50}/100</div>
         </div>
         <div>
           <div style={{ fontWeight:700, color:"#e8ede8", marginBottom:3 }}>{oppName}</div>
           <div>Attack {a.ratings.opp.attack.toFixed(1)} · Defense {a.ratings.opp.defense.toFixed(1)}</div>
           <div>Style: {a.styleOppName} ({fmtPct(a.styleBonusOpp)} attack)</div>
           <div>Line/trap: {fmtPct(a.lineOpp.attackAdj)} att, {fmtPct(a.lineOpp.defenseAdj)} def</div>
+          <div>Defensive aggression: {a.aggressionOpp??50}/100</div>
         </div>
       </div>
       <div style={{ fontSize:11, color: a.formationEdge>0?"#7fd88f":a.formationEdge<0?"#e8b84b":"#9ab89a", marginBottom:8 }}>
@@ -88,7 +108,48 @@ function PlayerRatingsPanel({ ratings, manOfTheMatch, homeName, awayName, done }
     </div>
   );
 }
-export default function LiveMatchScreen({ homeName, awayName, myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, onDone, banner }){
+
+function pulseArea(series,side){
+  const baseline=156;
+  const points=series.map((value,i)=>`${40+i/95*920},${baseline-(side===0?Math.max(0,value):-Math.max(0,-value))*112}`);
+  return `M40,${baseline} L${points.join(' L')} L960,${baseline} Z`;
+}
+function MatchPulse({events,minute,homeName,awayName}){
+  const series=momentumSeries(events,minute);
+  const marks=events.filter(event=>event.minute<=minute&&(event.isGoal||event.type==='red'));
+  return <section className="match-pulse" aria-label="Live match momentum"><h2>Momentum</h2>
+    <div className="momentum-legend"><span><i/> {homeName}</span><span><i/> {awayName}</span></div>
+    <svg className="momentum-svg" viewBox="0 0 1000 320" role="img" aria-label={`Momentum by minute, ${homeName} above the line and ${awayName} below`}>
+      <defs><linearGradient id="momentum-home-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#56b9f7"/><stop offset="1" stopColor="#2d88d2"/></linearGradient><linearGradient id="momentum-away-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#245997"/><stop offset="1" stopColor="#193866"/></linearGradient></defs>
+      <line x1="40" y1="156" x2="960" y2="156" className="momentum-baseline"/>
+      <line x1="505" y1="18" x2="505" y2="285" className="momentum-halftime"/>
+      <path d={pulseArea(series,0)} fill="url(#momentum-home-fill)" stroke="#54b7f4" strokeWidth="1.5"/>
+      <path d={pulseArea(series,1)} fill="url(#momentum-away-fill)" stroke="#315d9b" strokeWidth="1.5"/>
+      {marks.map((event,i)=><g key={`${event.minute}-${i}`} transform={`translate(${40+event.minute/95*920},${event.side===0?37:274})`}><text textAnchor="middle" fontSize="22" fill="#fff">{event.type==='red'?'🟥':'⚽'}</text></g>)}
+      <text x="40" y="308" className="momentum-axis">0′</text><text x="505" y="308" textAnchor="middle" className="momentum-axis">HT</text><text x="960" y="308" textAnchor="end" className="momentum-axis">FT</text>
+    </svg>
+    <div className="momentum-note">Shot pressure, xG and goals · smoothed minute by minute</div>
+  </section>;
+}
+function ShotMapPanel({events,homeName,awayName,homeClubId,awayClubId}){
+  const shots=events.filter(isShotEvent);
+  const shown=shots.filter(event=>Number.isFinite(event.shotX)&&Number.isFinite(event.shotY));
+  return <section className="shot-visuals"><div className="shot-visuals-heading"><span>SHOT INTELLIGENCE</span><strong>Where the chances came from</strong><small>Attacking third · outlined circles are goals</small></div>
+    <div className="shot-map-layout">{[0,1].map(side=>{
+      const name=side===0?homeName:awayName,clubId=side===0?homeClubId:awayClubId;
+      const teamShots=shown.filter(event=>event.side===side);
+      const allShots=shots.filter(event=>event.side===side);
+      const totalXg=allShots.reduce((sum,event)=>sum+(event.xg||0),0);
+      return <div className="shot-map-team" key={side}><header><ScoreCrest clubId={clubId} name={name}/><div><strong>{name}</strong><small>{allShots.length} shots · {totalXg.toFixed(2)} xG</small></div></header>
+        <div className="shot-map"><div className="shot-area"/><div className="shot-six-yard"/><div className="shot-goal-frame"/><div className="shot-arc"/>{teamShots.map((event,i)=><span key={i} className={`shot-point ${side===0?"home-shot":"away-shot"} ${event.isGoal?"shot-goal":""}`} style={{left:`${Math.max(7,Math.min(91,(event.shotX-0.70)/0.30*100))}%`,top:`${event.shotY*100}%`,width:8+(event.xg||0.1)*17,height:8+(event.xg||0.1)*17}} title={`${event.minute}′ ${event.text} · xG ${(event.xg||0).toFixed(2)}`}/>)}</div>
+        <div className="shot-channel-mini">{['Left','Centre','Right'].map((label,index)=><span key={label}><b>{allShots.filter(event=>event.zone===index).length}</b><small>{label}</small></span>)}</div>
+      </div>;
+    })}</div>
+    {!shown.length&&<p className="shot-map-empty">Shot locations will appear as chances are created.</p>}
+  </section>;
+}
+
+export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayClubId, homeColor="#9c2736", awayColor="#3667a4", competition="PL", myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, onDone, banner }){
   const [minute, setMinute] = useState(0);
   const endMinute=Math.max(95,...timeline.map(e=>e.minute));
   const done=minute>=endMinute;
@@ -116,7 +177,8 @@ export default function LiveMatchScreen({ homeName, awayName, myName, oppName, t
 
   const homeGoals = revealed.filter(e => e.isGoal === true && e.teamName===homeName).length;
   const awayGoals = revealed.filter(e => e.isGoal === true && e.teamName===awayName).length;
-  const ICONS = { goal:"⚽", penalty:"🎯", freekick:"🌀", corner:"🚩", yellow:"🟨", red:"🟥", chance:"➡️", var:"📺", offside:"🚫", "penalty-miss":"❌", "corner-miss":"🚩", sub:"🔄", tactics:"🧠" };
+  const ICONS = { foul:"⚠️", goal:"⚽", penalty:"🎯", freekick:"🌀", corner:"🚩", yellow:"🟨", red:"🟥", chance:"➡️", var:"📺", offside:"🚫", "penalty-miss":"❌", "corner-miss":"🚩", sub:"🔄", tactics:"🧠" };
+  const currentStats=stats?revealStats(stats,minute):null;
   const tabBtn = (key, label) => (
     <button onClick={()=>setTab(key)} style={{
       flex:1, padding:"8px 0", fontSize:12, fontWeight:700, borderRadius:8, border:"none", cursor:"pointer",
@@ -125,20 +187,21 @@ export default function LiveMatchScreen({ homeName, awayName, myName, oppName, t
   );
 
   return (
-    <div>
+    <div className="live-match-page competition-theme" style={{...competitionTheme(competition),"--home-club":homeColor||"#9c2736","--away-club":awayColor||"#3667a4"}}>
       {banner}
-      <div style={{ textAlign:"center", marginBottom:16 }}>
-        <div style={{ fontSize:12, color: done?"#e8b84b":"#7fd88f", fontWeight:700, marginBottom:6 }}>{done ? "FULL TIME" : minute>90?`90+${minute-90}'`:`${minute}'`}</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, flexWrap:"wrap" }}>
-          <div style={{ fontWeight:700, fontSize:16 }}>{homeName}</div>
-          <div style={{ fontSize:34, fontWeight:800 }}>{homeGoals} - {awayGoals}</div>
-          <div style={{ fontWeight:700, fontSize:16 }}>{awayName}</div>
-        </div>
-      </div>
+      <section className="live-scoreboard competition-theme" style={competitionTheme(competition)} aria-label={`${homeName} ${homeGoals}, ${awayName} ${awayGoals}`}>
+        <div className="scoreboard-brand"><CompetitionMark id={competition} size="sm"/><span>{competitionBrand(competition).name.toUpperCase()}</span></div>
+        <div className="scoreboard-main"><div className="scoreboard-club"><ScoreCrest clubId={homeClubId} name={homeName}/><strong>{homeName}</strong></div>
+          <div className="scoreboard-score"><small>{done?"FULL TIME":minute>90?`90+${minute-90}'`:`${minute}'`}</small><b>{homeGoals}<i>:</i>{awayGoals}</b></div>
+          <div className="scoreboard-club"><ScoreCrest clubId={awayClubId} name={awayName}/><strong>{awayName}</strong></div></div>
+        <div className="scoreboard-live-data"><div><span>POSSESSION</span><strong>{currentStats?`${currentStats.possession[0]}% — ${currentStats.possession[1]}%`:"—"}</strong></div><div><span>SHOTS</span><strong>{currentStats?`${currentStats.shots[0]} — ${currentStats.shots[1]}`:"—"}</strong></div><div><span>EXPECTED GOALS</span><strong>{currentStats?`${currentStats.xg[0].toFixed(2)} — ${currentStats.xg[1].toFixed(2)}`:"—"}</strong></div></div>
+        <div className="scoreboard-trim"/>
+      </section>
+      <MatchPulse events={revealed} minute={minute} homeName={homeName} awayName={awayName}/>
 
       {stats && (
         <div style={{ display:"flex", gap:6, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:4, marginBottom:16 }}>
-          {tabBtn("events", "Events")}{tabBtn("stats", "Stats")}{analysis && tabBtn("analysis", "Analysis")}{playerRatings&&tabBtn("ratings", "Player Ratings")}
+          {tabBtn("events", "Match feed")}{tabBtn("stats", "Match stats")}{tabBtn("shots", "Shot map")}{analysis && tabBtn("analysis", "Analysis")}{playerRatings&&tabBtn("ratings", "Player Ratings")}
         </div>
       )}
 
@@ -154,7 +217,9 @@ export default function LiveMatchScreen({ homeName, awayName, myName, oppName, t
           ))}
         </div>
       ) : tab==="stats" ? (
-        <MatchStatsPanel stats={stats} minute={minute} />
+        <MatchStatsPanel stats={stats} minute={minute} events={revealed} />
+      ) : tab==="shots" ? (
+        <ShotMapPanel events={revealed} homeName={homeName} awayName={awayName} homeClubId={homeClubId} awayClubId={awayClubId}/>
       ) : tab==="analysis" ? (
         <TacticalBreakdown analysis={analysis} myName={myName} oppName={oppName} />
       ) : (

@@ -1,9 +1,12 @@
-import { lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates } from "./engine.js";
+import { completeUserTie, bracketCurrentTie } from "./uclBracket.js";
+import { FORMATIONS } from "./config.js";
+import { lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates, readinessLineup } from "./engine.js";
 function requireLineup(s,competition="domestic"){const issue=lineupIssue(s,competition);if(issue)throw new Error(issue);}
 export function simulateHalf(s, half){
       requireLineup(s);
       let cur=ensureFixtures(s);
       const rounds=half===1?cur.roundsHalf1:cur.roundsHalf2,results=[];
+      const preferredLineup={...cur.lineup};
       const playDueCups=(idx)=>{
         let slot;
         while((slot=pendingCupSlot(cur.myClubId,half,idx,cur.cupStatus,cur.league))){
@@ -15,6 +18,9 @@ export function simulateHalf(s, half){
       };
       rounds.forEach((round,idx)=>{
         playDueCups(idx);
+        const club=cur.clubs.find(c=>c.id===cur.myClubId);
+        const eligible=club.players.filter(p=>!(cur.suspensions?.domestic||[]).includes(p.id));
+        cur={...cur,lineup:readinessLineup((FORMATIONS[cur.formation]),eligible,preferredLineup)};
         const {updates,userResult,performanceUpdates}=simulateRound(cur,round,(half===1?0:cur.roundsHalf1.length)+idx+1);
         results.push(userResult);
         cur=applyPerformanceUpdates({...cur,tableRaw:applyUpdates(cur.tableRaw,updates),clubForm:appendClubForm(cur.clubForm,updates)},performanceUpdates);
@@ -104,18 +110,21 @@ export function advanceEuropeanKnockout(s){
       if (!isFinal && leg===1){
         return { ...s, ucl: { ...u, leg:2, stage:"knockout-prep" } };
       }
+      const knockoutBracket=u.knockoutBracket?completeUserTie(u.knockoutBracket,s.myClubId,u.aggregate?.mine||u.lastMatch.myGoals,u.aggregate?.opp||u.lastMatch.oppGoals,u.lastMatch.wentToPens,u.lastMatch.wonPens,u.clubs):null;
+      const updatedU={...u,knockoutBracket};
       const won = u.lastMatch.won;
       const isLastRound = u.knockoutRoundIndex === u.knockoutRounds.length-1;
       if (!won){
         const outcome = roundName==="Final" ? "RUNNER-UP" : `${roundName.toUpperCase()} EXIT`;
-        return { ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
+        return { ...s, ucl: { ...updatedU, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
       }
       if (isLastRound){
         const outcome = "CHAMPION";
-        return { ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
+        return { ...s, ucl: { ...updatedU, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
       }
       const nextIdx = u.knockoutRoundIndex+1;
-      const opp = pickKnockoutOpponent(u, s.myClubId);
-      return { ...s, ucl: { ...u, knockoutRoundIndex: nextIdx, currentKnockoutOpponentId: opp.id,
+      const nextTie=bracketCurrentTie(knockoutBracket,s.myClubId)?.tie;
+      const opp = nextTie?u.clubs.find(c=>c.id===(nextTie.aId===s.myClubId?nextTie.bId:nextTie.aId)):pickKnockoutOpponent(u, s.myClubId);
+      return { ...s, ucl: { ...updatedU, knockoutRoundIndex: nextIdx, currentKnockoutOpponentId: opp.id,
         leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     }

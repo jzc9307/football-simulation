@@ -44,8 +44,24 @@ export function tacticalHints(myForm, oppForm){
 }
 export function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 export function topXI(players, formation="4-4-2"){
-  const lineup = autoLineup(FORMATIONS[formation] || FORMATIONS["4-4-2"], players);
+  const lineup = readinessLineup(FORMATIONS[formation] || FORMATIONS["4-4-2"], players);
   return playersForLineup(players, lineup, formation);
+}
+// Use rested depth for AI teams and fast-forwarded seasons, without weakening the preferred XI when fresh.
+export function readinessLineup(slots, players, preferred={}){
+  const score=p=>matchOvr(p) + ((p.energy??100)-100)*0.48 + ((p.condition??100)-100)*0.18;
+  const ranked=[...players].sort((a,b)=>score(b)-score(a));
+  const lineup=autoLineup(slots,ranked,score);
+  // Honour the manager's chosen player when they are close in readiness to the selected alternative.
+  const used=new Set(Object.values(lineup));
+  slots.forEach((slot,i)=>{
+    const chosen=players.find(p=>p.id===preferred[i]);
+    const current=players.find(p=>p.id===lineup[i]);
+    if(chosen&&!used.has(chosen.id)&&current&&slotAccepts(slot.role,chosen)&&score(chosen)>=score(current)-3){
+      used.delete(current.id);lineup[i]=chosen.id;used.add(chosen.id);
+    }
+  });
+  return lineup;
 }
 export function playersForLineup(players, lineup, formation){
   return (FORMATIONS[formation] || FORMATIONS["4-4-2"]).flatMap((slot, i) => {
@@ -134,16 +150,16 @@ export function lineModifier(line, trap, myDefRating, oppAttRating){
 export function myTactics(s){
   const suspended = new Set(s.suspensions?.[s.stage === "ucl" ? "ucl" : "domestic"] || []);
   const club = s.clubs.find(c=>c.id===s.myClubId);
-  return { formation: s.formation, style:s.tacticalStyle || "balanced", line:s.defensiveLine ?? 50, trap:!!s.offsideTrap,
+  return { formation: s.formation, style:s.tacticalStyle || "balanced", line:s.defensiveLine ?? 50, trap:!!s.offsideTrap, aggression:s.defensiveAggression??50,
     halftimeStyle:s.halftimeStyle || "keep", autoSubs:s.autoSubs !== false,
     bench:club.players.filter(p=>!Object.values(s.lineup).includes(p.id) && !suspended.has(p.id)) };
 }
 export function aiTactics(club){
   const formation = club.preferredFormation || "4-4-2";
   const style=inferStyle(club.players,formation,club.id),profile=CLUB_TACTIC_PROFILES[club.id];
-  const defaults={tiki:[66,true],gegen:[72,true],bus:[30,false],counter:[42,false],direct:[50,false]};
-  const [line,trap]=defaults[style]||[50,false];
-  return { formation, style, line:profile?.line??line, trap:profile?.trap??trap, autoSubs:true, bench:club.players };
+  const defaults={tiki:[66,true,42],gegen:[72,true,68],bus:[30,false,35],counter:[42,false,50],direct:[50,false,56]};
+  const [line,trap,aggression]=defaults[style]||[50,false,50];
+  return { formation, style, line:profile?.line??line, trap:profile?.trap??trap, aggression:profile?.aggression??aggression, autoSubs:true, bench:club.players };
 }
 // Attack-vs-defense model: formation-shape tactics, playing-style identity and matchups, defensive line/offside
 // trap, home advantage, and a per-match variance swing (widened or narrowed by playing style).
@@ -155,7 +171,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
   const playerLogs = initialPlayers.map(team=>new Map(team.map(p=>[p.id,{playerId:p.id,name:p.name,role:p.role,group:p.group,start:0,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,yellow:0,red:false}])));
   const tactics = [tacticsA,tacticsB].map(t=>({...t}));
   const events = [], goals = [0,0], goalLists = [[],[]], redCards = [null,null], yellowCards=[new Set(),new Set()];
-  const totals = {shots:[0,0],sot:[0,0],xg:[0,0],touches:[0,0],bigChances:[0,0],bigChancesMissed:[0,0],passes:[0,0],accPasses:[0,0],fouls:[0,0],offsides:[0,0],corners:[0,0]};
+  const totals = {shots:[0,0],sot:[0,0],xg:[0,0],touches:[0,0],bigChances:[0,0],bigChancesMissed:[0,0],passes:[0,0],accPasses:[0,0],fouls:[0,0],offsides:[0,0],corners:[0,0],tacklesWon:[0,0],interceptions:[0,0],clearances:[0,0],saves:[0,0],crosses:[0,0],successfulCrosses:[0,0],yellowCards:[0,0],redCards:[0,0]};
   const possession = [0,0], history=[];
   const snapshot = () => ({...Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,v.map(n=>+n.toFixed(2))])),
     possession:possession[0]+possession[1] ? [0,1].map(i=>Math.round(100*possession[i]/(possession[0]+possession[1]))) : [50,50],
@@ -169,15 +185,15 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         tac.style=tac.halftimeStyle;
         events.push({minute,side,type:"tactics",text:`Switch to ${STYLES[tac.style].name}`});
       }
-      if(minute===60 && tac.autoSubs){
-        const unavailable = new Set([...initialPlayers[side].map(p=>p.id),...active[side].map(p=>p.id)]);
-        const tired=[...active[side]].filter(p=>p.group!=="GK").sort((a,b)=>(a.energy??100)-(b.energy??100));
+      if((minute===55 || minute===70) && tac.autoSubs){
+        const unavailable = new Set([...playerLogs[side].keys(),...active[side].map(p=>p.id)]);
+        const tired=[...active[side]].filter(p=>p.group!=="GK" && (p.energy??100)<(minute===55?84:78)).sort((a,b)=>(a.energy??100)-(b.energy??100));
         let substitutions=0;
         for(const out of tired){
-          if(substitutions===3)break;
+          if(substitutions===(minute===55?3:2))break;
           const role=out.assignedRole || out.role;
           const incoming=[...(tac.bench||[])].filter(p=>!unavailable.has(p.id)&&slotAccepts(role,p)).sort((a,b)=>(b.energy??100)*b.ovr-(a.energy??100)*a.ovr)[0];
-          if(!incoming) continue;
+          if(!incoming || (incoming.energy??100)*matchOvr(incoming) <= (out.energy??100)*matchOvr(out)+300) continue;
           unavailable.add(incoming.id);substitutions++;
           active[side]=active[side].map(p=>p.id===out.id?{...incoming,assignedRole:role,group:ROLE_GROUP[role]}:p);
           const outLog=playerLogs[side].get(out.id);if(outLog)outLog.end=minute;
@@ -186,16 +202,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         }
       }
       active[side]=active[side].map(p=>({...p,energy:Math.max(15,(p.energy??100)-(tac.style==="gegen"?0.34:0.23)*(84/(p.stamina??80)))}));
-      if(!redCards[side] && rng()<0.00075){
-        const outfield=active[side].filter(p=>p.group!=="GK");
-        if(outfield.length){
-          const p=outfield[Math.floor(rng()*outfield.length)];
-          redCards[side]={id:p.id,name:p.name,minute};
-          active[side]=active[side].filter(x=>x.id!==p.id);
-          const log=playerLogs[side].get(p.id);if(log){log.end=minute;log.red=true;}
-          events.push({minute,side,type:"red",playerId:p.id,text:`RED CARD! ${p.name} is sent off`});
-        }
-      }
+
     }
     const ratings=active.map(teamRatings);
     for(let side=0;side<2;side++){
@@ -204,37 +211,68 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
       const line=lineModifier(tac.line,tac.trap,ratings[side].defense,ratings[other].attack);
       const oppLine=lineModifier(opp.line,opp.trap,ratings[other].defense,ratings[side].attack);
       const ratio=ratings[side].attack*(1+style.attack+line.attackAdj+styleMatchupBonus(tac.style,opp.style)) /
-        (ratings[other].defense*(1+oppStyle.defense+oppLine.defenseAdj));
+        (ratings[other].defense*(1+oppStyle.defense+oppLine.defenseAdj+((opp.aggression??50)-50)*0.00025));
       const advantage=((side===0)===homeA)?1.12:0.92;
       const passes=Math.round(3+rng()*3+(tac.style==="tiki"?2:0));
       totals.passes[side]+=passes;totals.accPasses[side]+=Math.round(passes*(0.72+rng()*0.18));
       possession[side]+=passes*(ratings[side].attack/80);
-      if(rng()<0.12){
-        totals.fouls[side]++;
-        if(rng()<0.13){
-          const candidates=active[side].filter(p=>p.group!=="GK"&&!yellowCards[side].has(p.id));
-          if(candidates.length){
-            const booked=candidates[Math.floor(rng()*candidates.length)];
-            yellowCards[side].add(booked.id);
-            const log=playerLogs[side].get(booked.id);if(log)log.yellow=1;
-            events.push({minute,side,type:"yellow",playerId:booked.id,text:`Yellow card for ${booked.name}`});
+      if(rng()<0.17)totals.tacklesWon[other]++;
+      if(rng()<0.13)totals.interceptions[other]++;
+      if(rng()<0.16){totals.crosses[side]++;if(rng()<0.31)totals.successfulCrosses[side]++;}
+      // A restart must come from an actual defending foul. Discipline is resolved on that foul,
+      // so there are no random dismissals or unearned penalties.
+      let restart=null;
+      const defenders=active[other].filter(p=>p.group!=="GK");
+      const aggression=clamp(opp.aggression??50,0,100);
+      if(defenders.length&&rng()<0.075+aggression*0.0008){
+        totals.fouls[other]++;
+        const tackler=defenders[Math.floor(rng()*defenders.length)];
+        const inBox=rng()<0.012;
+        const dangerous=!inBox&&rng()<0.07;
+        restart=inBox?"penalty":dangerous?"freekick":null;
+        events.push({minute,side:other,type:"foul",playerId:tackler.id,restart,
+          text:inBox?`${tackler.name} fouls in the box — penalty!`:dangerous?`${tackler.name} fouls near the area — free kick`:`Foul by ${tackler.name}`});
+        const bookChance=(0.055+aggression*0.001)*(yellowCards[other].has(tackler.id)?0.35:1);
+        const log=playerLogs[other].get(tackler.id);
+        if(rng()<bookChance){
+          if(yellowCards[other].has(tackler.id)){
+            if(minute>=10&&!redCards[other]){
+              redCards[other]={id:tackler.id,name:tackler.name,minute,reason:"second yellow"};
+              active[other]=active[other].filter(p=>p.id!==tackler.id);
+              if(log){log.end=minute;log.yellow=2;log.red=true;}
+              totals.yellowCards[other]++;totals.redCards[other]++;
+              events.push({minute,side:other,type:"yellow",playerId:tackler.id,text:`Second yellow card for ${tackler.name}`});
+              events.push({minute,side:other,type:"red",playerId:tackler.id,text:`Second yellow! ${tackler.name} is sent off`});
+            }
+          }else{
+            yellowCards[other].add(tackler.id);
+            if(log)log.yellow=1;
+            totals.yellowCards[other]++;
+            events.push({minute,side:other,type:"yellow",playerId:tackler.id,text:`Yellow card for ${tackler.name}`});
           }
+        }else if(minute>=10&&!redCards[other]&&rng()<0.0005+aggression*0.000015){
+          redCards[other]={id:tackler.id,name:tackler.name,minute,reason:"serious foul"};
+          active[other]=active[other].filter(p=>p.id!==tackler.id);
+          if(log){log.end=minute;log.red=true;}
+          totals.redCards[other]++;
+          events.push({minute,side:other,type:"red",playerId:tackler.id,text:`RED CARD! ${tackler.name} is sent off for a serious foul`});
         }
       }
       if(rng()<0.02) totals.offsides[side]++;
-      if(active[side].length && rng()<clamp(0.145*ratio*advantage*(1+tacticalModifier(tac.formation,opp.formation)),0.025,0.36)){
+      if(active[side].length && (restart==="penalty" || rng()<clamp(0.145*ratio*advantage*(1+tacticalModifier(tac.formation,opp.formation)),0.025,0.36))){
         const pool=active[side].filter(p=>p.group!=="GK");
         if(!pool.length) continue;
         const weights=pool.map(p=>p.group==="FWD"?4:p.group==="MID"?2:0.5);
         let pick=rng()*weights.reduce((a,b)=>a+b,0),shooter=pool.at(-1);
         for(let i=0;i<pool.length;i++){pick-=weights[i];if(pick<=0){shooter=pool[i];break;}}
-        const methodRoll=rng(),method=methodRoll<0.03?"penalty":methodRoll<0.10?"freekick":methodRoll<0.25?"corner":"goal";
-        const xg=method==="penalty"?0.76:clamp(0.10*ratio*(0.55+rng()),0.02,0.48);
+        const method=restart||((rng()<0.15)?"corner":"goal");
+        const xg=method==="penalty"?0.76:method==="freekick"?clamp(0.075*ratio,0.03,0.18):clamp(0.10*ratio*(0.55+rng()),0.02,0.48);
         const scored=rng()<xg;
         const shotLog=playerLogs[side].get(shooter.id);if(shotLog){shotLog.shots++;shotLog.xg+=xg;}
         totals.shots[side]++;totals.xg[side]+=xg;totals.touches[side]+=2;
         const onTarget=scored||rng()<0.34;
-        if(onTarget){totals.sot[side]++;if(shotLog)shotLog.sot++;}
+        if(onTarget){totals.sot[side]++;if(shotLog)shotLog.sot++;if(!scored)totals.saves[other]++;}
+        if(rng()<0.32)totals.clearances[other]++;
         if(method==="corner")totals.corners[side]++;
         if(xg>=0.25){totals.bigChances[side]++;if(!scored)totals.bigChancesMissed[side]++;}
         let assist=null;
@@ -251,7 +289,9 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
           }
           goalLists[side].push({name:shooter.name,playerId:shooter.id,minute,assistName:assist?.name,assistId:assist?.id});
         }
-        events.push({minute,side,isGoal:scored,playerId:shooter.id,type:scored?method:method==="penalty"?"penalty-miss":method==="corner"?"corner-miss":"chance",
+        const shotY=method==="penalty"?0.5:xg>=0.25?0.35+rng()*0.30:0.18+rng()*0.64;
+        const shotX=method==="penalty"?0.89:clamp(0.77+Math.sqrt(xg)*0.28+(rng()-0.5)*0.04,0.80,0.95);
+        events.push({minute,side,isGoal:scored,playerId:shooter.id,xg:+xg.toFixed(3),zone:Math.min(2,Math.floor(shotY*3)),shotX:+shotX.toFixed(3),shotY:+shotY.toFixed(3),type:scored?method:method==="penalty"?"penalty-miss":method==="corner"?"corner-miss":"chance",
           ...(assist?{assistId:assist.id,assistName:assist.name}:{}),
           text:scored?`${shooter.name} scores${method==="goal"?"!":` from a ${method}!`}${assist?` · assisted by ${assist.name}`:""}`:method==="penalty"?`Penalty missed! ${shooter.name}`:`${shooter.name} misses the chance`});
       }
@@ -306,11 +346,11 @@ export function applyPerformanceUpdates(s,updates=[]){
     return {...club,players:club.players.map(player=>{
       const r=byPlayer.get(player.id);
       const energy=player.energy??100,fitness=player.condition??100;
-      if(!r)return {...player,energy:clamp(energy+12,15,100),condition:clamp(fitness+3,60,100)};
+      if(!r)return {...player,energy:clamp(energy+20,15,100),condition:clamp(fitness+5,60,100)};
       const style=club.id===s.myClubId?s.tacticalStyle:aiTactics(club).style;
       const styleLoad=style==="gegen"?1.28:style==="tiki"?1.10:style==="bus"?0.85:1;
-      const load=((r.minutes??95)/95)*(13+(r.opponentStrength-70)*0.25)*styleLoad*(84/(player.stamina??80));
-      const nextEnergy=clamp(Math.round(energy+10-load),15,100);
+      const load=((r.minutes??95)/95)*(13+(r.opponentStrength-70)*0.25)*styleLoad*(84/(player.stamina??80))*(player.group==="GK"?0.55:1);
+      const nextEnergy=clamp(Math.round(energy+15-load),15,99);
       const nextFitness=clamp(Math.round(fitness+2-((r.minutes??95)/95)*(style==="gegen"?5:3)*(84/(player.stamina??80))),60,100);
       const oldConfidence=player.confidence||0;
       const faded=oldConfidence>0?oldConfidence-1:oldConfidence<0?oldConfidence+1:0;
@@ -451,28 +491,28 @@ export function ovrLabel(o){
 }
 export function fmtM(v){ return `£${v}m`; }
 export function ord(n){ return n===1?"st":n===2?"nd":n===3?"rd":"th"; }
-export function autoLineup(formationSlots, players){
+export function autoLineup(formationSlots, players, rating=p=>p.ovr){
   const used = new Set();
   const lineup = {};
   formationSlots.forEach((slot,i) => {
-    const pick = players.filter(p=>!used.has(p.id) && p.role===slot.role).sort((a,b)=>b.ovr-a.ovr)[0];
+    const pick = players.filter(p=>!used.has(p.id) && p.role===slot.role).sort((a,b)=>rating(b)-rating(a))[0];
     if (pick){ lineup[i]=pick.id; used.add(pick.id); }
   });
   formationSlots.forEach((slot,i) => {
     if (lineup[i]) return;
     const compat = ROLE_COMPAT[slot.role] || [slot.role];
-    const pick = players.filter(p=>!used.has(p.id) && compat.includes(p.role)).sort((a,b)=>b.ovr-a.ovr)[0];
+    const pick = players.filter(p=>!used.has(p.id) && compat.includes(p.role)).sort((a,b)=>rating(b)-rating(a))[0];
     if (pick){ lineup[i]=pick.id; used.add(pick.id); }
   });
   formationSlots.forEach((slot,i) => {
     if (lineup[i]) return;
     const group = ROLE_GROUP[slot.role];
-    const pick = players.filter(p=>!used.has(p.id) && p.group===group).sort((a,b)=>b.ovr-a.ovr)[0];
+    const pick = players.filter(p=>!used.has(p.id) && p.group===group).sort((a,b)=>rating(b)-rating(a))[0];
     if (pick){ lineup[i]=pick.id; used.add(pick.id); }
   });
   formationSlots.forEach((slot,i)=>{
     if(lineup[i]) return;
-    const pick=players.filter(p=>!used.has(p.id) && (slot.role==="GK"?p.role==="GK":p.role!=="GK")).sort((a,b)=>b.ovr-a.ovr)[0];
+    const pick=players.filter(p=>!used.has(p.id) && (slot.role==="GK"?p.role==="GK":p.role!=="GK")).sort((a,b)=>rating(b)-rating(a))[0];
     if(pick){lineup[i]=pick.id;used.add(pick.id);}
   });
   return lineup;
@@ -706,11 +746,11 @@ export function analyzeMatchup(myPlayers, oppPlayers, myTac, oppTac){
   const lineOpp = lineModifier(oppTac.line, oppTac.trap, rOpp.defense, rMe.attack);
   const effAttackMe = rMe.attack * (1 + styleBonusMe + lineMe.attackAdj);
   const effAttackOpp = rOpp.attack * (1 + styleBonusOpp + lineOpp.attackAdj);
-  const effDefenseMe = rMe.defense * (1 + styleMe.defense + lineMe.defenseAdj);
-  const effDefenseOpp = rOpp.defense * (1 + styleOpp.defense + lineOpp.defenseAdj);
+  const effDefenseMe = rMe.defense * (1 + styleMe.defense + lineMe.defenseAdj + ((myTac.aggression??50)-50)*0.00025);
+  const effDefenseOpp = rOpp.defense * (1 + styleOpp.defense + lineOpp.defenseAdj + ((oppTac.aggression??50)-50)*0.00025);
   return { ratings:{me:rMe, opp:rOpp}, formationEdge, hints,
     styleMeName: styleMe.name, styleOppName: styleOpp.name, styleBonusMe, styleBonusOpp,
-    lineMe, lineOpp, effAttackMe, effAttackOpp, effDefenseMe, effDefenseOpp };
+    lineMe, lineOpp, aggressionMe:myTac.aggression??50, aggressionOpp:oppTac.aggression??50, effAttackMe, effAttackOpp, effDefenseMe, effDefenseOpp };
 }
 export function findClubAnywhere(s, id){
   const pools = [s.clubs, s.championshipClubs, s.plClubs, s.laligaClubs, s.serieaClubs, s.bundesligaClubs, s.ligue1Clubs];
@@ -752,7 +792,9 @@ export function buildLiveMatchContext(s, userResult, oppClub, competition="ucl")
   const myTac=myTactics(s),oppTac=aiTactics(oppClub);
   const stats=match?.stats;
   const analysis = analyzeMatchup(lineupPlayers, oppPlayers, myTac, oppTac);
-  return { timeline, homeName, awayName, myName: myClubObj.name, oppName: oppClub.name, stats, analysis,
+  return { timeline, homeName, awayName, homeClubId:userResult.isHome?myClubObj.id:oppClub.id,
+    awayClubId:userResult.isHome?oppClub.id:myClubObj.id, homeColor:userResult.isHome?myClubObj.color:oppClub.color, awayColor:userResult.isHome?oppClub.color:myClubObj.color, competition:competition==="ucl"?"UCL":s.league,
+    myName: myClubObj.name, oppName: oppClub.name, stats, analysis,
     playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,myTacStyle: myTac.style, oppTacStyle: oppTac.style };
 }
 
@@ -767,7 +809,7 @@ export function freshState(){
     season:1, history:[], loans:[], finances:[], halftimeStyle:"keep", autoSubs:true,
     plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, championshipClubs: buildChampionshipClubs(),
     myClubId: null, simMode: null,
-    formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, offsideTrap: false,
+    formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, defensiveAggression: 50, offsideTrap: false,
     suspensions: { domestic: [], ucl: [] },
     half: 1, roundIndex: 0, roundsHalf1: null, roundsHalf2: null, tableRaw: null, lastResult: null,
     results1: [], results2: [], table1: null, tableFinal: null,

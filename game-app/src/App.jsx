@@ -1,9 +1,14 @@
-import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, applyUpdates, appendClubForm, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, pickN, pendingCupSlot, uclZoneLabel, uclZoneBg, simulateUclRound, pickKnockoutOpponent, cleanLineupOfSuspended, buildLiveMatchContext, freshState, applyPerformanceUpdates, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES } from "./game/engine.js";
+import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, applyUpdates, appendClubForm, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, pendingCupSlot, uclZoneLabel, simulateUclRound, cleanLineupOfSuspended, buildLiveMatchContext, freshState, applyPerformanceUpdates, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES } from "./game/engine.js";
+import { selectUclField } from "./game/uclSelection.js";
+import { standingsZone, standingsLegend } from "./game/standingsZones.js";
+import { startUclBracket, bracketCurrentTie } from "./game/uclBracket.js";
 import { simulateHalf, playLeagueRound, playDomesticCup, advanceLeagueRound, playEuropeanKnockout, advanceEuropeanKnockout } from "./game/actions.js";
 import { ROLE_GROUP, GROUP_COLOR, EUROPEAN_CLUBS, FORMATIONS } from "./game/config.js";
 import { marketOpen, loanFee, loanTerms, transfer, transferTerms, evaluateOffer, allClubs, startNextSeason } from "./game/career.js";
 import { validateSave, loadGame, saveGame, exportGame } from "./game/storage.js";
 import LiveMatchScreen from "./components/LiveMatchScreen.jsx";
+import { CompetitionMark } from "./components/CompetitionBrand.jsx";
+import { competitionBrand, competitionTheme } from "./components/competitionBrand.js";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeftRight, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins } from "lucide-react";
@@ -31,7 +36,7 @@ export default function App(){
   useEffect(() => {
     if (!loaded || !state || saveBlocked) return;
     try{saveGame(window.localStorage,state);setSaveError("");}
-    catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup below.`);}
+    catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);}
   }, [state,loaded,saveBlocked]);
 
   const flashToast=useCallback(msg=>{setToast(msg);},[]);
@@ -122,7 +127,7 @@ export default function App(){
   function selectClub(clubId){
     const club = state.clubs.find(c=>c.id===clubId);
     const identity=aiTactics(club);
-    setState(s => ({ ...s, myClubId: clubId, budget: club.budget, formation:club.preferredFormation || s.formation, lineup: autoLineup(FORMATIONS[club.preferredFormation || s.formation], club.players), tacticalStyle:identity.style, defensiveLine:identity.line, offsideTrap:identity.trap, stage: "mode" }));
+    setState(s => ({ ...s, myClubId: clubId, budget: club.budget, formation:club.preferredFormation || s.formation, lineup: autoLineup(FORMATIONS[club.preferredFormation || s.formation], club.players), tacticalStyle:identity.style, defensiveLine:identity.line, defensiveAggression:identity.aggression, offsideTrap:identity.trap, stage: "mode" }));
   }
   function pickMode(mode){ setState(s => ({ ...s, simMode: mode, stage: "squad" })); }
 
@@ -131,6 +136,7 @@ export default function App(){
   }
   function setTacticalStyle(key){ setState(s => ({ ...s, tacticalStyle: key })); }
   function setDefensiveLine(val){ setState(s => ({ ...s, defensiveLine: val })); }
+  function setDefensiveAggression(val){ setState(s => ({ ...s, defensiveAggression: val })); }
   function setOffsideTrap(val){ setState(s => ({ ...s, offsideTrap: val })); }
   function editNumber(playerId, num){
     updateClub(state.myClubId, c => ({ ...c, players: c.players.map(p => p.id===playerId ? {...p, number:num} : p) }));
@@ -178,24 +184,11 @@ export default function App(){
   function goToMidWindow(){ commitGame(s => ({ ...s, stage: "squad2" })); }
   function finalizeSeason(){ commitGame(s => ({ ...s, stage: "summary" })); }
 
-  // Champions League: real 36-team league-phase format, drawing opponents (with real squads) from
-  // whichever two leagues you're NOT currently playing in. Interactive, one match at a time.
-  function buildUclPool(s){
-    const others = [];
-    if (s.league !== "PL") others.push(...s.plClubs);
-    if (s.league !== "LALIGA") others.push(...s.laligaClubs);
-    if (s.league !== "SERIEA") others.push(...s.serieaClubs);
-    if (s.league !== "BUNDES") others.push(...s.bundesligaClubs);
-    if (s.league !== "LIGUE1") others.push(...s.ligue1Clubs);
-    return others;
-  }
+  // Build a 36-club field with genuine representatives from the managed league as well.
   function enterUcl(){
     commitGame(s => {
       if (s.ucl && s.ucl.stage !== "final") return { ...s, stage: "ucl" };
-      const pool = buildUclPool(s);
-      const chosen = pickN(pool, Math.min(35, pool.length));
-      const me = s.clubs.find(c=>c.id===s.myClubId);
-      const clubs = [me, ...chosen];
+      const clubs = selectUclField(s);
       const ids = clubs.map(c=>c.id);
       const rounds = roundRobin(ids).slice(0, 8);
       return { ...s, stage: "ucl", ucl: {
@@ -256,16 +249,11 @@ export default function App(){
         const outcome = "LEAGUE PHASE EXIT";
         return { ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } };
       }
-      let opp, knockoutRounds;
-      if (u.qualification === "playoff"){
-        knockoutRounds = ["Playoff","Round of 16","Quarter-Final","Semi-Final","Final"];
-        const zone = u.phaseTable.slice(8,24).filter(r=>r.id!==s.myClubId);
-        opp = zone[Math.floor(Math.random()*zone.length)].club;
-      } else {
-        knockoutRounds = ["Round of 16","Quarter-Final","Semi-Final","Final"];
-        opp = pickKnockoutOpponent({ ...u, knockoutFaced: [] }, s.myClubId);
-      }
-      return { ...s, ucl: { ...u, knockoutRounds, knockoutRoundIndex:0, knockoutFaced:[], currentKnockoutOpponentId: opp.id,
+      const knockoutBracket=startUclBracket(u.phaseTable,s.myClubId,u.clubs);
+      const current=bracketCurrentTie(knockoutBracket,s.myClubId);
+      const knockoutRounds=u.qualification==="playoff"?["Playoff","Round of 16","Quarter-Final","Semi-Final","Final"]:["Round of 16","Quarter-Final","Semi-Final","Final"];
+      const oppId=current.tie.aId===s.myClubId?current.tie.bId:current.tie.aId;
+      return { ...s, ucl: { ...u, knockoutBracket, knockoutRounds, knockoutRoundIndex:0, knockoutFaced:[], currentKnockoutOpponentId:oppId,
         leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     });
   }
@@ -373,8 +361,8 @@ export default function App(){
       </div>
     );
   }
-  else if (state.stage === "half-results") stageEl = <ResultsScreen title="First Half of the Season" results={state.results1} table={state.table1} clubs={state.clubs} myClubId={state.myClubId} onContinue={goToMidWindow} continueLabel="Go to Transfer Window →" cupStatus={state.cupStatus} />;
-  else if (state.stage === "full-results") stageEl = <ResultsScreen title="Final Season Results" results={state.results2} table={state.tableFinal} clubs={state.clubs} myClubId={state.myClubId} onContinue={finalizeSeason} continueLabel="Finalise Season →" projectedTable={state.table1} cupStatus={state.cupStatus} />;
+  else if (state.stage === "half-results") stageEl = <ResultsScreen title="First Half of the Season" results={state.results1} table={state.table1} clubs={state.clubs} myClubId={state.myClubId} onContinue={goToMidWindow} continueLabel="Go to Transfer Window →" cupStatus={state.cupStatus} league={state.league} />;
+  else if (state.stage === "full-results") stageEl = <ResultsScreen title="Final Season Results" results={state.results2} table={state.tableFinal} clubs={state.clubs} myClubId={state.myClubId} onContinue={finalizeSeason} continueLabel="Finalise Season →" projectedTable={state.table1} cupStatus={state.cupStatus} league={state.league} />;
   else if (state.stage === "summary") stageEl = <SummaryScreen state={state} myClub={myClub} onNextSeason={nextSeason} onOpenCups={()=>setCupsOpen(true)} />;
   else if (state.stage === "ucl" && state.ucl) stageEl = <UclPage state={state} myClub={myClub} squadCommonProps={squadCommonProps} actions={uclActions} />;
 
@@ -414,7 +402,6 @@ export default function App(){
         <Header myClub={myClub} league={state.league} onRestart={restart} />
         <SaveToolbar state={state} saveBlocked={saveBlocked} saveError={saveError}
           onExport={downloadSave} onImport={importSave} />
-        {saveError && <div role="alert" style={{padding:12,color:"#ffd28a",border:"1px solid #8a6530",marginBottom:12}}>{saveError}{saveBlocked&&" Your existing save has been kept. Import a valid backup or use Restart to begin a new save."}</div>}
         {myClub && !isLive && <SeasonStatus state={state} myClub={myClub} />}
         {state.development?.length>0 && state.stage==="squad" && <DevelopmentPanel changes={state.development} />}
         {stageEl}
@@ -428,7 +415,7 @@ export default function App(){
         <CupsHub state={state} onClose={()=>setCupsOpen(false)} onEnterUcl={()=>{ setCupsOpen(false); enterUcl(); }} />
       )}
       {tacticsOpen && myClub && (
-        <TacticsModal state={state} onClose={()=>setTacticsOpen(false)} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} />
+        <TacticsModal state={state} onClose={()=>setTacticsOpen(false)} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} />
       )}
     </div>
   );
@@ -446,7 +433,8 @@ function SaveToolbar({ state, saveBlocked, saveError, onExport, onImport }){
         <span>{seasonLabel(state)}</span><span className="save-separator">·</span><span>{saveLabel}</span>
       </div>
       <div className="save-actions">
-        <button className="quiet-button" onClick={onExport}>Export save</button>
+        {saveError&&<div className="save-warning-widget" role="alert" title={saveError}><span>⚠ Save paused</span><small>{saveBlocked?"Import a valid backup to resume":"Storage is full · export a backup"}</small><button onClick={onExport}>Export</button></div>}
+        {!saveError&&<button className="quiet-button" onClick={onExport}>Export save</button>}
         <label className="quiet-button file-button">Import save
           <input className="visually-hidden" aria-label="Import save" type="file" accept="application/json,.json" onChange={onImport} />
         </label>
@@ -632,20 +620,41 @@ function FormStrip({results,label}){
   const last=(results||[]).slice(-5);
   return <div className="fixture-form"><span>{label}</span><div className="matchday-form">{Array.from({length:5},(_,i)=>{const result=last[i];const letter=typeof result==="string"?result:result?.result;return <b key={i} className={letter?`form-${letter.toLowerCase()}`:"form-empty"}>{letter||"—"}</b>;})}</div></div>;
 }
-function MiniLineup({club,formation,players,caption}){
-  return <section className="prematch-side" style={{"--team-color":club.color||"#4d9d62"}}>
-    <div className="prematch-club"><ClubBadge club={club} size="xl"/><div><span>{caption}</span><strong>{club.name}</strong><small>{formation} · Starting XI</small></div></div>
-    <div className="prematch-pitch"><div className="prematch-pitch-lines"/>{(FORMATIONS[formation]||FORMATIONS["4-3-3"]).map((slot,i)=>{const player=players[i];return <div key={i} className="prematch-player" style={{left:`${slot.x}%`,top:`${slot.y}%`,"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}><b>{player?Math.round(matchOvr(player)):"—"}</b><strong title={player?.name}>{player?.name||slot.role}</strong><small>{slot.role}</small></div>;})}</div>
+function LineupSheet({club,formation,style,players,caption}){
+  const slots=FORMATIONS[formation]||FORMATIONS["4-3-3"];
+  const average=Math.round(players.reduce((total,player)=>total+(player?matchOvr(player):0),0)/Math.max(players.length,1));
+  return <section className="prematch-sheet" style={{"--team-color":club.color||"#4d9d62"}}>
+    <div className="prematch-sheet-head"><ClubBadge club={club} size="xl"/><div><span>{caption}</span><strong>{club.name}</strong><small>{formation} <i/> {STYLES[style]?.name||"Balanced"}</small></div><b>{average}<small>XI AVG</small></b></div>
+    <div className="prematch-column-labels"><span>STARTING XI</span><span>ENERGY</span><span>FITNESS</span><span>OVR</span></div>
+    <div className="prematch-roster">{slots.map((slot,i)=>{const player=players[i];const energy=clamp(Math.round(player?.energy??100),0,100);const fitness=clamp(Math.round(player?.condition??100),0,100);return <div className="prematch-roster-row" key={i} style={{"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
+      <span className="prematch-role">{slot.role}</span><strong title={player?.name}>{player?.name||"Vacant"}</strong>
+      <div className="prematch-energy" title={`Energy ${energy}%`}><i style={{width:`${energy}%`}}/><small>{energy}%</small></div>
+      <span className={`prematch-fitness ${fitness>=90?"good":fitness>=75?"mid":"low"}`} title={`Fitness ${fitness}%`}><FitnessGem condition={fitness}/>{fitness}%</span>
+      <b className="prematch-rating">{player?Math.round(matchOvr(player)):"—"}</b>
+    </div>;})}</div>
   </section>;
 }
-function PreMatchLineups({myClub,opponent,isHome,myFormation,oppFormation,myXI,oppXI,label,onClose,onContinue}){
+function FormationBoard({club,formation,style,players,caption}){
+  const slots=FORMATIONS[formation]||FORMATIONS["4-3-3"];
+  return <section className="prematch-formation-board" style={{"--team-color":club.color||"#4d9d62"}}>
+    <header><ClubBadge club={club} size="sm"/><div><span>{caption}</span><strong>{club.name}</strong><small>{formation} · {STYLES[style]?.name||"Balanced"}</small></div></header>
+    <div className="prematch-formation-pitch"><div className="prematch-formation-lines"/>{slots.map((slot,i)=>{const player=players[i];const energy=clamp(Math.round(player?.energy??100),0,100);return <div key={i} className="prematch-formation-slot" style={{left:`${slot.x}%`,top:`${slot.y}%`,"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
+      <div className="prematch-formation-card"><div><b>{player?Math.round(matchOvr(player)):"—"}</b><span>{slot.role}</span></div><strong title={player?.name}>{player?.name||"Vacant"}</strong><div className="prematch-formation-vitals"><FitnessGem condition={player?.condition}/><i><span style={{width:`${energy}%`}}/></i><small>{energy}%</small></div></div>
+    </div>;})}</div>
+    <footer><span><FitnessGem condition={100}/> Fitness</span><span><i/> Energy</span></footer>
+  </section>;
+}
+function PreMatchLineups({myClub,opponent,isHome,myFormation,oppFormation,myStyle,oppStyle,myXI,oppXI,label,brandId,onClose,onContinue}){
+  const [view,setView]=useState("sheets");
   useEffect(()=>{const handle=e=>{if(e.key==="Escape")onClose();};document.addEventListener("keydown",handle);return()=>document.removeEventListener("keydown",handle);},[onClose]);
+  const home=isHome?myClub:opponent,away=isHome?opponent:myClub;
   return createPortal(<div className="prematch-overlay" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <div className="prematch-dialog" role="dialog" aria-modal="true" aria-label="Match lineups">
-      <header className="prematch-header"><button onClick={onClose} aria-label="Close lineup preview">← Back</button><div><span>{label}</span><strong>Matchday lineups</strong></div><span>READY FOR KICKOFF</span></header>
-      <div className="prematch-versus"><ClubBadge club={isHome?myClub:opponent} size="sm"/><strong>{isHome?myClub.name:opponent.name}</strong><b>VS</b><strong>{isHome?opponent.name:myClub.name}</strong><ClubBadge club={isHome?opponent:myClub} size="sm"/></div>
-      <div className="prematch-lineups"><MiniLineup club={isHome?myClub:opponent} formation={isHome?myFormation:oppFormation} players={isHome?myXI:oppXI} caption={isHome?"YOUR XI · HOME":"OPPONENT XI · HOME"}/><MiniLineup club={isHome?opponent:myClub} formation={isHome?oppFormation:myFormation} players={isHome?oppXI:myXI} caption={isHome?"OPPONENT XI · AWAY":"YOUR XI · AWAY"}/></div>
-      <footer className="prematch-footer"><span>Lineups are locked when you continue.</span><button onClick={onContinue}>Continue to match <b>→</b></button></footer>
+    <div className="prematch-dialog competition-theme" style={competitionTheme(brandId)} role="dialog" aria-modal="true" aria-label="Match lineups">
+      <header className="prematch-header"><button onClick={onClose} aria-label="Close lineup preview">← Back</button><div><CompetitionMark id={brandId} size="sm"/><span>{label}</span><strong>Team sheets</strong></div><span>READY FOR KICKOFF</span></header>
+      <div className="prematch-matchup"><div><ClubBadge club={home} size="sm"/><strong>{home.name}</strong></div><b>VS</b><div><ClubBadge club={away} size="sm"/><strong>{away.name}</strong></div></div>
+      <div className="prematch-view-switch" role="tablist" aria-label="Lineup view"><button role="tab" aria-selected={view==="sheets"} className={view==="sheets"?"active":""} onClick={()=>setView("sheets")}>Team sheets</button><button role="tab" aria-selected={view==="formation"} className={view==="formation"?"active":""} onClick={()=>setView("formation")}>Formation view</button><span>Compare every starter before kickoff</span></div>
+      {view==="sheets"?<div className="prematch-lineups"><LineupSheet club={home} formation={isHome?myFormation:oppFormation} style={isHome?myStyle:oppStyle} players={isHome?myXI:oppXI} caption={isHome?"YOUR TEAM · HOME":"OPPONENT · HOME"}/><LineupSheet club={away} formation={isHome?oppFormation:myFormation} style={isHome?oppStyle:myStyle} players={isHome?oppXI:myXI} caption={isHome?"OPPONENT · AWAY":"YOUR TEAM · AWAY"}/></div>:<div className="prematch-lineups prematch-formation-view"><FormationBoard club={home} formation={isHome?myFormation:oppFormation} style={isHome?myStyle:oppStyle} players={isHome?myXI:oppXI} caption={isHome?"YOUR TEAM · HOME":"OPPONENT · HOME"}/><FormationBoard club={away} formation={isHome?oppFormation:myFormation} style={isHome?oppStyle:myStyle} players={isHome?oppXI:myXI} caption={isHome?"OPPONENT · AWAY":"YOUR TEAM · AWAY"}/></div>}
+      <footer className="prematch-footer"><span>{view==="sheets"?"Energy and fitness are shown for both starting elevens.":"Both formations are shown with current match OVR and energy."}</span><button onClick={onContinue}>Continue to match <b>→</b></button></footer>
     </div>
   </div>,document.body);
 }
@@ -664,26 +673,27 @@ function MatchdayPreview({state,myClub,opponent,isHome,oppForm,myStyle,oppStyle,
   const recent=isUcl?(state.ucl?.form?.[myClub.id]||[]):(state.clubForm?.[myClub.id]||[...(state.results1||[]),...(state.results2||[])]);
   const theirRecent=oppRecent||(isUcl?state.ucl?.form?.[opponent.id]:state.clubForm?.[opponent.id])||[];
   const issue=lineupIssue(state,isUcl?"ucl":"domestic");
-  return <section className="matchday-preview">
-    <div className="matchday-preview-top"><span>{fixtureLabel}</span><span>{subLabel||`${isHome?"HOME • YOUR STADIUM":"AWAY • OPPONENT STADIUM"}`}</span></div>
+  const brandId=isUcl?"UCL":state.league;
+  return <section className="matchday-preview competition-theme" style={competitionTheme(brandId)}>
+    <div className="matchday-preview-top"><span className="matchday-competition"><CompetitionMark id={brandId} size="sm"/>{fixtureLabel}</span><span>{subLabel||`${isHome?"HOME • YOUR STADIUM":"AWAY • OPPONENT STADIUM"}`}</span></div>
     <div className="matchday-preview-main">
       <div className="matchday-team"><ClubBadge club={isHome?myClub:opponent} size="xl"/><strong>{isHome?myClub.name:opponent.name}</strong><small>{isHome?selectedFormation:oppForm} · {STYLES[isHome?myStyle:oppStyle]?.name||"Balanced"}</small></div>
       <div className="matchday-centre"><span>NEXT FIXTURE</span><b>VS</b><div className="matchday-power"><span>{isHome?myPower:oppPower} XI AVG</span><i/><span>{isHome?oppPower:myPower} XI AVG</span></div><small>Squad strength based on the selected elevens</small></div>
       <div className="matchday-team"><ClubBadge club={isHome?opponent:myClub} size="xl"/><strong>{isHome?opponent.name:myClub.name}</strong><small>{isHome?oppForm:selectedFormation} · {STYLES[isHome?oppStyle:myStyle]?.name||"Balanced"}</small></div>
     </div>
     <div className="matchday-scout">
-      <div className="matchday-scout-block"><span>THEIR DANGER PLAYERS</span><div className="matchday-threats">{danger.map(p=><div key={p.id}><b>{matchOvr(p)}</b><strong>{p.name}</strong><small>{p.role}</small></div>)}</div><button className="matchday-view-xi" onClick={()=>setShowOppXI(value=>!value)} aria-expanded={showOppXI}>{showOppXI?"Hide opponent XI":"View opponent XI"} <span>{showOppXI?"↑":"↓"}</span></button></div>
+      <div className="matchday-scout-block"><span>THEIR DANGER PLAYERS</span><div className="matchday-threats">{danger.map(p=><div key={p.id}><b>{Math.round(matchOvr(p))}</b><strong>{p.name}</strong><small>{p.role}</small></div>)}</div><button className="matchday-view-xi" onClick={()=>setShowOppXI(value=>!value)} aria-expanded={showOppXI}>{showOppXI?"Hide opponent XI":"View opponent XI"} <span>{showOppXI?"↑":"↓"}</span></button></div>
       <div className="matchday-scout-block"><span>TACTICAL READ</span><div className="matchday-hints">{hints.length?hints.map((hint,i)=><div key={i} style={{"--hint-color":hint.color}}>{hint.text}</div>):<div>Even tactical matchup — your XI and player form will decide it.</div>}</div></div>
       <div className="matchday-scout-block matchday-form-panel"><FormStrip results={recent} label="YOUR LAST FIVE"/><FormStrip results={theirRecent} label="THEIR LAST FIVE"/><small>{isUcl?"Champions League matches":"League matches"}</small></div>
     </div>
     {showOppXI&&<div className="matchday-opponent-xi"><div className="matchday-xi-heading"><ClubBadge club={opponent} size="xs"/><strong>{opponent.name} starting XI</strong><span>{oppForm} · {STYLES[oppStyle]?.name||"Balanced"}</span></div><div className="matchday-xi-grid">{oppXI.map(player=><div key={player.id}><b>{matchOvr(player)}</b><strong>{player.name}</strong><small>{player.role}</small></div>)}</div></div>}
     <div className="matchday-preview-footer"><span>{issue||"Check the lineup below, then review both starting XIs."}</span><button onClick={()=>setShowLineups(true)} disabled={!!issue}>View lineups <span>→</span></button></div>
-    {showLineups&&<PreMatchLineups myClub={myClub} opponent={opponent} isHome={isHome} myFormation={selectedFormation} oppFormation={oppForm} myXI={myXI} oppXI={oppXI} label={fixtureLabel} onClose={()=>setShowLineups(false)} onContinue={()=>{setShowLineups(false);onPlay();}}/>}
+    {showLineups&&<PreMatchLineups myClub={myClub} opponent={opponent} isHome={isHome} myFormation={selectedFormation} oppFormation={oppForm} myXI={myXI} oppXI={oppXI} myStyle={myStyle} oppStyle={oppStyle} brandId={brandId} label={fixtureLabel} onClose={()=>setShowLineups(false)} onContinue={()=>{setShowLineups(false);onPlay();}}/>}
   </section>;
 }
-function FormDiamond({confidence}){
+function FormTrend({confidence}){
   if(!confidence)return null;
-  return <span className={`form-diamond ${confidence>0?"form-diamond-up":"form-diamond-down"}`} title={`${confidence>0?"+":""}${confidence} confidence to match OVR`} aria-label={`${confidence>0?"Up":"Down"} ${Math.abs(confidence)} from base rating`}><i/></span>;
+  return <span className={`form-trend ${confidence>0?"form-trend-up":"form-trend-down"}`} title={`${confidence>0?"+":""}${confidence} confidence to match OVR`} aria-label={`${confidence>0?"Up":"Down"} ${Math.abs(confidence)} from base rating`}><span aria-hidden="true">{confidence>0?"↑":"↓"}</span></span>;
 }
 function FitnessGem({condition}){
   const fitness=clamp(Math.round(condition??100),0,100);
@@ -708,11 +718,11 @@ function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverS
       return <div key={i} data-slot-index={i} data-slot-role={slot.role}
         className={`pitch-position ${active?(eligible?"drop-valid":"drop-invalid"):""} ${eligible?"drop-eligible":""}`}
         style={{left:`${slot.x}%`,top:`${slot.y}%`,"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
-        {player?<div className="pitch-player-card" onPointerDown={e=>onDragStart(e,player,{source:"slot",slotIndex:i})} title={`${player.name} · ${matchOvr(player)} match OVR (${player.ovr} base) · ${slot.role}`}>
-          <div className="pitch-card-top"><span className="pitch-card-ovr"><span className="ovr-value">{matchOvr(player)}</span><FormDiamond confidence={player.confidence}/></span><span className="pitch-card-role">{slot.role}</span></div>
+        {player?<><div className="pitch-player-card" onPointerDown={e=>onDragStart(e,player,{source:"slot",slotIndex:i})} title={`${player.name} · ${matchOvr(player)} match OVR (${player.ovr} base) · ${slot.role}`}>
+          <div className="pitch-card-top"><span className="pitch-card-ovr"><span className="ovr-value">{matchOvr(player)}</span><FormTrend confidence={player.confidence}/></span><span className="pitch-card-role">{slot.role}</span></div>
           <div className="pitch-card-icon">{player.number}</div>
           <strong>{player.name}</strong><div className="pitch-card-vitals"><FitnessGem condition={player.condition}/><EnergyBar energy={player.energy}/></div>
-        </div>:<div className="pitch-empty-card"><b>+</b><span>{slot.role}</span></div>}
+        </div></>:<div className="pitch-empty-card"><b>+</b><span>{slot.role}</span></div>}
       </div>;
     })}
     <div className="pitch-bottom-label">DRAG A CARD TO CHANGE YOUR XI</div>
@@ -810,6 +820,26 @@ function SeasonInsights({ clubs, myClub, league="PL", compact=false }){
   );
 }
 
+function CompetitionStandings({table,myClubId,brandId="PL",title,subtitle="Updates after every matchday",zone=false}){
+  const isUcl=brandId==="UCL";
+  const legend=standingsLegend(brandId,table.length);
+  return <section className={`league-standings competition-theme ${isUcl?"is-ucl":""}`} style={competitionTheme(brandId)}>
+    <header><CompetitionMark id={brandId}/><div><span>LIVE STANDINGS</span><strong>{title||`${competitionBrand(brandId).name} table`}</strong><small>{subtitle}</small></div></header>
+    <div className="standings-legend">{legend.map(item=><span key={item.key}><i className={`zone-${item.color}`}/>{item.label}</span>)}</div>
+    <div className="league-table-scroll"><table><thead><tr><th>#</th><th>CLUB</th>{isUcl&&<th>PTS</th>}<th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th>{!isUcl&&<th>PTS</th>}{zone&&<th>ZONE</th>}</tr></thead><tbody>{table.map((row,index)=>{
+      const rowZone=standingsZone(brandId,index+1,table.length);
+      return <tr key={row.id} className={row.id===myClubId?"my-club":""}><td className={rowZone?`standing-rank zone-${rowZone.color}`:"standing-rank"} title={rowZone?.label}>{index+1}</td><td><ClubBadge club={row.club} size="xs"/><strong>{row.club?.name||row.id}</strong></td>{isUcl&&<td className="points-cell"><b>{row.pts}</b></td>}<td>{row.played}</td><td>{row.w}</td><td>{row.d}</td><td>{row.l}</td><td>{row.gd>0?"+":""}{row.gd}</td>{!isUcl&&<td className="points-cell"><b>{row.pts}</b></td>}{zone&&<td>{uclZoneLabel(index+1)}</td>}</tr>;
+    })}</tbody></table></div>
+  </section>;
+}
+function LeagueStandings({state}){
+  const isUcl=state.stage==="ucl"&&!!state.ucl;
+  const clubs=isUcl?state.ucl.clubs:state.clubs;
+  const brandId=isUcl?"UCL":state.league;
+  const table=computeTableArray((isUcl?state.ucl.tableRaw:state.tableRaw)||initTable(clubs.map(club=>club.id)),clubs);
+  return <CompetitionStandings table={table} myClubId={state.myClubId} brandId={brandId} title={isUcl?"Champions League league phase table":`${LEAGUE_NAMES[state.league]} table`} zone={isUcl}/>;
+}
+
 function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
   const suspendedSet = new Set(suspendedIds || []);
@@ -835,9 +865,10 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
       <div className="workspace-tabs" role="tablist">
         <button className={workspaceTab==="squad"?"active":""} onClick={()=>setWorkspaceTab("squad")}>Squad board</button>
         <button className={workspaceTab==="performance"?"active":""} onClick={()=>setWorkspaceTab("performance")}>Performance centre {hasSeasonData&&<span>LIVE</span>}</button>
+        <button className={workspaceTab==="table"?"active":""} onClick={()=>setWorkspaceTab("table")}>League table</button>
       </div>
 
-      {workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
+      {workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
       <div className="lineup-toolbar">
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           <span style={{ fontSize:12, color:"#9ab89a" }}>Formation</span>
@@ -869,7 +900,7 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
               return (
               <div key={p.id} className={`squad-player-row ${usedIds.has(p.id)?"is-starting":""} ${suspended?"is-suspended":""}`} style={{"--role-color":GROUP_COLOR[p.group]}}>
                 <div className="squad-drag-area" onPointerDown={suspended?undefined:(e)=>onDragStart(e, p, { source:"squad" })}>
-                  <div className={`squad-ovr ${matchOvr(p)>=88?"elite":matchOvr(p)>=84?"high":""}`} title={`${matchOvr(p)} match OVR · ${p.ovr} base · ${p.confidence>0?"+":""}${p.confidence||0} confidence`}><strong>{matchOvr(p)}</strong><FormDiamond confidence={p.confidence}/><small>OVR</small></div>
+                  <div className={`squad-ovr ${matchOvr(p)>=88?"elite":matchOvr(p)>=84?"high":""}`} title={`${matchOvr(p)} match OVR · ${p.ovr} base · ${p.confidence>0?"+":""}${p.confidence||0} confidence`}><strong>{matchOvr(p)}</strong><FormTrend confidence={p.confidence}/><small>OVR</small></div>
                   <div className="squad-player-copy">
                     <div className="squad-player-name"><strong>{p.name}</strong>{p.loan&&<span className="squad-loan-tag">LOAN</span>}{usedIds.has(p.id)&&!suspended&&<span className="squad-starting-tag">STARTING</span>}{suspended&&<span className="squad-suspended-tag">SUSPENDED</span>}</div>
                     <div className="squad-player-facts"><b>{p.role}</b><span>Age {p.age}</span><span>{fmtM(p.value)}</span>{p.confidence?<span className={p.confidence>0?"form-up":"form-down"}>{p.confidence>0?"+":""}{p.confidence} confidence</span>:null}</div>
@@ -908,7 +939,7 @@ function CupProgressStrip({ cupStatus }){
     </div>
   );
 }
-function ResultsScreen({ title, results, table, clubs, myClubId, onContinue, continueLabel, projectedTable, cupStatus }){
+function ResultsScreen({ title, results, table, clubs, myClubId, onContinue, continueLabel, projectedTable, cupStatus, league }){
   const myRow = table.find(r=>r.id===myClubId);
   const myRank = table.findIndex(r=>r.id===myClubId)+1;
   const projRank = projectedTable ? projectedTable.findIndex(r=>r.id===myClubId)+1 : null;
@@ -955,25 +986,7 @@ function ResultsScreen({ title, results, table, clubs, myClubId, onContinue, con
             ))}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:"#cfe8cf" }}>League Table</div>
-          <div style={{ maxHeight:420, overflowY:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-              <thead><tr style={{ color:"#6a8a6a", textAlign:"left" }}>
-                <th style={{padding:"4px 6px"}}>#</th><th>Club</th><th>P</th><th>Pts</th><th>GD</th>
-              </tr></thead>
-              <tbody>
-                {table.map((r,i)=>(
-                  <tr key={r.id} style={{ background: r.id===myClubId?"#132513":"transparent", borderTop:"1px solid #1c2b1c" }}>
-                    <td style={{padding:"5px 6px"}}>{i+1}</td>
-                    <td style={{fontWeight:r.id===myClubId?700:400}}>{r.club.name}</td>
-                    <td>{r.played}</td><td style={{fontWeight:700}}>{r.pts}</td><td>{r.gd>=0?"+":""}{r.gd}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <div><CompetitionStandings table={table} myClubId={myClubId} brandId={league} title={`${LEAGUE_NAMES[league]} table`} subtitle="Season standings"/></div>
       </div>
 
     </div>
@@ -1049,23 +1062,7 @@ function SummaryScreen({ state, myClub, onNextSeason, onOpenCups }){
 
       <SeasonInsights clubs={state.clubs} />
 
-      <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:"#cfe8cf" }}>Final Table</div>
-      <div style={{ maxHeight:400, overflowY:"auto", marginBottom:20 }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-          <thead><tr style={{ color:"#6a8a6a", textAlign:"left" }}>
-            <th style={{padding:"4px 6px"}}>#</th><th>Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th>
-          </tr></thead>
-          <tbody>
-            {state.tableFinal.map((r,i)=>(
-              <tr key={r.id} style={{ background: r.id===state.myClubId?"#132513":"transparent", borderTop:"1px solid #1c2b1c" }}>
-                <td style={{padding:"5px 6px"}}>{i+1}</td>
-                <td style={{fontWeight:r.id===state.myClubId?700:400}}>{r.club.name}</td>
-                <td>{r.played}</td><td>{r.w}</td><td>{r.d}</td><td>{r.l}</td><td>{r.gd>=0?"+":""}{r.gd}</td><td style={{fontWeight:700}}>{r.pts}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div style={{ marginBottom:20 }}><CompetitionStandings table={state.tableFinal} myClubId={state.myClubId} brandId={state.league} title={`${LEAGUE_NAMES[state.league]} final table`} subtitle="Final season standings"/></div>
 
       <div style={{ textAlign:"center" }}>
         <button onClick={onNextSeason} style={primaryBtnStyle}>Continue to Next Season</button>
@@ -1155,26 +1152,31 @@ function UclBanner({ text, sub }){
   );
 }
 
+function UclBracket({bracket,clubs,myClubId}){
+  const names=["Playoff","Round of 16","Quarter-Final","Semi-Final","Final"];
+  const byId=new Map(clubs.map(club=>[club.id,club]));
+  return <section className="ucl-bracket competition-theme" style={competitionTheme("UCL")}>
+    <header><CompetitionMark id="UCL"/><div><span>KNOCKOUT ROAD</span><strong>Road to the final</strong><small>Aggregate scores · advancing clubs highlighted</small></div></header>
+    <div className="ucl-bracket-scroll"><div className="ucl-bracket-grid"><svg className="ucl-bracket-lines" viewBox="0 0 910 1200" preserveAspectRatio="none" aria-hidden="true">{[16,8,4,2].flatMap((count,col)=>Array.from({length:count/2},(_,pair)=>{
+      const y1=70+(2*pair+.5)/count*1100,y2=70+(2*pair+1.5)/count*1100,yn=70+(pair+.5)/(count/2)*1100;
+      const x=col*185+170,xm=x+7.5,xn=(col+1)*185;
+      return <g key={`${col}-${pair}`}><path d={`M${x} ${y1} H${xm} V${y2} H${x}`}/><path d={`M${xm} ${yn} H${xn}`}/></g>;
+    }))}</svg>{names.map((name,idx)=>{
+      const stage=bracket.stages.find(item=>item.name===name);
+      const count=16/Math.pow(2,idx);
+      return <div className="ucl-bracket-round" key={name}><h4>{name}</h4>{Array.from({length:count},(_,i)=>{
+        const tie=stage?.ties[i];
+        return <div style={{top:70+(i+.5)/count*1100-31}} className={`ucl-bracket-tie ${tie?.winnerId?"decided":""} ${tie&&(tie.aId===myClubId||tie.bId===myClubId)?"my-tie":""}`} key={i}>{tie?[tie.aId,tie.bId].map((id,j)=>{
+          const club=byId.get(id);
+          return <div className={`ucl-bracket-club ${tie.winnerId===id?"advanced":""}`} key={id}><ClubBadge club={club} size="xs"/><span>{club?.name||id}</span><b>{tie.winnerId||tie.leg1?j===0?tie.aGoals:tie.bGoals:"—"}</b></div>;
+        }):<div className="ucl-bracket-await">Awaiting qualifiers</div>}{tie?.pens&&<small>Decided on penalties</small>}</div>;
+      })}</div>;
+    })}</div></div>
+  </section>;
+}
+
 function UclTable({ table, myClubId }){
-  return (
-    <div style={{ maxHeight:480, overflowY:"auto" }}>
-      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-        <thead><tr style={{ color:"#6a8a6a", textAlign:"left" }}>
-          <th style={{padding:"4px 6px"}}>#</th><th>Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th><th>Zone</th>
-        </tr></thead>
-        <tbody>
-          {table.map((r,i)=>(
-            <tr key={r.id} style={{ background: uclZoneBg(i+1, r.id===myClubId), borderTop:"1px solid #1c2b1c" }}>
-              <td style={{padding:"5px 6px"}}>{i+1}</td>
-              <td style={{fontWeight:r.id===myClubId?700:400}}>{r.club.name}</td>
-              <td>{r.played}</td><td>{r.w}</td><td>{r.d}</td><td>{r.l}</td><td>{r.gd>=0?"+":""}{r.gd}</td><td style={{fontWeight:700}}>{r.pts}</td>
-              <td style={{fontSize:10, color:"#9ab89a"}}>{uclZoneLabel(i+1)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <CompetitionStandings table={table} myClubId={myClubId} brandId="UCL" title="Champions League league phase table" zone/>;
 }
 
 function UclHub({ state, onPlayNext }){
@@ -1334,7 +1336,7 @@ function UclSingleMatchResult({ myClub, result, roundLabel, isCampaignOver, aggr
   );
 }
 
-function UclFinal({ myClub, rec, onBack }){
+function UclFinal({ myClub, rec, onBack, bracket, clubs }){
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:20 }}>
@@ -1347,6 +1349,7 @@ function UclFinal({ myClub, rec, onBack }){
         <StatBox label="Record" value={`${rec.record.w}-${rec.record.d}-${rec.record.l}`} />
         <StatBox label="Goals" value={`${rec.record.gf}-${rec.record.ga}`} />
       </div>
+      {bracket&&<div style={{marginBottom:20}}><UclBracket bracket={bracket} clubs={clubs} myClubId={myClub.id}/></div>}
       <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:20 }}>
         {rec.results.map((r,i)=>(
           <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#0e150e", border:"1px solid #1c2b1c", borderRadius:8, padding:"7px 12px", fontSize:12, gap:6, flexWrap:"wrap" }}>
@@ -1400,7 +1403,7 @@ function UclPage({ state, myClub, squadCommonProps, actions }){
       aggregate={isFinal?null:u.aggregate} isLeg1={!isFinal && leg===1}
       isCampaignOver={isCampaignOver} onContinue={actions.uclContinueAfterKnockout} />;
   }
-  if (u.stage === "final") return <UclFinal myClub={myClub} rec={{ results:u.campaignResults, record:u.campaignRecord, outcome:u.outcome }} onBack={actions.uclBackToSeason} />;
+  if (u.stage === "final") return <UclFinal myClub={myClub} rec={{ results:u.campaignResults, record:u.campaignRecord, outcome:u.outcome }} onBack={actions.uclBackToSeason} bracket={u.knockoutBracket} clubs={u.clubs} />;
   return null;
 }
 function CupsHub({ state, onClose, onEnterUcl }){
@@ -1439,7 +1442,7 @@ function CupsHub({ state, onClose, onEnterUcl }){
   );
 }
 
-function TacticsModal({ state, onClose, onSetStyle, onSetLine, onSetTrap, onSetPlan }){
+function TacticsModal({ state, onClose, onSetStyle, onSetLine, onSetAggression, onSetTrap, onSetPlan }){
   const styleList = Object.entries(STYLES).map(([key,v]) => ({ key, ...v }));
   const line = state.defensiveLine ?? 50;
   return (
@@ -1471,7 +1474,7 @@ function TacticsModal({ state, onClose, onSetStyle, onSetLine, onSetTrap, onSetP
             <label>Halftime style change <select value={state.halftimeStyle||"keep"} onChange={e=>onSetPlan({halftimeStyle:e.target.value})}>
               <option value="keep">Keep current style</option>{styleList.map(st=><option key={st.key} value={st.key}>{st.name}</option>)}
             </select></label>
-            <label style={{display:"block",marginTop:10}}><input type="checkbox" checked={state.autoSubs!==false} onChange={e=>onSetPlan({autoSubs:e.target.checked})}/> Replace up to three tired players at 60 minutes</label>
+            <label style={{display:"block",marginTop:10}}><input type="checkbox" checked={state.autoSubs!==false} onChange={e=>onSetPlan({autoSubs:e.target.checked})}/> Replace tired players during the match (up to 5 substitutions)</label>
             <p>These plans take effect during the simulation. Fresh substitutes, fatigue and dismissals affect the remaining play.</p>
           </div>
           <div style={{ fontSize:12, fontWeight:700, color:"#cfe8cf", marginBottom:8 }}>Defensive Line</div>
@@ -1479,6 +1482,13 @@ function TacticsModal({ state, onClose, onSetStyle, onSetLine, onSetTrap, onSetP
             style={{ width:"100%", marginBottom:6, accentColor:"#2d6b3f" }} />
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#6a8a6a", marginBottom:22 }}>
             <span>Deep / Low Block</span><span style={{fontWeight:700, color:"#9ab89a"}}>{line}</span><span>High Line</span>
+          </div>
+
+          <div className="defensive-aggression-control">
+            <div><strong>Defensive aggression</strong><span>{(state.defensiveAggression??50)<25?"Cautious":(state.defensiveAggression??50)<50?"Measured":(state.defensiveAggression??50)<75?"Assertive":"Full contact"}</span></div>
+            <p>More pressure makes defending slightly stronger, but increases fouls and cards. Penalties only follow fouls in the box.</p>
+            <input type="range" min={0} max={100} step={5} value={state.defensiveAggression??50} onChange={e=>onSetAggression(Number(e.target.value))} aria-label="Defensive aggression" />
+            <div className="aggression-scale"><span>Cautious</span><span>Balanced</span><span>Aggressive</span></div>
           </div>
 
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:"12px 16px" }}>
@@ -1592,13 +1602,14 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
         </>}
 
         {screen==="profile"&&selected&&<section className="player-profile-page">
-          <div className="profile-identity">
+          <div className="profile-identity" style={{"--profile-club":selected.sellerClub.color||"#4e9461"}}>
             <div className="profile-club-glow" style={{background:selected.sellerClub.color}}/>
+            <div className="profile-crest-watermark"><ClubBadge club={selected.sellerClub} size="xl"/></div>
             <div className="profile-rating"><strong>{selected.ovr}</strong><span>{selected.role}</span></div>
-            <div className="profile-name"><span>{MARKET_LEAGUES[selected.league]} · {selected.sellerClub.name}</span><h2>{selected.name}</h2><p>Age {selected.age} · {selected.group} · Potential {terms?.potential||selected.ovr} · Fitness {Math.round(selected.condition??100)}% · Energy {Math.round(selected.energy??100)}%</p></div>
+            <div className="profile-name"><div className="profile-clubline"><ClubBadge club={selected.sellerClub} size="sm"/><span>{MARKET_LEAGUES[selected.league]} · {selected.sellerClub.name}</span></div><h2>{selected.name}</h2><p>Age {selected.age} · {selected.group} · Potential {terms?.potential||selected.ovr} · Fitness {Math.round(selected.condition??100)}% · Energy {Math.round(selected.energy??100)}%</p></div>
             <div className="profile-value"><small>MARKET VALUE</small><strong>{fmtM(selected.value)}</strong><span>{terms?.stance||"Unavailable"}</span></div>
           </div>
-          <div className="profile-grid">
+          <div className="profile-grid" style={{"--profile-club":selected.sellerClub.color||"#4e9461"}}>
             <div className="scout-card">
               <div className="profile-section-title">Scouted attributes</div>
               <div className="attribute-grid">{attributes.map(([label,value])=><div className="attribute" key={label}><strong>{value}</strong><span>{label}</span><i><b style={{width:`${value}%`}}/></i></div>)}</div>

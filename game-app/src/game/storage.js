@@ -1,5 +1,6 @@
 import { freshState, ensureFixtures, computeTableArray, STYLES, clamp } from './engine.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
+import { repairUclField } from './uclSelection.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
 const SAVE_VERSION=3;
@@ -12,8 +13,19 @@ export function validateSave(raw){
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
-  const defaults=freshState(),s={...defaults,...input};
-  requireValid(STYLES[s.tacticalStyle]&&Number.isFinite(s.defensiveLine)&&s.defensiveLine>=0&&s.defensiveLine<=100,'invalid tactics.');
+  const defaults=freshState();let s={...defaults,...input};
+  const allPools=[s.clubs,s.plClubs,s.laligaClubs,s.serieaClubs,s.bundesligaClubs,s.ligue1Clubs,s.championshipClubs].filter(Array.isArray);
+  const byId=new Map(allPools.flat().map(club=>[club.id,club]));
+  if(Array.isArray(s.ucl?.clubIds)&&!Array.isArray(s.ucl.clubs)){
+    requireValid(s.ucl.clubIds.every(id=>byId.has(id)),"invalid European club list.");
+    s.ucl={...s.ucl,clubs:s.ucl.clubIds.map(id=>byId.get(id))};
+  }
+  const hydrateTable=(rows,pool)=>Array.isArray(rows)?rows.map(row=>row?.club?row:{...row,club:pool.find(club=>club.id===row.id)}):rows;
+  s.table1=hydrateTable(s.table1,s.clubs);
+  s.tableFinal=hydrateTable(s.tableFinal,s.clubs);
+  if(s.ucl?.clubs)s.ucl={...s.ucl,phaseTable:hydrateTable(s.ucl.phaseTable,s.ucl.clubs)};
+  s=repairUclField(s);
+  requireValid(STYLES[s.tacticalStyle]&&Number.isFinite(s.defensiveLine)&&s.defensiveLine>=0&&s.defensiveLine<=100&&Number.isFinite(s.defensiveAggression)&&s.defensiveAggression>=0&&s.defensiveAggression<=100,'invalid tactics.');
   requireValid(s.halftimeStyle==='keep'||STYLES[s.halftimeStyle],'invalid halftime plan.');
   const playerIds=new Set();
   for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
@@ -103,9 +115,25 @@ export function loadGame(storage){
   if(current===null&&legacy===null)return freshState();
   return validateSave(JSON.parse(current??legacy));
 }
+function compactResult(result){
+  if(!result)return result;
+  const {match,performanceUpdates,playerRatings,...rest}=result;
+  void match;void performanceUpdates;void playerRatings;
+  return rest;
+}
+function compactTable(table){return Array.isArray(table)?table.map(row=>{const copy={...row};delete copy.club;return copy;}):table;}
+function compactState(state){
+  const out={...state,table1:compactTable(state.table1),tableFinal:compactTable(state.tableFinal),
+    results1:state.results1.map(compactResult),results2:state.results2.map(compactResult)};
+  if(state.cupStatus)out.cupStatus=Object.fromEntries(Object.entries(state.cupStatus).map(([key,cup])=>[key,{...cup,results:cup.results.map(compactResult)}]));
+  if(state.cups)out.cups=Object.fromEntries(Object.entries(state.cups).map(([key,cup])=>[key,cup?.results?{...cup,results:cup.results.map(compactResult)}:cup]));
+  if(state.ucl)out.ucl={...state.ucl,clubIds:state.ucl.clubs.map(club=>club.id),clubs:undefined,
+    phaseTable:compactTable(state.ucl.phaseTable),campaignResults:state.ucl.campaignResults.map(compactResult)};
+  return out;
+}
 export function saveGame(storage,state){
-  // Detailed events stay in the active replay. Historical results retain scores/scorers.
-  const json=JSON.stringify({version:SAVE_VERSION,state},(key,value)=>key==='match'?undefined:value);
+  // Keep the active replay; historical standings and results only need ids and compact summaries.
+  const json=JSON.stringify({version:SAVE_VERSION,state:compactState(state)},(key,value)=>key==='match'?undefined:value);
   storage.setItem(KEY,json);
 }
-export function exportGame(state){return JSON.stringify({version:SAVE_VERSION,state},(key,value)=>key==='match'?undefined:value,2);}
+export function exportGame(state){return JSON.stringify({version:SAVE_VERSION,state:compactState(state)},(key,value)=>key==='match'?undefined:value,2);}
