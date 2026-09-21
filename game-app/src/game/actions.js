@@ -1,4 +1,4 @@
-import { lineupIssue, applyUpdates, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyMatchFitness, applyPerformanceUpdates } from "./engine.js";
+import { lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates } from "./engine.js";
 function requireLineup(s,competition="domestic"){const issue=lineupIssue(s,competition);if(issue)throw new Error(issue);}
 export function simulateHalf(s, half){
       requireLineup(s);
@@ -9,7 +9,6 @@ export function simulateHalf(s, half){
         while((slot=pendingCupSlot(cur.myClubId,half,idx,cur.cupStatus,cur.league))){
           const {updatedCs,matchResult}=simulateCupMatch(cur,slot.comp,slot.round);
           cur=applyPerformanceUpdates({...cur,cupStatus:{...cur.cupStatus,[slot.comp]:updatedCs}},matchResult.performanceUpdates);
-          cur=applyMatchFitness(cur,matchResult);
           const suspended=matchResult.redCard?[matchResult.redCard.id]:[];
           cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,suspended)};
         }
@@ -18,8 +17,7 @@ export function simulateHalf(s, half){
         playDueCups(idx);
         const {updates,userResult,performanceUpdates}=simulateRound(cur,round,(half===1?0:cur.roundsHalf1.length)+idx+1);
         results.push(userResult);
-        cur=applyPerformanceUpdates({...cur,tableRaw:applyUpdates(cur.tableRaw,updates)},performanceUpdates);
-        cur=applyMatchFitness(cur,userResult);
+        cur=applyPerformanceUpdates({...cur,tableRaw:applyUpdates(cur.tableRaw,updates),clubForm:appendClubForm(cur.clubForm,updates)},performanceUpdates);
         const suspended=userResult.redCard?[userResult.redCard.id]:[];
         cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,suspended)};
       });
@@ -40,8 +38,7 @@ export function playLeagueRound(s){
       const liveContext = oppClub ? buildLiveMatchContext(s, userResult, oppClub, "domestic") : null;
       const newSuspended = userResult.redCard ? [userResult.redCard.id] : [];
       const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
-      let next=applyPerformanceUpdates({...s,tableRaw},performanceUpdates);
-      next=applyMatchFitness(next,userResult);
+      let next=applyPerformanceUpdates({...s,tableRaw,clubForm:appendClubForm(s.clubForm,updates)},performanceUpdates);
       return { ...next, lastResult: userResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "matchday-live" : "matchday-result",
         results1: s.half===1 ? [...s.results1, userResult] : s.results1,
         results2: s.half===2 ? [...s.results2, userResult] : s.results2,
@@ -56,7 +53,6 @@ export function playDomesticCup(s, comp, round){
       const newSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
       const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
       let next=applyPerformanceUpdates({...s,cupStatus:{...s.cupStatus,[comp]:updatedCs}},matchResult.performanceUpdates);
-      next=applyMatchFitness(next,matchResult);
       return { ...next, lastCupResult: matchResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "cup-live" : "cup-result",
         suspensions: { ...s.suspensions, domestic: newSuspended } };
     }
@@ -78,7 +74,7 @@ export function playEuropeanKnockout(s){
       const isFinal = roundName === "Final";
       const leg = u.leg || 1;
       let isHome;
-      if (isFinal || leg===1) isHome = Math.random()<0.5;
+      if (isFinal || leg===1) isHome = s.myClubId.localeCompare(opp.id)<0;
       else isHome = !u.firstLegHomeA;
       const allowPens = isFinal || leg===2;
       const result = simulateUclSingleMatch(s, opp, isFinal ? "Final" : `${roundName} — Leg ${leg}`, isHome, allowPens, !isFinal && leg===2 ? u.aggregate : {mine:0,opp:0});
@@ -89,8 +85,8 @@ export function playEuropeanKnockout(s){
       const aggregate = isFinal ? u.aggregate : { mine:(u.aggregate?.mine||0)+result.myGoals, opp:(u.aggregate?.opp||0)+result.oppGoals };
       const newUclSuspended = result.redCard ? [result.redCard.id] : [];
       const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newUclSuspended);
-      let next=applyPerformanceUpdates({...s,ucl:{...u}},result.performanceUpdates);
-      next=applyMatchFitness(next,result);
+      const formUpdates=[{clubId:s.myClubId,gf:result.myGoals,ga:result.oppGoals},{clubId:opp.id,gf:result.oppGoals,ga:result.myGoals}];
+      let next=applyPerformanceUpdates({...s,ucl:{...u,form:appendClubForm(u.form,formUpdates)}},result.performanceUpdates);
       return { ...next, ucl: { ...next.ucl, lastMatch: result, liveContext, aggregate,
           firstLegHomeA: (!isFinal && leg===1) ? isHome : u.firstLegHomeA,
           stage: "knockout-live",

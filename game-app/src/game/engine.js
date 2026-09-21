@@ -58,8 +58,9 @@ export function playersForLineup(players, lineup, formation){
 
 export function avg(arr, fallback){ return arr.length ? arr.reduce((s,p)=>s+p.ovr,0)/arr.length : fallback; }
 
+export function matchOvr(player){return player.ovr+(player.confidence||0);}
 export function teamRatings(players){
-  players = players.map(p => ({...p, ovr:(p.ovr+(p.confidence||0))*(0.65 + 0.35*(p.condition ?? 100)/100)}));
+  players = players.map(p => ({...p, ovr:matchOvr(p)*(0.78 + 0.12*(p.condition ?? 100)/100 + 0.10*(p.energy ?? 100)/100)}));
   const gk = players.filter(p=>p.group==="GK");
   const def = players.filter(p=>p.group==="DEF");
   const mid = players.filter(p=>p.group==="MID");
@@ -88,16 +89,35 @@ export const STYLE_MATCHUP = {
   direct:  { gegen: 0.02, tiki: 0.03 },
 };
 export function styleMatchupBonus(myStyle, oppStyle){ return (STYLE_MATCHUP[myStyle] && STYLE_MATCHUP[myStyle][oppStyle]) || 0; }
-// Infers a plausible style for an AI side from its squad quality and formation shape — no extra data needed per club.
-export function inferStyle(players, formation){
+// Major clubs keep a recognizable identity. Every other club receives a stable style
+// from its squad level, formation and id, so the AI field never collapses to Balanced.
+export const CLUB_TACTIC_PROFILES = {
+  ars:{style:"tiki",line:68,trap:true}, liv:{style:"gegen",line:75,trap:true}, man:{style:"tiki",line:72,trap:true},
+  mun:{style:"counter",line:44,trap:false}, che:{style:"tiki",line:66,trap:true}, tot:{style:"gegen",line:72,trap:true},
+  new:{style:"gegen",line:65,trap:true}, ast:{style:"counter",line:44,trap:false},
+  fcb:{style:"tiki",line:74,trap:true}, rma:{style:"counter",line:52,trap:false}, atl:{style:"bus",line:31,trap:false},
+  ath:{style:"gegen",line:64,trap:true}, rea:{style:"tiki",line:61,trap:false},
+  int:{style:"counter",line:46,trap:false}, acm:{style:"counter",line:48,trap:false}, juv:{style:"bus",line:36,trap:false},
+  nap:{style:"tiki",line:63,trap:true}, ata:{style:"gegen",line:70,trap:true}, rom:{style:"direct",line:48,trap:false},
+  fcb2:{style:"gegen",line:72,trap:true}, bor:{style:"gegen",line:70,trap:true}, bay:{style:"tiki",line:65,trap:true},
+  rbl:{style:"gegen",line:73,trap:true}, ein:{style:"direct",line:52,trap:false},
+  par2:{style:"tiki",line:70,trap:true}, oly2:{style:"gegen",line:66,trap:true}, oly:{style:"tiki",line:61,trap:false},
+  asm:{style:"counter",line:48,trap:false}, lil:{style:"counter",line:42,trap:false},
+};
+function identityIndex(id="club"){
+  let hash=2166136261;for(const char of id){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return hash>>>0;
+}
+export function inferStyle(players, formation, clubId=""){
+  if(CLUB_TACTIC_PROFILES[clubId])return CLUB_TACTIC_PROFILES[clubId].style;
   const shape = formationShape(formation);
   const avgOvr = avg(players, 70);
   if (shape.defCentral >= 4) return avgOvr >= 78 ? "counter" : "bus";
   if (shape.defCentral === 3) return avgOvr >= 80 ? "counter" : "bus";
   if (shape.attWide === 0 && shape.midWide === 0 && shape.attCentral >= 2) return avgOvr >= 80 ? "tiki" : "direct";
-  if (avgOvr >= 83) return "gegen";
+  if (avgOvr >= 82) return identityIndex(clubId)%2 ? "gegen" : "tiki";
   if (avgOvr <= 72) return "bus";
-  return "balanced";
+  const candidates=formation==="4-3-3"?["gegen","tiki","counter"]:formation==="4-4-2"?["direct","counter","bus"]:["counter","direct","gegen","tiki"];
+  return candidates[identityIndex(clubId)%candidates.length];
 }
 // Defensive line: pushing up trades a small attacking/pressing edge for extra space in behind; the offside
 // trap adds a defensive boost that scales with how your center-backs compare to their strikers (risky if they're rated well below the attackers they're trying to catch out).
@@ -120,7 +140,10 @@ export function myTactics(s){
 }
 export function aiTactics(club){
   const formation = club.preferredFormation || "4-4-2";
-  return { formation, style: inferStyle(club.players, formation), line: 50, trap: false, autoSubs:true, bench:club.players };
+  const style=inferStyle(club.players,formation,club.id),profile=CLUB_TACTIC_PROFILES[club.id];
+  const defaults={tiki:[66,true],gegen:[72,true],bus:[30,false],counter:[42,false],direct:[50,false]};
+  const [line,trap]=defaults[style]||[50,false];
+  return { formation, style, line:profile?.line??line, trap:profile?.trap??trap, autoSubs:true, bench:club.players };
 }
 // Attack-vs-defense model: formation-shape tactics, playing-style identity and matchups, defensive line/offside
 // trap, home advantage, and a per-match variance swing (widened or narrowed by playing style).
@@ -129,9 +152,9 @@ export function aiTactics(club){
 export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacticsB, rng=Math.random){
   const active = [teamAPlayers,teamBPlayers].map(team=>team.map(p=>({...p})));
   const initialPlayers = active.map(team=>team.map(p=>({...p})));
-  const playerLogs = initialPlayers.map(team=>new Map(team.map(p=>[p.id,{playerId:p.id,name:p.name,role:p.role,group:p.group,start:0,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,red:false}])));
+  const playerLogs = initialPlayers.map(team=>new Map(team.map(p=>[p.id,{playerId:p.id,name:p.name,role:p.role,group:p.group,start:0,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,yellow:0,red:false}])));
   const tactics = [tacticsA,tacticsB].map(t=>({...t}));
-  const events = [], goals = [0,0], goalLists = [[],[]], redCards = [null,null];
+  const events = [], goals = [0,0], goalLists = [[],[]], redCards = [null,null], yellowCards=[new Set(),new Set()];
   const totals = {shots:[0,0],sot:[0,0],xg:[0,0],touches:[0,0],bigChances:[0,0],bigChancesMissed:[0,0],passes:[0,0],accPasses:[0,0],fouls:[0,0],offsides:[0,0],corners:[0,0]};
   const possession = [0,0], history=[];
   const snapshot = () => ({...Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,v.map(n=>+n.toFixed(2))])),
@@ -148,21 +171,21 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
       }
       if(minute===60 && tac.autoSubs){
         const unavailable = new Set([...initialPlayers[side].map(p=>p.id),...active[side].map(p=>p.id)]);
-        const tired=[...active[side]].filter(p=>p.group!=="GK").sort((a,b)=>(a.condition??100)-(b.condition??100));
+        const tired=[...active[side]].filter(p=>p.group!=="GK").sort((a,b)=>(a.energy??100)-(b.energy??100));
         let substitutions=0;
         for(const out of tired){
           if(substitutions===3)break;
           const role=out.assignedRole || out.role;
-          const incoming=[...(tac.bench||[])].filter(p=>!unavailable.has(p.id)&&slotAccepts(role,p)).sort((a,b)=>(b.condition??100)*b.ovr-(a.condition??100)*a.ovr)[0];
+          const incoming=[...(tac.bench||[])].filter(p=>!unavailable.has(p.id)&&slotAccepts(role,p)).sort((a,b)=>(b.energy??100)*b.ovr-(a.energy??100)*a.ovr)[0];
           if(!incoming) continue;
           unavailable.add(incoming.id);substitutions++;
           active[side]=active[side].map(p=>p.id===out.id?{...incoming,assignedRole:role,group:ROLE_GROUP[role]}:p);
           const outLog=playerLogs[side].get(out.id);if(outLog)outLog.end=minute;
-          playerLogs[side].set(incoming.id,{playerId:incoming.id,name:incoming.name,role:incoming.role,group:ROLE_GROUP[role],start:minute,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,red:false});
+          playerLogs[side].set(incoming.id,{playerId:incoming.id,name:incoming.name,role:incoming.role,group:ROLE_GROUP[role],start:minute,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,yellow:0,red:false});
           events.push({minute,side,type:"sub",playerId:incoming.id,outId:out.id,text:`${incoming.name} replaces ${out.name}`});
         }
       }
-      active[side]=active[side].map(p=>({...p,condition:Math.max(20,(p.condition??100)-(tac.style==="gegen"?0.43:0.27))}));
+      active[side]=active[side].map(p=>({...p,energy:Math.max(15,(p.energy??100)-(tac.style==="gegen"?0.34:0.23)*(84/(p.stamina??80)))}));
       if(!redCards[side] && rng()<0.00075){
         const outfield=active[side].filter(p=>p.group!=="GK");
         if(outfield.length){
@@ -186,7 +209,18 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
       const passes=Math.round(3+rng()*3+(tac.style==="tiki"?2:0));
       totals.passes[side]+=passes;totals.accPasses[side]+=Math.round(passes*(0.72+rng()*0.18));
       possession[side]+=passes*(ratings[side].attack/80);
-      if(rng()<0.12) totals.fouls[side]++;
+      if(rng()<0.12){
+        totals.fouls[side]++;
+        if(rng()<0.13){
+          const candidates=active[side].filter(p=>p.group!=="GK"&&!yellowCards[side].has(p.id));
+          if(candidates.length){
+            const booked=candidates[Math.floor(rng()*candidates.length)];
+            yellowCards[side].add(booked.id);
+            const log=playerLogs[side].get(booked.id);if(log)log.yellow=1;
+            events.push({minute,side,type:"yellow",playerId:booked.id,text:`Yellow card for ${booked.name}`});
+          }
+        }
+      }
       if(rng()<0.02) totals.offsides[side]++;
       if(active[side].length && rng()<clamp(0.145*ratio*advantage*(1+tacticalModifier(tac.formation,opp.formation)),0.025,0.36)){
         const pool=active[side].filter(p=>p.group!=="GK");
@@ -233,7 +267,8 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
     const keeperImpact=log.group==="GK"?Math.max(0,totals.sot[1-side]-goals[1-side])*0.08-goals[1-side]*0.12:0;
     const cameo=minutes<20?-0.15:0;
     const raw=6.2+resultBonus+cleanSheetBonus+goalWeight*log.goals+0.65*log.assists+0.08*log.sot-0.05*Math.max(0,log.shots-log.sot)+teamImpact+keeperImpact+(log.red?-1.8:0)+cameo+(rng()-0.5)*0.7;
-    return {...log,minutes,side,rating:+clamp(raw,3,10).toFixed(1)};
+    const cleanSheet=goals[1-side]===0&&minutes>=60&&(log.group==="GK"||log.group==="DEF");
+    return {...log,minutes,side,cleanSheet,rating:+clamp(raw,3,10).toFixed(1)};
   }));
   const allRatings=playerRatings.flat();
   const manOfTheMatch=[...allRatings].sort((a,b)=>b.rating-a.rating||b.goals-a.goals||b.assists-a.assists)[0];
@@ -251,29 +286,51 @@ export function matchFields(sim,isHome){
     scorerStr:formatScorers(sim.match.goalLists[side])};
 }
 
-export function performanceUpdatesForMatch(simulation,homeClubId,awayClubId){
+export function performanceUpdatesForMatch(simulation,homeClubId,awayClubId,competition="league"){
+  const [homeXI,awayXI]=simulation.match.initialPlayers;
+  const strength=xi=>Math.round(xi.reduce((total,p)=>total+matchOvr(p),0)/Math.max(1,xi.length));
   return [
-    {clubId:homeClubId,ratings:simulation.match.playerRatings[0]},
-    {clubId:awayClubId,ratings:simulation.match.playerRatings[1]},
+    {clubId:homeClubId,ratings:simulation.match.playerRatings[0],competition,opponentStrength:strength(awayXI)},
+    {clubId:awayClubId,ratings:simulation.match.playerRatings[1],competition,opponentStrength:strength(homeXI)},
   ];
 }
 export function applyPerformanceUpdates(s,updates=[]){
   const byClub=new Map();
   for(const update of updates){
     if(!byClub.has(update.clubId))byClub.set(update.clubId,[]);
-    byClub.get(update.clubId).push(...update.ratings);
+    byClub.get(update.clubId).push(...update.ratings.map(r=>({...r,competition:update.competition||"league",opponentStrength:update.opponentStrength??78})));
   }
   const updateClub=club=>{
-    const ratings=byClub.get(club.id);if(!ratings)return club;
+    const ratings=byClub.get(club.id)||[];
     const byPlayer=new Map(ratings.map(r=>[r.playerId,r]));
     return {...club,players:club.players.map(player=>{
-      const r=byPlayer.get(player.id);if(!r)return player;
+      const r=byPlayer.get(player.id);
+      const energy=player.energy??100,fitness=player.condition??100;
+      if(!r)return {...player,energy:clamp(energy+12,15,100),condition:clamp(fitness+3,60,100)};
+      const style=club.id===s.myClubId?s.tacticalStyle:aiTactics(club).style;
+      const styleLoad=style==="gegen"?1.28:style==="tiki"?1.10:style==="bus"?0.85:1;
+      const load=((r.minutes??95)/95)*(13+(r.opponentStrength-70)*0.25)*styleLoad*(84/(player.stamina??80));
+      const nextEnergy=clamp(Math.round(energy+10-load),15,100);
+      const nextFitness=clamp(Math.round(fitness+2-((r.minutes??95)/95)*(style==="gegen"?5:3)*(84/(player.stamina??80))),60,100);
       const oldConfidence=player.confidence||0;
       const faded=oldConfidence>0?oldConfidence-1:oldConfidence<0?oldConfidence+1:0;
+      const previous=player.competitionStats?.[r.competition]||{};
+      const competitionStats={...(player.competitionStats||{}),[r.competition]:{
+        appearances:(previous.appearances||0)+1,goals:(previous.goals||0)+r.goals,
+        assists:(previous.assists||0)+r.assists,cleanSheets:(previous.cleanSheets||0)+(r.cleanSheet?1:0),
+        yellowCards:(previous.yellowCards||0)+(r.yellow||0),redCards:(previous.redCards||0)+(r.red?1:0),
+        ratingTotal:+((previous.ratingTotal||0)+r.rating).toFixed(2),ratedMatches:(previous.ratedMatches||0)+1,
+        bestRating:Math.max(previous.bestRating||0,r.rating),motm:(previous.motm||0)+(r.isMotm?1:0),
+      }};
       return {...player,
+        energy:nextEnergy,condition:nextFitness,
+        competitionStats,
         appearances:(player.appearances||0)+1,
         seasonGoals:(player.seasonGoals||0)+r.goals,
         seasonAssists:(player.seasonAssists||0)+r.assists,
+        seasonCleanSheets:(player.seasonCleanSheets||0)+(r.cleanSheet?1:0),
+        seasonYellowCards:(player.seasonYellowCards||0)+(r.yellow||0),
+        seasonRedCards:(player.seasonRedCards||0)+(r.red?1:0),
         ratingTotal:+((player.ratingTotal||0)+r.rating).toFixed(2),
         ratedMatches:(player.ratedMatches||0)+1,
         bestRating:Math.max(player.bestRating||0,r.rating),
@@ -371,6 +428,14 @@ export function applyUpdates(tableRaw, updates){
     t[u.clubId] = row;
   });
   return t;
+}
+export function appendClubForm(form={},updates=[]){
+  const next={...form};
+  for(const result of updates){
+    const letter=result.gf>result.ga?"W":result.gf<result.ga?"L":"D";
+    next[result.clubId]=[...(next[result.clubId]||[]),letter].slice(-5);
+  }
+  return next;
 }
 export function computeTableArray(tableRaw, clubs){
   return Object.values(tableRaw).map(r => ({ ...r, gd:r.gf-r.ga, club: clubs.find(c=>c.id===r.id) }))
@@ -521,7 +586,7 @@ export function simulateCupMatch(s, comp, round){
     homeA?lineupPlayers:oppPlayers, homeA?oppPlayers:lineupPlayers, true,
     homeA?myTac:oppTactics, homeA?oppTactics:myTac
   );
-  const performanceUpdates=performanceUpdatesForMatch(simulation,homeA?s.myClubId:opp.id,homeA?opp.id:s.myClubId);
+  const performanceUpdates=performanceUpdatesForMatch(simulation,homeA?s.myClubId:opp.id,homeA?opp.id:s.myClubId,comp);
   const {goalsA,goalsB}=simulation;
   const myGoals = homeA?goalsA:goalsB, oppGoals = homeA?goalsB:goalsA;
   let wentToPens = false, wonPens = null;
@@ -563,7 +628,7 @@ export function simulateUclRound(s, uclClubs, round){
     const homeClub = uclClubs.find(c=>c.id===home), awayClub = uclClubs.find(c=>c.id===away);
     const simulation = simulateUclMatch(s, homeClub, awayClub);
     const {goalsA,goalsB}=simulation;
-    performanceUpdates.push(...performanceUpdatesForMatch(simulation,home,away));
+    performanceUpdates.push(...performanceUpdatesForMatch(simulation,home,away,"ucl"));
     updates.push({ clubId:home, gf:goalsA, ga:goalsB });
     updates.push({ clubId:away, gf:goalsB, ga:goalsA });
     if (home===s.myClubId || away===s.myClubId){
@@ -588,7 +653,7 @@ export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, al
     isHome?lineupPlayers:oppPlayers, isHome?oppPlayers:lineupPlayers, true,
     isHome?myTac:oppTactics, isHome?oppTactics:myTac
   );
-  const performanceUpdates=performanceUpdatesForMatch(simulation,isHome?s.myClubId:opponent.id,isHome?opponent.id:s.myClubId);
+  const performanceUpdates=performanceUpdatesForMatch(simulation,isHome?s.myClubId:opponent.id,isHome?opponent.id:s.myClubId,"ucl");
   const {goalsA,goalsB}=simulation;
   const myGoals = isHome?goalsA:goalsB, oppGoals = isHome?goalsB:goalsA;
   const {wentToPens,wonPens,won}=resolveTie(myGoals,oppGoals,prior,allowPens);
@@ -706,34 +771,12 @@ export function freshState(){
     suspensions: { domestic: [], ucl: [] },
     half: 1, roundIndex: 0, roundsHalf1: null, roundsHalf2: null, tableRaw: null, lastResult: null,
     results1: [], results2: [], table1: null, tableFinal: null,
+    clubForm: {},
     cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus() }, lastCupResult: null,
     cups: { ucl: null }, ucl: null,
   };
 }
 
 
-export function applyMatchFitness(s,result){
-  if(!result?.match)return s;
-  const isHome=result.isHome ?? result.homeA;
-  const side=isHome?0:1,match=result.match;
-  const minutes=new Map(match.initialPlayers[side].map(p=>[p.id,match.endMinute]));
-  for(const e of match.events.filter(e=>e.side===side)){
-    if(e.type==="sub"){minutes.set(e.outId,e.minute);minutes.set(e.playerId,match.endMinute-e.minute);}
-    if(e.type==="red")minutes.set(e.playerId,Math.min(minutes.get(e.playerId)??match.endMinute,e.minute));
-  }
-  // `condition` is readiness for the next fixture, not energy remaining at
-  // full time. The old formula subtracted a full match's exertion on every
-  // round and only restored 16 points. A fixed XI therefore fell towards 30%
-  // while AI teams started each match fresh. Weekly recovery now prevents that
-  // compounding penalty while still rewarding substitutions and squad rotation.
-  const exertionPerMinute=s.tacticalStyle==="gegen"?0.08:0.06;
-  return {...s,clubs:s.clubs.map(c=>c.id!==s.myClubId?c:{...c,players:c.players.map(p=>{
-    const played=minutes.get(p.id);
-    return {...p,
-      condition:played===undefined
-        ? clamp((p.condition??100)+12,82,100)
-        : clamp(100-played*exertionPerMinute,82,100)};
-  })})};
-}
 export function seasonLabel(s){const y=2026+(s.season||1)-1;return `${y}/${String(y+1).slice(-2)}`;}
 export const LEAGUE_NAMES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1"};

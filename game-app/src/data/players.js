@@ -1,6 +1,13 @@
 import { ROLE_GROUP } from "../game/config.js";
 
-const P = (name, role, age, ovr, value) => ({ name, role, group: ROLE_GROUP[role], age, ovr, value });
+// Stamina is a separate, stable player attribute. Existing roster rows do not
+// carry a stamina column, so derive a consistent baseline by role and age.
+const P = (name, role, age, ovr, value, stamina) => ({
+  name, role, group: ROLE_GROUP[role], age, ovr, value,
+  stamina: stamina ?? Math.max(66, Math.min(94,
+    (role === "GK" ? 72 : ["LB", "RB", "LM", "RM", "LW", "RW"].includes(role) ? 84 : role === "CB" ? 77 : 81)
+    - Math.max(0, age - 29) * 2 + (ovr >= 86 ? 3 : 0))),
+});
 
 const RAW_CLUBS = [
 { id:"afc", name:"AFC Bournemouth", color:"#DA291C", budget:30, preferredFormation:"4-2-3-1", players:[
@@ -448,7 +455,7 @@ const RAW_CLUBS = [
 export function buildClubs(){
   return RAW_CLUBS.map(c => ({
     ...c,
-    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, appearances:0 }))
+    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, energy:100, appearances:0 }))
   }));
 }
 
@@ -845,7 +852,7 @@ export function buildChampionshipClubs(){
     ...c, budget:0, tier:"championship",
     // Source squads omit goalkeepers for some clubs. Use an explicitly named
     // reserve rather than inventing a real player or simulating a team without a keeper.
-    players: (c.players.some(p=>p.role==="GK") ? c.players : [...c.players,P("Reserve goalkeeper","GK",21,65,1)]).map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, appearances:0 }))
+    players: (c.players.some(p=>p.role==="GK") ? c.players : [...c.players,P("Reserve goalkeeper","GK",21,65,1)]).map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, energy:100, appearances:0 }))
   }));
 }
 
@@ -1294,7 +1301,7 @@ const RAW_LALIGA = [
 export function buildLaLigaClubs(){
   return RAW_LALIGA.map(c => ({
     ...c,
-    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, appearances:0 }))
+    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, energy:100, appearances:0 }))
   }));
 }
 
@@ -1743,7 +1750,7 @@ const RAW_SERIEA = [
 export function buildSerieAClubs(){
   return RAW_SERIEA.map(c => ({
     ...c,
-    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, appearances:0 }))
+    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, energy:100, appearances:0 }))
   }));
 }
 
@@ -2148,7 +2155,7 @@ const RAW_BUNDESLIGA = [
 export function buildBundesligaClubs(){
   return RAW_BUNDESLIGA.map(c => ({
     ...c,
-    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, appearances:0 }))
+    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, energy:100, appearances:0 }))
   }));
 }
 
@@ -2553,7 +2560,6 @@ const RAW_LIGUE1 = [
 export function buildLigue1Clubs(){
   return RAW_LIGUE1.map(c => ({
     ...c,
-    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, appearances:0 }))
+    players: c.players.map((p,i) => ({ ...p, id:`${c.id}-${i}`, club:c.id, number:i+1, loan:false, condition:100, energy:100, appearances:0 }))
   }));
 }
-

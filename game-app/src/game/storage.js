@@ -25,6 +25,8 @@ export function validateSave(raw){
       for(const p of c.players){
         requireValid(typeof p.id==='string'&&!ids.has(p.id)&&typeof p.name==='string'&&ROLE_GROUP[p.role]&&p.group===ROLE_GROUP[p.role]&&Number.isFinite(p.ovr)&&p.ovr>0&&p.ovr<=100&&Number.isFinite(p.age)&&Number.isFinite(p.value)&&p.value>=0,'invalid player.');
         requireValid(p.condition===undefined||(Number.isFinite(p.condition)&&p.condition>=0&&p.condition<=100),'invalid player condition.');
+        requireValid(p.energy===undefined||(Number.isFinite(p.energy)&&p.energy>=0&&p.energy<=100),'invalid player energy.');
+        requireValid(p.stamina===undefined||(Number.isFinite(p.stamina)&&p.stamina>=1&&p.stamina<=100),'invalid player stamina.');
         requireValid(p.confidence===undefined||(Number.isFinite(p.confidence)&&p.confidence>=-2&&p.confidence<=2),'invalid player confidence.');
         ids.add(p.id);
         if(key==='clubs'){requireValid(!playerIds.has(p.id),'duplicate player.');playerIds.add(p.id);}
@@ -85,10 +87,14 @@ export function validateSave(raw){
   }
   for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
     s[key]=s[key].map(c=>({...c,players:c.players.map(p=>({...p,
+      energy:clamp(p.energy??100,0,100),stamina:p.stamina??80,
       confidence:clamp(p.confidence||0,-2,2),seasonGoals:p.seasonGoals||0,seasonAssists:p.seasonAssists||0,
       ratingTotal:p.ratingTotal||0,ratedMatches:p.ratedMatches||0,bestRating:p.bestRating||0,motm:p.motm||0,
-      seasonMinutes:p.seasonMinutes||0,lastRating:p.lastRating??null,lastConfidenceChange:p.lastConfidenceChange||0}))}));
+      seasonMinutes:p.seasonMinutes||0,lastRating:p.lastRating??null,lastConfidenceChange:p.lastConfidenceChange||0,
+      competitionStats:p.competitionStats||{}}))}));
   }
+  if(!s.clubForm||typeof s.clubForm!=='object'||Array.isArray(s.clubForm))s.clubForm={};
+  if(!s.clubForm[s.myClubId]&&s.myClubId)s.clubForm[s.myClubId]=[...s.results1,...s.results2].slice(-5).map(result=>result.result);
   // Legacy loan flags do not contain ownership; block resale instead of inventing an owner.
   return s;
 }

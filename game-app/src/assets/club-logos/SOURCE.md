@@ -1,0 +1,1 @@
+Club crest PNGs were downloaded from https://football-logos.cc/ on 2026-09-21 for this fan-made football simulation. The crests remain the intellectual property of their respective clubs. Source usage information: https://football-logos.cc/license/
