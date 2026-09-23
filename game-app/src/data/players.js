@@ -1,13 +1,9 @@
 import { ROLE_GROUP } from "../game/config.js";
 
-// FC 27 Career Mode roster data, retrieved from FCCareer on 2026-09-23.
-// OVR and potential are stored separately; squads are capped at 30, while sparse source squads retain named legacy depth to meet the 22-player/two-GK rule.
-const P = (slug, name, role, age, ovr, potential, value) => ({
-  slug, name, role, group:ROLE_GROUP[role], age, ovr, potential, value,
-  stamina: Math.max(66, Math.min(94, (role === "GK" ? 72 : ["LB","RB","LM","RM","LW","RW"].includes(role) ? 84 : role === "CB" ? 77 : 81) - Math.max(0, age - 29) * 2 + (ovr >= 86 ? 3 : 0))),
-});
+// FC 27 Career Mode roster data from FCCareer (2026-09-24). OVR and potential are distinct.
+const P=(slug,name,role,age,ovr,potential,value)=>({slug,name,role,group:ROLE_GROUP[role],age,ovr,potential,value,stamina:Math.max(66,Math.min(94,(role==="GK"?72:["LB","RB","LM","RM","LW","RW"].includes(role)?84:role==="CB"?77:81)-Math.max(0,age-29)*2+(ovr>=86?3:0)))});
 
-const RAW_PLCLUBS = [
+const RAW_PLCLUBS=[
   {
     "id": "afc",
     "name": "AFC Bournemouth",
@@ -3634,13 +3630,13 @@ const RAW_PLCLUBS = [
         1.6
       ],
       [
-        "calvin-william-ramsay",
-        "Calvin William Ramsay",
-        "RB",
-        23,
-        65,
-        75,
-        1.5
+        "bradley-barcola",
+        "Bradley Barcola",
+        "LW",
+        24,
+        85,
+        88,
+        62
       ]
     ]
   },
@@ -5185,14 +5181,13 @@ const RAW_PLCLUBS = [
   }
 ];
 
-const RAW_CHAMPIONSHIPCLUBS = [
+const RAW_CHAMPIONSHIPCLUBS=[
   {
     "id": "bir",
     "name": "Birmingham City",
     "color": "#0000FF",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "carlos-vicente-robles",
@@ -5445,7 +5440,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#009EE0",
     "budget": 0,
     "preferredFormation": "4-3-1-2",
-    "tier": "championship",
     "players": [
       [
         "todd-owen-cantwell",
@@ -5689,7 +5683,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#E21C21",
     "budget": 0,
     "preferredFormation": "4-3-1-2",
-    "tier": "championship",
     "players": [
       [
         "robert-joseph-andrew-dickie",
@@ -5897,7 +5890,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#6C1D45",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "joshua-jon-cullen",
@@ -6177,7 +6169,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#D2122E",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "lloyd-richard-jones",
@@ -6448,7 +6439,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#000000",
     "budget": 0,
     "preferredFormation": "4-3-1-2",
-    "tier": "championship",
     "players": [
       [
         "carlton-john-morris",
@@ -6683,7 +6673,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#003090",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "wout-felix-lina-faes",
@@ -6900,7 +6889,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#E32526",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "sebastian-berhalter",
@@ -7144,7 +7132,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#001C58",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "oluwafemi-javier-azeez",
@@ -7424,7 +7411,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#00A650",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "kenneth-mclean",
@@ -7704,7 +7690,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#002D62",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "cameron-mark-thomas-brannagan",
@@ -7921,7 +7906,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#001489",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "joshua-murphy",
@@ -8201,7 +8185,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#1C3F94",
     "budget": 0,
     "preferredFormation": "4-3-1-2",
-    "tier": "championship",
     "players": [
       [
         "daniel-lnne-iversen",
@@ -8409,7 +8392,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#1D5BA4",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "ilias-chair",
@@ -8671,7 +8653,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#EE2737",
     "budget": 0,
     "preferredFormation": "4-3-1-2",
-    "tier": "championship",
     "players": [
       [
         "matthew-james-doherty",
@@ -8888,7 +8869,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#0066B3",
     "budget": 0,
     "preferredFormation": "4-3-3",
-    "tier": "championship",
     "players": [
       [
         "barry-ryan-bannan",
@@ -9096,7 +9076,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#D71920",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "aaron-christopher-ramsdale",
@@ -9349,7 +9328,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#E03A3E",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "benjamin-sorba-william-thomas",
@@ -9584,7 +9562,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#121212",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "zan-vipotnik",
@@ -9801,7 +9778,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#FBEE23",
     "budget": 0,
     "preferredFormation": "4-2-3-1",
-    "tier": "championship",
     "players": [
       [
         "imran-louza",
@@ -10009,7 +9985,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#122F67",
     "budget": 0,
     "preferredFormation": "4-4-2",
-    "tier": "championship",
     "players": [
       [
         "felix-horn-myhre",
@@ -10217,7 +10192,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#7A263A",
     "budget": 0,
     "preferredFormation": "4-3-1-2",
-    "tier": "championship",
     "players": [
       [
         "jarrod-bowen",
@@ -10425,7 +10399,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#FDB913",
     "budget": 0,
     "preferredFormation": "4-3-3",
-    "tier": "championship",
     "players": [
       [
         "ladislav-krejci",
@@ -10696,7 +10669,6 @@ const RAW_CHAMPIONSHIPCLUBS = [
     "color": "#E31B23",
     "budget": 0,
     "preferredFormation": "4-3-3",
-    "tier": "championship",
     "players": [
       [
         "anthony-patterson",
@@ -10972,7 +10944,7 @@ const RAW_CHAMPIONSHIPCLUBS = [
   }
 ];
 
-const RAW_LALIGACLUBS = [
+const RAW_LALIGACLUBS=[
   {
     "id": "ath",
     "name": "Athletic Club",
@@ -15565,7 +15537,7 @@ const RAW_LALIGACLUBS = [
   }
 ];
 
-const RAW_SERIEACLUBS = [
+const RAW_SERIEACLUBS=[
   {
     "id": "acm",
     "name": "AC Milan",
@@ -20554,7 +20526,7 @@ const RAW_SERIEACLUBS = [
   }
 ];
 
-const RAW_BUNDESLIGACLUBS = [
+const RAW_BUNDESLIGACLUBS=[
   {
     "id": "1fc",
     "name": "1. FC Heidenheim 1846",
@@ -25075,7 +25047,7 @@ const RAW_BUNDESLIGACLUBS = [
   }
 ];
 
-const RAW_LIGUE1CLUBS = [
+const RAW_LIGUE1CLUBS=[
   {
     "id": "aja",
     "name": "AJ Auxerre",
@@ -27901,15 +27873,6 @@ const RAW_LIGUE1CLUBS = [
         53
       ],
       [
-        "bradley-barcola",
-        "Bradley Barcola",
-        "LW",
-        24,
-        85,
-        88,
-        62
-      ],
-      [
         "ferran-torres-garcia",
         "Ferran Torres García",
         "ST",
@@ -29236,30 +29199,16796 @@ const RAW_LIGUE1CLUBS = [
   }
 ];
 
-const NUMBER_BY_ROLE = {
-  GK:[1,13,25], RB:[2,22], LB:[3,23], CB:[4,5,6,15], CDM:[6,16], CM:[8,14,18], CAM:[10,20],
-  RM:[7,19], RW:[7,19], LM:[11,17], LW:[11,17], ST:[9,10,14],
-};
-function stablePlayerId(clubId, slug){ return clubId + ":" + slug; }
-function squadNumbers(players){
-  const used = new Set();
-  return players.map(player => {
-    const preferred = NUMBER_BY_ROLE[player.role] || [];
-    const number = preferred.find(value => !used.has(value)) || Array.from({length:99}, (_, index) => index + 1).find(value => !used.has(value));
-    used.add(number); return number;
-  });
-}
-function hydrate(raw){
-  const leagueAvg = Math.round(raw.flatMap(club => club.players).reduce((total, player) => total + player[4], 0) / raw.flatMap(club => club.players).length);
-  return raw.map(club => {
-    const players = club.players.map(args => P(...args)); const numbers = squadNumbers(players);
-    return {...club, leagueAvg, players:players.map((player, index) => ({...player, id:stablePlayerId(club.id, player.slug), club:club.id, number:numbers[index], loan:false, condition:100, energy:100, appearances:0}))};
-  });
-}
+const RAW_LALIGA2CLUBS=[
+  {
+    "id": "es2-rcd-mallorca",
+    "name": "RCD Mallorca",
+    "color": "#c7d1ff",
+    "budget": 17,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "sergi-darder-moll",
+        "Sergi Darder Moll",
+        "CM",
+        32,
+        78,
+        81,
+        22
+      ],
+      [
+        "antonio-jose-raillo-arenas",
+        "Antonio José Raíllo Arenas",
+        "CB",
+        34,
+        78,
+        81,
+        13
+      ],
+      [
+        "martin-valjent",
+        "Martin Valjent",
+        "CB",
+        30,
+        77,
+        78,
+        9.5
+      ],
+      [
+        "arnau-tenas-urena",
+        "Arnau Tenas Ureña",
+        "GK",
+        25,
+        75,
+        80,
+        5.5
+      ],
+      [
+        "pablo-torre-carral",
+        "Pablo Torre Carral",
+        "CAM",
+        23,
+        75,
+        84,
+        9.5
+      ],
+      [
+        "manuel-morlanes-arino",
+        "Manuel Morlanes Ariño",
+        "CDM",
+        27,
+        75,
+        80,
+        14
+      ],
+      [
+        "adrian-fuentes-gonzalez",
+        "Adrián Fuentes González",
+        "ST",
+        30,
+        74,
+        74,
+        0.875
+      ],
+      [
+        "antoniu-roca-vives",
+        "Antoniu Roca Vives",
+        "RM",
+        24,
+        73,
+        80,
+        6
+      ],
+      [
+        "antonio-latorre-grueso",
+        "Antonio Latorre Grueso",
+        "LB",
+        28,
+        72,
+        74,
+        3.2
+      ],
+      [
+        "adrian-liso-lahoz",
+        "Adrián Liso Lahoz",
+        "ST",
+        21,
+        72,
+        85,
+        3.7
+      ],
+      [
+        "zito-andre-sebastiao-luvumbo",
+        "Zito André Sebastião Luvumbo",
+        "ST",
+        24,
+        71,
+        78,
+        3.8
+      ],
+      [
+        "mateu-jaume-morey-bauza",
+        "Mateu Jaume Morey Bauzà",
+        "RB",
+        26,
+        71,
+        78,
+        4.2
+      ],
+      [
+        "alex-sala-herrero",
+        "Álex Sala Herrero",
+        "CDM",
+        25,
+        71,
+        76,
+        3.1
+      ],
+      [
+        "adam-buksa",
+        "Adam Buksa",
+        "ST",
+        30,
+        71,
+        73,
+        3.1
+      ],
+      [
+        "david-lopez-guijarro",
+        "David López Guijarro",
+        "CB",
+        23,
+        70,
+        78,
+        2.5
+      ],
+      [
+        "abdon-prats-bastidas",
+        "Abdón Prats Bastidas",
+        "ST",
+        33,
+        70,
+        73,
+        2.5
+      ],
+      [
+        "arnau-puigmal-martinez",
+        "Arnau Puigmal Martínez",
+        "RM",
+        25,
+        70,
+        78,
+        3.7
+      ],
+      [
+        "antonio-sanchez-navarro",
+        "Antonio Sánchez Navarro",
+        "RM",
+        29,
+        70,
+        73,
+        3.1
+      ],
+      [
+        "josep-cerda-amengual",
+        "Josep Cerdà Amengual",
+        "LW",
+        23,
+        68,
+        69,
+        0.8
+      ],
+      [
+        "lucas-carl-edvard-bergstrom",
+        "Lucas Carl Edvard Bergström",
+        "GK",
+        24,
+        68,
+        73,
+        0.925
+      ],
+      [
+        "ivan-cuellar-sacristan",
+        "Iván Cuéllar Sacristán",
+        "GK",
+        42,
+        67,
+        67,
+        0.11
+      ],
+      [
+        "justin-noel-kalumba-mwana-ngongo",
+        "Justin-Noël Kalumba Mwana Ngongo",
+        "LM",
+        21,
+        65,
+        73,
+        1.1
+      ],
+      [
+        "daniel-andres-luna-garcia",
+        "Daniel Andrés Luna García",
+        "RW",
+        23,
+        65,
+        77,
+        1.9
+      ],
+      [
+        "aboubaka-soumahoro",
+        "Aboubaka Soumahoro",
+        "CB",
+        21,
+        64,
+        78,
+        1.3
+      ],
+      [
+        "miquel-jan-salas-franch",
+        "Miquel Jan Salas Franch",
+        "CM",
+        21,
+        62,
+        77,
+        0.625
+      ]
+    ]
+  },
+  {
+    "id": "es2-girona-fc",
+    "name": "Girona FC",
+    "color": "#445808",
+    "budget": 19,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "azzedine-ounahi",
+        "Azzedine Ounahi",
+        "CM",
+        26,
+        79,
+        81,
+        11
+      ],
+      [
+        "viktor-tsygankov",
+        "Viktor Tsygankov",
+        "RW",
+        28,
+        78,
+        79,
+        19
+      ],
+      [
+        "paulo-dino-gazzaniga-farias",
+        "Paulo Dino Gazzaniga Farias",
+        "GK",
+        34,
+        77,
+        79,
+        5.5
+      ],
+      [
+        "vladyslav-vanat",
+        "Vladyslav Vanat",
+        "ST",
+        24,
+        77,
+        81,
+        12
+      ],
+      [
+        "khalid-abdul-mumin-suleman",
+        "Khalid Abdul Mumin Suleman",
+        "CB",
+        28,
+        77,
+        80,
+        12
+      ],
+      [
+        "francisco-jose-beltran-peinado",
+        "Francisco José Beltrán Peinado",
+        "CM",
+        27,
+        77,
+        81,
+        18
+      ],
+      [
+        "arnau-martinez-lopez",
+        "Arnau Martínez López",
+        "RB",
+        23,
+        77,
+        84,
+        25
+      ],
+      [
+        "alexandre-moreno-lopera",
+        "Alexandre Moreno Lopera",
+        "LB",
+        33,
+        76,
+        77,
+        7.5
+      ],
+      [
+        "bryan-gil-salvatierra",
+        "Bryan Gil Salvatierra",
+        "LW",
+        25,
+        75,
+        82,
+        20
+      ],
+      [
+        "alejandro-frances-torrijo",
+        "Alejandro Francés Torrijo",
+        "CB",
+        24,
+        75,
+        82,
+        11
+      ],
+      [
+        "cristhian-ricardo-stuani-curbelo",
+        "Cristhian Ricardo Stuani Curbelo",
+        "ST",
+        39,
+        75,
+        77,
+        3.6
+      ],
+      [
+        "donny-van-de-beek",
+        "Donny van de Beek",
+        "CAM",
+        29,
+        74,
+        76,
+        7.5
+      ],
+      [
+        "cristian-portugues-manzanera",
+        "Cristian Portugués Manzanera",
+        "LW",
+        34,
+        74,
+        76,
+        4.7
+      ],
+      [
+        "david-lopez-silva",
+        "David López Silva",
+        "CB",
+        36,
+        74,
+        77,
+        2.8
+      ],
+      [
+        "yaser-esneider-asprilla-martinez",
+        "Yaser Esneider Asprilla Martínez",
+        "RM",
+        22,
+        74,
+        82,
+        12
+      ],
+      [
+        "abel-ruiz-ortega",
+        "Abel Ruiz Ortega",
+        "ST",
+        26,
+        72,
+        76,
+        4.1
+      ],
+      [
+        "min-su-kim",
+        "Min-su Kim",
+        "LW",
+        20,
+        71,
+        80,
+        2.4
+      ],
+      [
+        "dawda-camara-sankhare",
+        "Dawda Camara Sankharé",
+        "ST",
+        23,
+        68,
+        73,
+        1.6
+      ],
+      [
+        "ivan-morante-ruiz",
+        "Iván Morante Ruiz",
+        "CDM",
+        25,
+        68,
+        77,
+        2.5
+      ],
+      [
+        "antonino-jastin-garcia-lopez",
+        "Antonino Jastin García Lopéz",
+        "LM",
+        22,
+        68,
+        78,
+        1.2
+      ],
+      [
+        "antal-yaakobishvili",
+        "Antal Yaakobishvili",
+        "CB",
+        22,
+        65,
+        80,
+        1.6
+      ],
+      [
+        "unai-hernandez-lorenzo",
+        "Unai Hernández Lorenzo",
+        "LM",
+        21,
+        65,
+        84,
+        2.2
+      ],
+      [
+        "vladyslav-krapyvtsov",
+        "Vladyslav Krapyvtsov",
+        "GK",
+        21,
+        64,
+        79,
+        1.2
+      ],
+      [
+        "gilbert-jordana-camara",
+        "Gilbert Jordana Cámara",
+        "RB",
+        19,
+        62,
+        78,
+        0.8
+      ],
+      [
+        "papa-dame-ba",
+        "Papa Dame Ba",
+        "RM",
+        22,
+        62,
+        70,
+        0.725
+      ]
+    ]
+  },
+  {
+    "id": "es2-ud-almeria",
+    "name": "UD Almería",
+    "color": "#cd5df9",
+    "budget": 16,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "sergio-arribas-calvo",
+        "Sergio Arribas Calvo",
+        "CAM",
+        24,
+        77,
+        79,
+        6.5
+      ],
+      [
+        "adrian-embarba-blazquez",
+        "Adrián Embarba Blazquez",
+        "LW",
+        34,
+        75,
+        75,
+        2.6
+      ],
+      [
+        "alejandro-jose-munoz-miguel",
+        "Alejandro José Muñoz Miguel",
+        "LB",
+        32,
+        74,
+        74,
+        2.6
+      ],
+      [
+        "federico-bonini",
+        "Federico Bonini",
+        "CB",
+        25,
+        73,
+        76,
+        2.1
+      ],
+      [
+        "brian-kibambe-cipenga",
+        "Brian Kibambe Cipenga",
+        "LW",
+        28,
+        73,
+        73,
+        0.9
+      ],
+      [
+        "alejandro-sola-lopez-ocana",
+        "Alejandro Sola López-Ocaña",
+        "RW",
+        27,
+        72,
+        73,
+        2.8
+      ],
+      [
+        "andres-eduardo-fernandez-moreno",
+        "Andrés Eduardo Fernández Moreno",
+        "GK",
+        39,
+        72,
+        74,
+        0.47500000000000003
+      ],
+      [
+        "jon-morcillo-conesa",
+        "Jon Morcillo Conesa",
+        "LW",
+        28,
+        72,
+        72,
+        2
+      ],
+      [
+        "marcos-luna-ruiz",
+        "Marcos Luna Ruiz",
+        "RB",
+        23,
+        72,
+        81,
+        3.4
+      ],
+      [
+        "mikel-vesga-arruti",
+        "Mikel Vesga Arruti",
+        "CDM",
+        33,
+        71,
+        74,
+        2.8
+      ],
+      [
+        "leonardo-carrilho-baptistao",
+        "Leonardo Carrilho Baptistão",
+        "RW",
+        34,
+        71,
+        73,
+        2.4
+      ],
+      [
+        "miguel-de-la-fuente-escudero",
+        "Miguel de la Fuente Escudero",
+        "ST",
+        27,
+        71,
+        73,
+        2.1
+      ],
+      [
+        "daijiro-florencio-chirino",
+        "Daijiro Florencio Chirino",
+        "RB",
+        24,
+        70,
+        79,
+        2.9
+      ],
+      [
+        "stefan-dzodic",
+        "Stefan Džodić",
+        "CDM",
+        21,
+        70,
+        77,
+        1.1
+      ],
+      [
+        "aron-yaakobishvili",
+        "Áron Yaakobishvili",
+        "GK",
+        20,
+        70,
+        79,
+        1.5
+      ],
+      [
+        "nelson-macedo-monte",
+        "Nélson Macedo Monte",
+        "CB",
+        31,
+        70,
+        70,
+        1.3
+      ],
+      [
+        "nicolas-melamed-ribaudo",
+        "Nicolás Melamed Ribaudo",
+        "LW",
+        25,
+        69,
+        79,
+        4.8
+      ],
+      [
+        "alejandro-pozo-pozo",
+        "Alejandro Pozo Pozo",
+        "RM",
+        27,
+        69,
+        74,
+        2.3
+      ],
+      [
+        "jorge-pulido-mayoral",
+        "Jorge Pulido Mayoral",
+        "CB",
+        35,
+        69,
+        72,
+        0.75
+      ],
+      [
+        "guilherme-borges-guedes",
+        "Guilherme Borges Guedes",
+        "CDM",
+        24,
+        68,
+        76,
+        2.3
+      ],
+      [
+        "fernando-martinez-rubio",
+        "Fernando Martínez Rubio",
+        "GK",
+        36,
+        68,
+        72,
+        0.25
+      ],
+      [
+        "thalys-henrique-gomes-de-araujo",
+        "Thalys henrique Gomes de Araújo",
+        "ST",
+        21,
+        66,
+        83,
+        2.9
+      ],
+      [
+        "juan-brandariz-movilla",
+        "Juan Brandáriz Movilla",
+        "CB",
+        27,
+        66,
+        75,
+        2.1
+      ],
+      [
+        "jesus-lopez-soria",
+        "Jesús López Soria",
+        "GK",
+        24,
+        58,
+        70,
+        0.47500000000000003
+      ]
+    ]
+  },
+  {
+    "id": "es2-r-oviedo",
+    "name": "R. Oviedo",
+    "color": "#cd5af9",
+    "budget": 15,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "aaron-escandell-banacloche",
+        "Aarón Escandell Banacloche",
+        "GK",
+        30,
+        78,
+        78,
+        4.7
+      ],
+      [
+        "ilyas-chaira-oihi",
+        "Ilyas Chaira Oihi",
+        "LW",
+        25,
+        74,
+        77,
+        3.5
+      ],
+      [
+        "david-costas-cordal",
+        "David Costas Cordal",
+        "CB",
+        31,
+        74,
+        74,
+        1.9
+      ],
+      [
+        "carlos-dominguez-caceres",
+        "Carlos Domínguez Cáceres",
+        "CB",
+        25,
+        73,
+        79,
+        6
+      ],
+      [
+        "juan-cruz-alvaro-armada",
+        "Juan Cruz Álvaro Armada",
+        "LB",
+        34,
+        73,
+        74,
+        2.9
+      ],
+      [
+        "alberto-reina-campos",
+        "Alberto Reina Campos",
+        "CAM",
+        28,
+        73,
+        73,
+        3.2
+      ],
+      [
+        "daniel-pedro-calvo-sanroman",
+        "Daniel Pedro Calvo Sanromán",
+        "CB",
+        32,
+        72,
+        73,
+        2.1
+      ],
+      [
+        "carlos-fernandez-luna",
+        "Carlos Fernández Luna",
+        "ST",
+        30,
+        71,
+        71,
+        1.4
+      ],
+      [
+        "ignacio-vidal-miralles",
+        "Ignacio Vidal Miralles",
+        "RB",
+        31,
+        71,
+        73,
+        2.6
+      ],
+      [
+        "jacobo-gonzalez-rodriganez",
+        "Jacobo González Rodrigáñez",
+        "LW",
+        29,
+        70,
+        70,
+        1.6
+      ],
+      [
+        "estanislau-pedrola-fortuny",
+        "Estanislau Pedrola Fortuny",
+        "LM",
+        23,
+        70,
+        81,
+        3.4
+      ],
+      [
+        "aritz-aldasoro-sarriegi",
+        "Aritz Aldasoro Sarriegi",
+        "CDM",
+        27,
+        70,
+        75,
+        2.1
+      ],
+      [
+        "aisar-ahmed-ahmed",
+        "Aisar Ahmed Ahmed",
+        "RM",
+        25,
+        69,
+        71,
+        1.1
+      ],
+      [
+        "luka-ilic",
+        "Luka Ilić",
+        "CAM",
+        27,
+        69,
+        73,
+        2.1
+      ],
+      [
+        "pablo-saenz-ezquerra",
+        "Pablo Sáenz Ezquerra",
+        "RW",
+        25,
+        68,
+        72,
+        1.4
+      ],
+      [
+        "daniel-villahermosa-martinez",
+        "Daniel Villahermosa Martínez",
+        "CM",
+        25,
+        68,
+        71,
+        1.1
+      ],
+      [
+        "brandon-domingues",
+        "Brandon Dominguès",
+        "LM",
+        26,
+        68,
+        73,
+        2.1
+      ],
+      [
+        "youness-lachhab-didi",
+        "Youness Lachhab Didi",
+        "CDM",
+        27,
+        66,
+        68,
+        0.85
+      ],
+      [
+        "alexandru-mihai-isfan",
+        "Alexandru Mihai Ișfan",
+        "ST",
+        26,
+        65,
+        65,
+        0.7000000000000001
+      ],
+      [
+        "marco-esteban-fernandez",
+        "Marco Esteban Fernández",
+        "CB",
+        20,
+        64,
+        76,
+        1
+      ],
+      [
+        "miguel-de-jesus-narvaez-lopez",
+        "Miguel de Jesús Narváez López",
+        "GK",
+        24,
+        63,
+        70,
+        0.8250000000000001
+      ],
+      [
+        "academy-cb-1",
+        "R. Oviedo Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "es2-ud-las-palmas",
+    "name": "UD Las Palmas",
+    "color": "#c0d401",
+    "budget": 15,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "manuel-fuster-lazaro",
+        "Manuel Fuster Lázaro",
+        "CAM",
+        28,
+        74,
+        74,
+        4.5
+      ],
+      [
+        "dinko-horkas",
+        "Dinko Horkaš",
+        "GK",
+        27,
+        74,
+        78,
+        3.5
+      ],
+      [
+        "kirian-rodriguez-concepcion",
+        "Kirian Rodríguez Concepción",
+        "CDM",
+        30,
+        74,
+        76,
+        7.5
+      ],
+      [
+        "victor-alvarez-rozada",
+        "Víctor Álvarez Rozada",
+        "RB",
+        29,
+        73,
+        73,
+        2.9
+      ],
+      [
+        "enzo-loiodice",
+        "Enzo Loiodice",
+        "CM",
+        25,
+        73,
+        77,
+        3.5
+      ],
+      [
+        "sandro-ramirez-castillo",
+        "Sandro Ramírez Castillo",
+        "RM",
+        31,
+        73,
+        75,
+        5.5
+      ],
+      [
+        "enrique-clemente-maza",
+        "Enrique Clemente Maza",
+        "LB",
+        27,
+        72,
+        72,
+        1.2
+      ],
+      [
+        "jese-rodriguez-ruiz",
+        "Jesé Rodríguez Ruiz",
+        "ST",
+        33,
+        72,
+        72,
+        0.975
+      ],
+      [
+        "jeremia-alexandre-recoba-perrone",
+        "Jeremía Alexandre Recoba Perrone",
+        "ST",
+        22,
+        71,
+        82,
+        4.2
+      ],
+      [
+        "jefte-betancor-sanchez",
+        "Jefté Betancor Sánchez",
+        "ST",
+        33,
+        71,
+        71,
+        1.6
+      ],
+      [
+        "juan-manuel-herzog-gonzalez",
+        "Juan Manuel Herzog González",
+        "CB",
+        22,
+        71,
+        81,
+        3.9
+      ],
+      [
+        "jose-alejandro-suarez-suarez",
+        "José Alejandro Suárez Suárez",
+        "CB",
+        33,
+        70,
+        73,
+        2
+      ],
+      [
+        "pedro-alejandro-garcia-mejias",
+        "Pedro Alejandro García Mejías",
+        "LM",
+        23,
+        70,
+        78,
+        2.3
+      ],
+      [
+        "jose-antonio-caro-diaz",
+        "José Antonio Caro Diaz",
+        "GK",
+        32,
+        69,
+        72,
+        1.2
+      ],
+      [
+        "sergio-ruiz-alonso",
+        "Sergio Ruiz Alonso",
+        "CDM",
+        31,
+        69,
+        71,
+        1.6
+      ],
+      [
+        "giovanni-bonfanti",
+        "Giovanni Bonfanti",
+        "CB",
+        23,
+        68,
+        76,
+        2.1
+      ],
+      [
+        "marvin-olawale-akinlabi-park",
+        "Marvin Olawale Akinlabi Park",
+        "RB",
+        26,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "nicholas-opoku",
+        "Nicholas Opoku",
+        "CB",
+        29,
+        68,
+        69,
+        1.1
+      ],
+      [
+        "inaki-gonzalez-zambrano",
+        "Iñaki González Zambrano",
+        "CDM",
+        22,
+        68,
+        81,
+        2.8
+      ],
+      [
+        "edward-cedeno",
+        "Edward Cedeño",
+        "CDM",
+        23,
+        66,
+        77,
+        1.9
+      ],
+      [
+        "valentin-alejandro-pezzolesi",
+        "Valentín Alejandro Pezzolesi",
+        "RB",
+        19,
+        63,
+        80,
+        1.4
+      ],
+      [
+        "aboubacar-bassinga",
+        "Aboubacar Bassinga",
+        "CM",
+        21,
+        63,
+        78,
+        1
+      ],
+      [
+        "jose-adam-arvelo-lopez",
+        "José Adam Arvelo López",
+        "RW",
+        21,
+        61,
+        76,
+        0.9500000000000001
+      ],
+      [
+        "adrian-suarez-ortega",
+        "Adrián Suárez Ortega",
+        "GK",
+        21,
+        61,
+        76,
+        1
+      ]
+    ]
+  },
+  {
+    "id": "es2-r-sporting",
+    "name": "R. Sporting",
+    "color": "#b8def9",
+    "budget": 13,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "cesar-gelabert-pina",
+        "César Gelabert Piña",
+        "CAM",
+        25,
+        74,
+        77,
+        3.5
+      ],
+      [
+        "juan-ferney-otero-tovar",
+        "Juan Ferney Otero Tovar",
+        "ST",
+        31,
+        74,
+        74,
+        3
+      ],
+      [
+        "alexandre-corredera-alardi",
+        "Alexandre Corredera Alardi",
+        "CM",
+        30,
+        73,
+        73,
+        1.8
+      ],
+      [
+        "guillermo-rosas-alonso",
+        "Guillermo Rosas Alonso",
+        "RB",
+        26,
+        73,
+        75,
+        2.2
+      ],
+      [
+        "orlando-ruben-yanez-alabart",
+        "Orlando Rubén Yáñez Alabart",
+        "GK",
+        32,
+        73,
+        73,
+        1.6
+      ],
+      [
+        "pablo-vazquez-perez",
+        "Pablo Vázquez Pérez",
+        "CB",
+        31,
+        70,
+        70,
+        1.3
+      ],
+      [
+        "gaspar-campos-anso-fernandez",
+        "Gaspar Campos-Ansó Fernández",
+        "LM",
+        26,
+        70,
+        72,
+        1.8
+      ],
+      [
+        "hugo-guillamon-sanmartin",
+        "Hugo Guillamón Sanmartín",
+        "CM",
+        26,
+        70,
+        77,
+        3.4
+      ],
+      [
+        "diego-sanchez-perez",
+        "Diego Sánchez Pérez",
+        "LB",
+        23,
+        69,
+        77,
+        2.5
+      ],
+      [
+        "antonio-manuel-casas-marin",
+        "Antonio Manuel Casas Marín",
+        "ST",
+        26,
+        69,
+        74,
+        2.5
+      ],
+      [
+        "jorge-saenz-de-miera-colmeiro",
+        "Jorge Sáenz de Miera Colmeiro",
+        "CB",
+        29,
+        68,
+        73,
+        1.9
+      ],
+      [
+        "ignacio-martin-gomez",
+        "Ignacio Martín Gómez",
+        "CDM",
+        24,
+        68,
+        78,
+        2.5
+      ],
+      [
+        "pablo-garcia-carrasco",
+        "Pablo García Carrasco",
+        "LB",
+        26,
+        68,
+        73,
+        1.8
+      ],
+      [
+        "emanuel-gularte-mendez",
+        "Emanuel Gularte Méndez",
+        "CB",
+        28,
+        68,
+        75,
+        2.7
+      ],
+      [
+        "andres-martin-ferrari-malviera",
+        "Andrés Martín Ferrari Malviera",
+        "ST",
+        23,
+        68,
+        76,
+        2.3
+      ],
+      [
+        "mamadou-loum-ndiaye",
+        "Mamadou Loum N'Diaye",
+        "CDM",
+        29,
+        66,
+        66,
+        0.725
+      ],
+      [
+        "egoitz-arana-aizpuru",
+        "Egoitz Arana Aizpuru",
+        "GK",
+        24,
+        66,
+        72,
+        0.925
+      ],
+      [
+        "konrad-de-la-fuente",
+        "Konrad de la Fuente",
+        "LM",
+        25,
+        66,
+        72,
+        1.4
+      ],
+      [
+        "alejo-sarco",
+        "Alejo Sarco",
+        "ST",
+        20,
+        64,
+        81,
+        1.5
+      ],
+      [
+        "enol-prendes-ortiz",
+        "Enol Prendes Ortiz",
+        "CAM",
+        22,
+        63,
+        74,
+        1.1
+      ],
+      [
+        "iker-martinez-martinez",
+        "Iker Martínez Martínez",
+        "RB",
+        21,
+        61,
+        72,
+        0.85
+      ],
+      [
+        "academy-cb-1",
+        "R. Sporting Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "es2-cd-leganes",
+    "name": "CD Leganés",
+    "color": "#3fdb8d",
+    "budget": 13,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "daniel-jose-rodriguez-vazquez",
+        "Daniel José Rodríguez Vázquez",
+        "LM",
+        38,
+        72,
+        76,
+        2.4
+      ],
+      [
+        "yassine-kechta",
+        "Yassine Kechta",
+        "CM",
+        24,
+        72,
+        80,
+        6
+      ],
+      [
+        "raul-fernandez-cavada-mateos",
+        "Raúl Fernández Cavada Mateos",
+        "GK",
+        38,
+        71,
+        72,
+        0.25
+      ],
+      [
+        "ismael-gharbi-alvarez",
+        "Ismaël Gharbi Álvarez",
+        "LM",
+        22,
+        71,
+        82,
+        7
+      ],
+      [
+        "amadou-diawara",
+        "Amadou Diawara",
+        "CDM",
+        29,
+        71,
+        71,
+        1.1
+      ],
+      [
+        "miguel-angel-atienza-villa",
+        "Miguel Ángel Atienza Villa",
+        "CM",
+        27,
+        71,
+        73,
+        1.9
+      ],
+      [
+        "ruben-pena-jimenez",
+        "Rubén Peña Jiménez",
+        "RB",
+        35,
+        70,
+        72,
+        1.2
+      ],
+      [
+        "zico-buurmeester",
+        "Zico Buurmeester",
+        "CM",
+        24,
+        70,
+        78,
+        3.1
+      ],
+      [
+        "gonzalo-aguilar-lopez",
+        "Gonzalo Aguilar López",
+        "CB",
+        24,
+        70,
+        74,
+        2.1
+      ],
+      [
+        "alejandro-millan-iranzo",
+        "Alejandro Millán Iranzo",
+        "ST",
+        26,
+        70,
+        72,
+        1.7
+      ],
+      [
+        "luca-zinedine-zidane-fernandez",
+        "Luca Zinedine Zidane Fernández",
+        "GK",
+        28,
+        68,
+        75,
+        2
+      ],
+      [
+        "marvelous-antolin-garzon",
+        "Marvelous Antolín Garzón",
+        "CB",
+        23,
+        68,
+        73,
+        1
+      ],
+      [
+        "enric-franquesa-dolz",
+        "Enric Franquesa Dolz",
+        "LB",
+        29,
+        68,
+        72,
+        2.1
+      ],
+      [
+        "serge-patrick-njoh-soko",
+        "Serge Patrick Njoh Soko",
+        "ST",
+        28,
+        68,
+        73,
+        3.3
+      ],
+      [
+        "gonzalo-julian-melero-manzanares",
+        "Gonzalo Julián Melero Manzanares",
+        "CM",
+        32,
+        68,
+        72,
+        1.9
+      ],
+      [
+        "ignasi-miquel-pons",
+        "Ignasi Miquel Pons",
+        "CB",
+        33,
+        67,
+        68,
+        0.775
+      ],
+      [
+        "ruben-pulido-penas",
+        "Rubén Pulido Peñas",
+        "CB",
+        26,
+        67,
+        71,
+        1.3
+      ],
+      [
+        "naim-garcia-garcia",
+        "Naim García García",
+        "LM",
+        24,
+        67,
+        71,
+        1.5
+      ],
+      [
+        "roberto-lopez-alcaide",
+        "Roberto López Alcaide",
+        "CAM",
+        26,
+        67,
+        74,
+        2
+      ],
+      [
+        "benjamin-pauwels",
+        "Benjamin Pauwels",
+        "LW",
+        21,
+        64,
+        76,
+        0.8
+      ],
+      [
+        "andres-campos-bautista",
+        "Andrés Campos Bautista",
+        "RM",
+        24,
+        63,
+        72,
+        1.1
+      ],
+      [
+        "academy-cb-1",
+        "CD Leganés Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "es2-cadiz-cf",
+    "name": "Cádiz CF",
+    "color": "#ca6a89",
+    "budget": 13,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jesus-joaquin-fernandez-saez-de-la-torre",
+        "Jesús Joaquín Fernández Sáez de la Torre",
+        "RW",
+        32,
+        71,
+        77,
+        8.5
+      ],
+      [
+        "urko-iruretagoiena-lertxundi",
+        "Urko Iruretagoiena Lertxundi",
+        "ST",
+        26,
+        71,
+        75,
+        2.6
+      ],
+      [
+        "javier-castro-urdin",
+        "Javier Castro Urdín",
+        "CB",
+        26,
+        71,
+        77,
+        3
+      ],
+      [
+        "damian-rodriguez-sousa",
+        "Damián Rodríguez Sousa",
+        "CDM",
+        23,
+        71,
+        79,
+        4.9
+      ],
+      [
+        "cristian-gutierrez-vizcaino",
+        "Cristian Gutiérrez Vizcaíno",
+        "LB",
+        25,
+        70,
+        77,
+        3
+      ],
+      [
+        "manuel-fernandez-arroyo",
+        "Manuel Fernández Arroyo",
+        "CB",
+        25,
+        70,
+        75,
+        2.2
+      ],
+      [
+        "jokin-ezkieta-mendiburu",
+        "Jokin Ezkieta Mendiburu",
+        "GK",
+        30,
+        70,
+        74,
+        2
+      ],
+      [
+        "iuri-tabatadze",
+        "Iuri Tabatadze",
+        "RW",
+        26,
+        70,
+        70,
+        1.1
+      ],
+      [
+        "giorgi-gocholeishvili",
+        "Giorgi Gocholeishvili",
+        "RB",
+        25,
+        69,
+        74,
+        2.1
+      ],
+      [
+        "alvaro-garcia-pascual",
+        "Álvaro García Pascual",
+        "ST",
+        24,
+        68,
+        74,
+        1.6
+      ],
+      [
+        "david-gil-mohedano",
+        "David Gil Mohedano",
+        "GK",
+        32,
+        68,
+        70,
+        0.85
+      ],
+      [
+        "javier-ontiveros-parra",
+        "Javier Ontiveros Parra",
+        "LW",
+        29,
+        68,
+        73,
+        3.2
+      ],
+      [
+        "iker-recio-ortega",
+        "Iker Recio Ortega",
+        "CB",
+        25,
+        68,
+        72,
+        1
+      ],
+      [
+        "antonio-jose-cordero-campillo",
+        "Antonio José Cordero Campillo",
+        "LW",
+        19,
+        67,
+        85,
+        3.5
+      ],
+      [
+        "rominigue-kouame-nguessan",
+        "Rominigue Kouamé N'Guessan",
+        "CM",
+        29,
+        67,
+        73,
+        3
+      ],
+      [
+        "jose-antonio-de-la-rosa-garrido",
+        "José Antonio de la Rosa Garrido",
+        "RW",
+        22,
+        67,
+        76,
+        1.9
+      ],
+      [
+        "jeronimo-domina",
+        "Jerónimo Dómina",
+        "ST",
+        20,
+        67,
+        84,
+        3.8
+      ],
+      [
+        "bojan-kovacevic",
+        "Bojan Kovačević",
+        "CB",
+        22,
+        67,
+        83,
+        2.8
+      ],
+      [
+        "sergio-arribas-prieto",
+        "Sergio Arribas Prieto",
+        "LB",
+        23,
+        66,
+        75,
+        1.8
+      ],
+      [
+        "efe-aghama-ugiagbe",
+        "Efe Aghama Ugiagbe",
+        "LW",
+        22,
+        64,
+        71,
+        1.1
+      ],
+      [
+        "joaquin-felipe-gonzalez-rodriguez",
+        "Joaquin Felipe González Rodríguez",
+        "CDM",
+        25,
+        63,
+        71,
+        1.2
+      ],
+      [
+        "academy-cb-1",
+        "Cádiz CF Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "es2-granada-cf",
+    "name": "Granada CF",
+    "color": "#4e687a",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "gerard-gumbau-garriga",
+        "Gerard Gumbau Garriga",
+        "CM",
+        31,
+        73,
+        73,
+        2.9
+      ],
+      [
+        "manuel-lama-maroto",
+        "Manuel Lama Maroto",
+        "CB",
+        25,
+        72,
+        77,
+        2.5
+      ],
+      [
+        "ruben-alcaraz-jimenez",
+        "Rubén Alcaraz Jiménez",
+        "CM",
+        35,
+        72,
+        72,
+        0.875
+      ],
+      [
+        "jose-manuel-arnaiz-diaz",
+        "José Manuel Arnáiz Díaz",
+        "LW",
+        31,
+        71,
+        71,
+        1.5
+      ],
+      [
+        "benedikt-steffen-gimber",
+        "Benedikt Steffen Gimber",
+        "CB",
+        29,
+        71,
+        73,
+        1.9
+      ],
+      [
+        "alejandro-jose-marques-mendez",
+        "Alejandro José Marqués Méndez",
+        "ST",
+        26,
+        71,
+        75,
+        3.2
+      ],
+      [
+        "abdoul-kader-bamba",
+        "Abdoul Kader Bamba",
+        "LW",
+        32,
+        70,
+        70,
+        1
+      ],
+      [
+        "pedro-aleman-serna",
+        "Pedro Alemañ Serna",
+        "CM",
+        24,
+        70,
+        73,
+        0.9
+      ],
+      [
+        "baila-diallo",
+        "Baïla Diallo",
+        "LB",
+        25,
+        69,
+        69,
+        0.75
+      ],
+      [
+        "raul-lizoain-cruz",
+        "Raúl Lizoáin Cruz",
+        "GK",
+        35,
+        69,
+        69,
+        0.24
+      ],
+      [
+        "oscar-naasei-oppong",
+        "Oscar Naasei Oppong",
+        "RB",
+        21,
+        69,
+        75,
+        0.75
+      ],
+      [
+        "sergio-lopez-galache",
+        "Sergio López Galache",
+        "RB",
+        27,
+        69,
+        71,
+        1.5
+      ],
+      [
+        "diego-varela-pampin",
+        "Diego Varela Pampín",
+        "LB",
+        26,
+        69,
+        73,
+        1.8
+      ],
+      [
+        "jorge-pascual-medina",
+        "Jorge Pascual Medina",
+        "ST",
+        23,
+        68,
+        74,
+        2
+      ],
+      [
+        "alberto-flores-lopez",
+        "Alberto Flores López",
+        "GK",
+        22,
+        65,
+        79,
+        1.5
+      ],
+      [
+        "sergio-rodelas-pintor",
+        "Sergio Rodelas Pintor",
+        "LW",
+        21,
+        64,
+        80,
+        2.1
+      ],
+      [
+        "pau-casadesus-castro",
+        "Pau Casadesús Castro",
+        "RB",
+        22,
+        63,
+        71,
+        1.1
+      ],
+      [
+        "diego-hormigo-iturralde",
+        "Diego Hormigo Iturralde",
+        "LB",
+        23,
+        63,
+        75,
+        1.3
+      ],
+      [
+        "mario-jimenez-gambin",
+        "Mario Jiménez Gambín",
+        "CAM",
+        19,
+        59,
+        81,
+        0.9
+      ],
+      [
+        "academy-cb-1",
+        "Granada CF Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Granada CF Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Granada CF Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "es2-cd-castellon",
+    "name": "CD Castellón",
+    "color": "#d06f09",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jeremy-mellot",
+        "Jérémy Mellot",
+        "RB",
+        32,
+        72,
+        72,
+        1
+      ],
+      [
+        "alberto-jimenez-benitez",
+        "Alberto Jiménez Benítez",
+        "CB",
+        33,
+        72,
+        72,
+        0.65
+      ],
+      [
+        "inigo-cordoba-querejeta",
+        "Iñigo Córdoba Querejeta",
+        "LM",
+        29,
+        72,
+        72,
+        1.9
+      ],
+      [
+        "amir-saipi",
+        "Amir Saipi",
+        "GK",
+        26,
+        71,
+        77,
+        2.4
+      ],
+      [
+        "lucas-alcazar-moreno",
+        "Lucas Alcázar Moreno",
+        "LB",
+        24,
+        70,
+        72,
+        1.3
+      ],
+      [
+        "diego-hernandez-barriuso",
+        "Diego Hernández Barriuso",
+        "CM",
+        30,
+        70,
+        70,
+        0.6
+      ],
+      [
+        "romain-matthys",
+        "Romain Matthys",
+        "GK",
+        28,
+        70,
+        70,
+        0.525
+      ],
+      [
+        "fabrizio-brignani",
+        "Fabrizio Brignani",
+        "CB",
+        28,
+        70,
+        71,
+        1.5
+      ],
+      [
+        "ousmane-nana-camara",
+        "Ousmane Nana Camara",
+        "ST",
+        24,
+        70,
+        72,
+        1.4
+      ],
+      [
+        "israel-suero-fernandez",
+        "Israel Suero Fernández",
+        "ST",
+        32,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "pablo-santiago-lopez",
+        "Pablo Santiago López",
+        "LW",
+        25,
+        67,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "douglas-aurelio",
+        "Douglas Aurélio",
+        "ST",
+        27,
+        67,
+        70,
+        1.3
+      ],
+      [
+        "ilias-kostis",
+        "Ilias Kostis",
+        "CB",
+        23,
+        67,
+        78,
+        2.5
+      ],
+      [
+        "adam-emil-skaanning-jakobsen",
+        "Adam Emil Skaanning Jakobsen",
+        "ST",
+        27,
+        67,
+        69,
+        1.4
+      ],
+      [
+        "agustin-sienra",
+        "Agustín Sienra",
+        "CB",
+        27,
+        67,
+        68,
+        0.625
+      ],
+      [
+        "marc-olivier-doue-sene",
+        "Marc-Olivier Doué Séné",
+        "CDM",
+        25,
+        66,
+        73,
+        1.2
+      ],
+      [
+        "alvaro-martin-de-frias",
+        "Álvaro Martín de Frías",
+        "CM",
+        25,
+        65,
+        69,
+        0.8
+      ],
+      [
+        "martin-conde-gomez",
+        "Martín Conde Gómez",
+        "LB",
+        23,
+        62,
+        71,
+        0.525
+      ],
+      [
+        "micha-willmann",
+        "Michał Willmann",
+        "RB",
+        22,
+        62,
+        73,
+        1.5
+      ],
+      [
+        "sergi-torner-rosell",
+        "Sergi Torner Rosell",
+        "GK",
+        22,
+        57,
+        68,
+        0.325
+      ],
+      [
+        "academy-cb-1",
+        "CD Castellón Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "CD Castellón Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "es2-cordoba-cf",
+    "name": "Córdoba CF",
+    "color": "#38eaf0",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "cristian-carracedo-garcia",
+        "Cristian Carracedo García",
+        "RW",
+        30,
+        72,
+        72,
+        2.3
+      ],
+      [
+        "ismael-ruiz-sanchez",
+        "Ismael Ruiz Sánchez",
+        "CDM",
+        25,
+        71,
+        74,
+        2.3
+      ],
+      [
+        "juan-gutierrez-martinez",
+        "Juan Gutiérrez Martínez",
+        "CB",
+        26,
+        70,
+        74,
+        2
+      ],
+      [
+        "guilherme-sousa-carvalho-fernandes",
+        "Guilherme Sousa Carvalho Fernandes",
+        "GK",
+        25,
+        69,
+        75,
+        2
+      ],
+      [
+        "kevin-villodres-medina",
+        "Kevin Villodres Medina",
+        "LW",
+        25,
+        69,
+        73,
+        1.8
+      ],
+      [
+        "jose-alejandro-martin-valeron",
+        "José Alejandro Martín Valerón",
+        "CB",
+        28,
+        69,
+        69,
+        0.675
+      ],
+      [
+        "iker-alvarez-de-eulate-molne",
+        "Iker Álvarez de Eulate Molne",
+        "GK",
+        25,
+        69,
+        72,
+        1.2
+      ],
+      [
+        "daniel-esmoris-tasende",
+        "Daniel Esmorís Tasende",
+        "LB",
+        26,
+        68,
+        75,
+        2.2
+      ],
+      [
+        "enol-rodriguez-heres",
+        "Enol Rodríguez Heres",
+        "ST",
+        25,
+        68,
+        72,
+        1.4
+      ],
+      [
+        "ruben-gonzalez-alves",
+        "Rubén González Alves",
+        "CB",
+        32,
+        68,
+        70,
+        1.3
+      ],
+      [
+        "franck-ferry-fomeyem",
+        "Franck Ferry Fomeyem",
+        "CB",
+        26,
+        68,
+        72,
+        1.2
+      ],
+      [
+        "diego-vicente-bri-carrazoni",
+        "Diego Vicente Bri Carrazoni",
+        "LW",
+        24,
+        68,
+        71,
+        0.9
+      ],
+      [
+        "adilson-mendes-martins",
+        "Adilson Mendes-Martins",
+        "LW",
+        29,
+        67,
+        68,
+        1.2
+      ],
+      [
+        "carlos-albarran-sanz",
+        "Carlos Albarrán Sanz",
+        "RB",
+        32,
+        67,
+        68,
+        0.875
+      ],
+      [
+        "youssouf-diarra",
+        "Youssouf Diarra",
+        "CM",
+        28,
+        67,
+        69,
+        1.4
+      ],
+      [
+        "salim-el-jebari",
+        "Salim El Jebari",
+        "LM",
+        22,
+        65,
+        73,
+        1.6
+      ],
+      [
+        "theo-zidane-fernandez",
+        "Théo Zidane Fernández",
+        "CM",
+        24,
+        65,
+        72,
+        1.3
+      ],
+      [
+        "diego-pertejo-canseco",
+        "Diego Pertejo Canseco",
+        "RW",
+        24,
+        64,
+        65,
+        0.375
+      ],
+      [
+        "alejandro-arevalo-arrebola",
+        "Alejandro Arévalo Arrebola",
+        "GK",
+        18,
+        57,
+        70,
+        0.25
+      ],
+      [
+        "academy-cb-1",
+        "Córdoba CF Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Córdoba CF Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Córdoba CF Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "es2-r-valladolid-cf",
+    "name": "R. Valladolid CF",
+    "color": "#cb55ff",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "julien-ponceau",
+        "Julien Ponceau",
+        "LM",
+        25,
+        71,
+        78,
+        6
+      ],
+      [
+        "luis-rodriguez-chacon",
+        "Luis Rodríguez Chacón",
+        "CAM",
+        26,
+        70,
+        71,
+        1.6
+      ],
+      [
+        "miguel-angel-rubio-lestan",
+        "Miguel Ángel Rubio Lestan",
+        "CB",
+        28,
+        70,
+        72,
+        1.6
+      ],
+      [
+        "stanko-juric",
+        "Stanko Jurić",
+        "CDM",
+        30,
+        69,
+        70,
+        1.4
+      ],
+      [
+        "david-torres-ortiz",
+        "David Torres Ortiz",
+        "CB",
+        23,
+        69,
+        76,
+        2.1
+      ],
+      [
+        "ivan-alejo-peralta",
+        "Iván Alejo Peralta",
+        "RB",
+        31,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "alvaro-aceves-catalina",
+        "Álvaro Aceves Catalina",
+        "GK",
+        23,
+        69,
+        78,
+        1.8
+      ],
+      [
+        "pablo-tomeo-felez",
+        "Pablo Tomeo Félez",
+        "CB",
+        26,
+        69,
+        76,
+        2.5
+      ],
+      [
+        "juan-miguel-latasa-fernandez-layos",
+        "Juan Miguel Latasa Fernández Layos",
+        "ST",
+        25,
+        68,
+        76,
+        2.5
+      ],
+      [
+        "mathis-lachuer",
+        "Mathis Lachuer",
+        "CM",
+        26,
+        68,
+        74,
+        2.3
+      ],
+      [
+        "clement-jerome-michelin",
+        "Clément Jérôme Michelin",
+        "RB",
+        29,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "thiago-ezequiel-ojeda",
+        "Thiago Ezequiel Ojeda",
+        "CDM",
+        23,
+        68,
+        76,
+        1.4
+      ],
+      [
+        "guillermo-bueno-lopez",
+        "Guillermo Bueno López",
+        "LB",
+        24,
+        68,
+        77,
+        2.6
+      ],
+      [
+        "yeray-cabanzon-de-arriba",
+        "Yeray Cabanzón de Arriba",
+        "RW",
+        23,
+        68,
+        75,
+        1.2
+      ],
+      [
+        "kaj-de-rooij",
+        "Kaj de Rooij",
+        "LW",
+        25,
+        68,
+        68,
+        0.725
+      ],
+      [
+        "marcos-andre-de-sousa-mendonca",
+        "Marcos André de Sousa Mendonça",
+        "ST",
+        29,
+        67,
+        69,
+        1.4
+      ],
+      [
+        "alvaro-perez-campo",
+        "Álvaro Pérez Campo",
+        "RB",
+        23,
+        66,
+        75,
+        1.3
+      ],
+      [
+        "vegard-straat-erlien",
+        "Vegard Østraat Erlien",
+        "ST",
+        28,
+        66,
+        69,
+        1.4
+      ],
+      [
+        "victor-andres-meseguer-cavas",
+        "Víctor Andrés Meseguer Cavas",
+        "CM",
+        27,
+        66,
+        73,
+        2.1
+      ],
+      [
+        "ramon-martinez-gil",
+        "Ramón Martínez Gil",
+        "CB",
+        23,
+        65,
+        76,
+        1.1
+      ],
+      [
+        "ivan-garriel-munoz",
+        "Iván Garriel Muñoz",
+        "LB",
+        21,
+        65,
+        77,
+        1.3
+      ],
+      [
+        "victor-fernandez-duran",
+        "Víctor Fernández Durán",
+        "CAM",
+        18,
+        64,
+        76,
+        0.625
+      ],
+      [
+        "lucas-ignacio-lavagnino",
+        "Lucas Ignacio Lavagnino",
+        "GK",
+        22,
+        64,
+        74,
+        1.1
+      ],
+      [
+        "daniel-perez-guerrero",
+        "Daniel Pérez Guerrero",
+        "CAM",
+        21,
+        64,
+        79,
+        1.2
+      ],
+      [
+        "adrian-arnuncio-baquerin",
+        "Adrián Arnuncio Baquerín",
+        "ST",
+        19,
+        62,
+        80,
+        1
+      ],
+      [
+        "jorge-iglesias-gonzalez",
+        "Jorge Iglesias González",
+        "RB",
+        21,
+        61,
+        77,
+        0.925
+      ]
+    ]
+  },
+  {
+    "id": "es2-ce-sabadell-fc",
+    "name": "CE Sabadell FC",
+    "color": "#46e801",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "edgar-gonzalez-estrada",
+        "Edgar González Estrada",
+        "CB",
+        29,
+        67,
+        72,
+        1.8
+      ],
+      [
+        "nikolay-obolskiy",
+        "Nikolay Obolskiy",
+        "ST",
+        29,
+        64,
+        67,
+        1
+      ],
+      [
+        "xavier-moreno-hernandez",
+        "Xavier Moreno Hernández",
+        "RW",
+        21,
+        64,
+        71,
+        0.725
+      ],
+      [
+        "academy-gk-1",
+        "CE Sabadell FC Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "CE Sabadell FC Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "CE Sabadell FC Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "CE Sabadell FC Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "CE Sabadell FC Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "CE Sabadell FC Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "CE Sabadell FC Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "CE Sabadell FC Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "CE Sabadell FC Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "CE Sabadell FC Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "CE Sabadell FC Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "CE Sabadell FC Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-cb-16",
+        "CE Sabadell FC Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "CE Sabadell FC Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "CE Sabadell FC Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "CE Sabadell FC Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "CE Sabadell FC Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "CE Sabadell FC Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "CE Sabadell FC Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "es2-burgos-cf",
+    "name": "Burgos CF",
+    "color": "#cbe874",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jose-gragera-amado",
+        "José Gragera Amado",
+        "CDM",
+        26,
+        71,
+        75,
+        2.8
+      ],
+      [
+        "ander-cantero-armendariz",
+        "Ander Cantero Armendariz",
+        "GK",
+        31,
+        70,
+        71,
+        1.2
+      ],
+      [
+        "sergio-gonzalez-martinez",
+        "Sergio González Martínez",
+        "CB",
+        29,
+        70,
+        70,
+        1.1
+      ],
+      [
+        "david-gonzalez-ballesteros",
+        "David González Ballesteros",
+        "RM",
+        24,
+        70,
+        74,
+        1.6
+      ],
+      [
+        "santiago-javier-lencina",
+        "Santiago Javier Lencina",
+        "CAM",
+        21,
+        70,
+        83,
+        4.4
+      ],
+      [
+        "francisco-jose-sanchez-rodriguez",
+        "Francisco José Sánchez Rodríguez",
+        "CAM",
+        30,
+        70,
+        70,
+        1.6
+      ],
+      [
+        "alex-fores-mendoza",
+        "Álex Forés Mendoza",
+        "ST",
+        25,
+        70,
+        78,
+        3.8
+      ],
+      [
+        "ignasi-vilarrasa-palacios",
+        "Ignasi Vilarrasa Palacios",
+        "LB",
+        27,
+        69,
+        72,
+        1.7
+      ],
+      [
+        "javier-llabres-exposito",
+        "Javier Llabrés Exposito",
+        "LW",
+        24,
+        69,
+        78,
+        3.1
+      ],
+      [
+        "kevin-appin",
+        "Kévin Appin",
+        "CM",
+        28,
+        69,
+        69,
+        1.4
+      ],
+      [
+        "alejandro-lizancos-saldana",
+        "Alejandro Lizancos Saldaña",
+        "RB",
+        23,
+        69,
+        72,
+        1
+      ],
+      [
+        "oier-luengo-redondo",
+        "Oier Luengo Redondo",
+        "CB",
+        28,
+        68,
+        72,
+        1.6
+      ],
+      [
+        "victor-mollejo-carpintero",
+        "Víctor Mollejo Carpintero",
+        "ST",
+        25,
+        68,
+        77,
+        3.2
+      ],
+      [
+        "pablo-ignacio-galdames-millan",
+        "Pablo Ignacio Galdames Millán",
+        "CM",
+        29,
+        67,
+        69,
+        1.4
+      ],
+      [
+        "gregorio-sierra-perez",
+        "Gregorio Sierra Pérez",
+        "CB",
+        33,
+        67,
+        67,
+        0.65
+      ],
+      [
+        "brais-martinez-prado",
+        "Brais Martínez Prado",
+        "LB",
+        24,
+        66,
+        72,
+        1.3
+      ],
+      [
+        "alberto-dadie-izaguirre",
+        "Alberto Dadie Izaguirre",
+        "RB",
+        24,
+        66,
+        67,
+        0.6
+      ],
+      [
+        "mario-cantero-marino",
+        "Mario Cantero Mariño",
+        "CM",
+        24,
+        64,
+        72,
+        1.1
+      ],
+      [
+        "saul-del-cerro-garcia",
+        "Saúl del Cerro García",
+        "CM",
+        22,
+        63,
+        73,
+        1.1
+      ],
+      [
+        "fermin-garcia-murillo",
+        "Fermín García Murillo",
+        "RM",
+        22,
+        61,
+        66,
+        0.45
+      ],
+      [
+        "marcelo-exposito-jimenez",
+        "Marcelo Expósito Jiménez",
+        "CDM",
+        23,
+        61,
+        69,
+        0.7000000000000001
+      ],
+      [
+        "ethan-ventosa-gonzalez",
+        "Ethan Ventosa González",
+        "CM",
+        22,
+        61,
+        67,
+        0.45
+      ],
+      [
+        "diego-gonzalez-presencio",
+        "Diego González Presencio",
+        "GK",
+        20,
+        57,
+        75,
+        0.375
+      ]
+    ]
+  },
+  {
+    "id": "es2-sd-eibar",
+    "name": "SD Eibar",
+    "color": "#b5ee83",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "peru-nolaskoain-esnal",
+        "Peru Nolaskoain Esnal",
+        "CDM",
+        27,
+        72,
+        74,
+        2.6
+      ],
+      [
+        "jon-mikel-magunagoitia-blasco",
+        "Jon Mikel Magunagoitia Blasco",
+        "GK",
+        26,
+        72,
+        74,
+        1.8
+      ],
+      [
+        "javier-marton-anso",
+        "Javier Martón Ansó",
+        "ST",
+        27,
+        70,
+        71,
+        1.6
+      ],
+      [
+        "imanol-garcia-de-albeniz-crecente",
+        "Imanol García de Albéniz Crecente",
+        "LB",
+        26,
+        70,
+        73,
+        1.9
+      ],
+      [
+        "unai-elgezabal-udondo",
+        "Unai Elgezabal Udondo",
+        "CB",
+        33,
+        70,
+        73,
+        2
+      ],
+      [
+        "sergio-alvarez-diaz",
+        "Sergio Álvarez Díaz",
+        "CDM",
+        34,
+        70,
+        70,
+        0.8
+      ],
+      [
+        "jon-bautista-orgilles",
+        "Jon Bautista Orgilles",
+        "ST",
+        31,
+        69,
+        71,
+        1.9
+      ],
+      [
+        "ivan-gil-calero",
+        "Iván Gil Calero",
+        "CM",
+        26,
+        69,
+        76,
+        2.7
+      ],
+      [
+        "anaitz-arbilla-zabala",
+        "Anaitz Arbilla Zabala",
+        "CB",
+        39,
+        69,
+        70,
+        0.275
+      ],
+      [
+        "sergio-cubero-ezcurra",
+        "Sergio Cubero Ezcurra",
+        "RB",
+        27,
+        69,
+        71,
+        1.5
+      ],
+      [
+        "lander-olaetxea-ibaibarriaga",
+        "Lander Olaetxea Ibaibarriaga",
+        "CM",
+        33,
+        68,
+        71,
+        1.5
+      ],
+      [
+        "jon-guruzeta-rodriguez",
+        "Jon Guruzeta Rodríguez",
+        "CAM",
+        26,
+        68,
+        71,
+        1.6
+      ],
+      [
+        "aleix-garrido-canizares",
+        "Aleix Garrido Cañizares",
+        "CM",
+        22,
+        68,
+        78,
+        2.1
+      ],
+      [
+        "jair-amador-silos",
+        "Jair Amador Silos",
+        "CB",
+        37,
+        67,
+        68,
+        0.325
+      ],
+      [
+        "jon-magunazelaia-argoitia",
+        "Jon Magunazelaia Argoitia",
+        "CAM",
+        25,
+        67,
+        72,
+        1.4
+      ],
+      [
+        "ander-madariaga-susaeta",
+        "Ander Madariaga Susaeta",
+        "CAM",
+        24,
+        67,
+        73,
+        1.6
+      ],
+      [
+        "francisco-jesus-crespo-garcia",
+        "Francisco Jesús Crespo García",
+        "RM",
+        30,
+        67,
+        68,
+        1.2
+      ],
+      [
+        "alvaro-rodriguez-perez",
+        "Álvaro Rodríguez Pérez",
+        "RB",
+        32,
+        66,
+        66,
+        0.725
+      ],
+      [
+        "malcom-abdulai-ares-djalo",
+        "Malcom Abdulai Ares Djaló",
+        "LM",
+        24,
+        66,
+        77,
+        2.7
+      ],
+      [
+        "luis-federico-lopez-andugar",
+        "Luis Federico López Andúgar",
+        "GK",
+        25,
+        64,
+        69,
+        0.625
+      ],
+      [
+        "lucas-nunez-ramirez",
+        "Lucas Nuñez Ramirez",
+        "CM",
+        20,
+        60,
+        74,
+        0.775
+      ],
+      [
+        "hugo-garcia-jimenez",
+        "Hugo García Jiménez",
+        "RM",
+        21,
+        59,
+        68,
+        0.47500000000000003
+      ],
+      [
+        "oier-llorente-korta",
+        "Oier Llorente Korta",
+        "CB",
+        21,
+        58,
+        70,
+        0.45
+      ],
+      [
+        "lucas-sarasketa-unamuno",
+        "Lucas Sarasketa Unamuno",
+        "LM",
+        19,
+        57,
+        78,
+        0.525
+      ]
+    ]
+  },
+  {
+    "id": "es2-ad-ceuta-fc",
+    "name": "AD Ceuta FC",
+    "color": "#54ee84",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jose-joaquin-matos-garcia",
+        "José Joaquín Matos García",
+        "LB",
+        31,
+        69,
+        69,
+        1
+      ],
+      [
+        "cedric-wilfried-teguia-noubi",
+        "Cédric Wilfried Teguia Noubi",
+        "RM",
+        24,
+        69,
+        78,
+        3.1
+      ],
+      [
+        "yann-yves-laurent-bodiger",
+        "Yann Yves Laurent Bodiger",
+        "CDM",
+        31,
+        68,
+        68,
+        1
+      ],
+      [
+        "guillermo-vallejo-delgado",
+        "Guillermo Vallejo Delgado",
+        "GK",
+        31,
+        68,
+        68,
+        0.47500000000000003
+      ],
+      [
+        "anuar-mohamed-tuhami",
+        "Anuar Mohamed Tuhami",
+        "RB",
+        31,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "kenneth-obinna-mamah",
+        "Kenneth Obinna Mamah",
+        "RM",
+        28,
+        68,
+        68,
+        1.3
+      ],
+      [
+        "mawuli-mensah",
+        "Mawuli Mensah",
+        "CM",
+        22,
+        68,
+        72,
+        1.1
+      ],
+      [
+        "kialy-abdoul-kone",
+        "Kialy Abdoul Koné",
+        "LM",
+        29,
+        68,
+        68,
+        0.6
+      ],
+      [
+        "jordi-escobar-fernandez",
+        "Jordi Escobar Fernández",
+        "ST",
+        24,
+        67,
+        75,
+        1.9
+      ],
+      [
+        "jose-luis-zalazar-martinez",
+        "José Luis Zalazar Martínez",
+        "CAM",
+        28,
+        67,
+        67,
+        0.8250000000000001
+      ],
+      [
+        "pedro-lopez-galisteo",
+        "Pedro López Galisteo",
+        "GK",
+        31,
+        67,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "marino-illescas-montano",
+        "Marino Illescas Montaño",
+        "CM",
+        25,
+        67,
+        74,
+        2
+      ],
+      [
+        "salvador-sanchez-ponce",
+        "Salvador Sánchez Ponce",
+        "RM",
+        35,
+        66,
+        69,
+        0.65
+      ],
+      [
+        "alejandro-melendez-ruiz",
+        "Alejandro Meléndez Ruiz",
+        "CM",
+        27,
+        66,
+        68,
+        0.925
+      ],
+      [
+        "alexander-petxarroman-eizagirre",
+        "Álexander Petxarroman Eizagirre",
+        "RB",
+        29,
+        66,
+        67,
+        0.925
+      ],
+      [
+        "carlos-hernandez-alarcon",
+        "Carlos Hernández Alarcón",
+        "CB",
+        36,
+        66,
+        66,
+        0.23
+      ],
+      [
+        "carlos-redruello-nimo",
+        "Carlos Redruello Nimo",
+        "LB",
+        29,
+        65,
+        65,
+        0.65
+      ],
+      [
+        "omar-sadik",
+        "Omar Sadik",
+        "ST",
+        22,
+        65,
+        77,
+        1.2
+      ],
+      [
+        "albert-caparros-guzman",
+        "Albert Caparrós Guzmán",
+        "CB",
+        27,
+        63,
+        67,
+        0.525
+      ],
+      [
+        "jose-manuel-lopez-perez",
+        "José Manuel López Pérez",
+        "CM",
+        23,
+        59,
+        66,
+        0.4
+      ],
+      [
+        "academy-cb-1",
+        "AD Ceuta FC Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "AD Ceuta FC Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "es2-albacete-bp",
+    "name": "Albacete BP",
+    "color": "#50e98e",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "roberto-gonzalez-bayon",
+        "Roberto González Bayón",
+        "RW",
+        25,
+        73,
+        73,
+        1.6
+      ],
+      [
+        "jesus-vallejo-lazaro",
+        "Jesús Vallejo Lázaro",
+        "CB",
+        29,
+        72,
+        73,
+        2.2
+      ],
+      [
+        "jose-antonio-rodriguez-diaz",
+        "José Antonio Rodríguez Díaz",
+        "RM",
+        34,
+        72,
+        72,
+        1.5
+      ],
+      [
+        "carlos-neva-tey",
+        "Carlos Neva Tey",
+        "LB",
+        30,
+        70,
+        71,
+        1.6
+      ],
+      [
+        "agustin-medina-delgado",
+        "Agustín Medina Delgado",
+        "CM",
+        32,
+        70,
+        70,
+        1.5
+      ],
+      [
+        "jose-corpas-serna",
+        "José Corpas Serna",
+        "RM",
+        35,
+        70,
+        72,
+        1.5
+      ],
+      [
+        "lluis-lopez-marmol",
+        "Lluís López Mármol",
+        "CB",
+        29,
+        69,
+        70,
+        1.2
+      ],
+      [
+        "jose-sanchez-martinez",
+        "José Sánchez Martínez",
+        "CB",
+        26,
+        69,
+        74,
+        1.7
+      ],
+      [
+        "francisco-gamez-lopez",
+        "Francisco Gámez López",
+        "RB",
+        35,
+        69,
+        69,
+        0.725
+      ],
+      [
+        "sergio-ortuno-diaz",
+        "Sergio Ortuño Díaz",
+        "CM",
+        27,
+        68,
+        71,
+        1.6
+      ],
+      [
+        "samuel-obeng-gyabaa",
+        "Samuel Obeng Gyabaa",
+        "ST",
+        29,
+        68,
+        68,
+        1.2
+      ],
+      [
+        "carlos-marin-tomas",
+        "Carlos Marín Tomás",
+        "GK",
+        29,
+        68,
+        73,
+        1.5
+      ],
+      [
+        "diego-marino-villar",
+        "Diego Mariño Villar",
+        "GK",
+        36,
+        67,
+        68,
+        0.13
+      ],
+      [
+        "antonio-pacheco-ruiz",
+        "Antonio Pacheco Ruiz",
+        "CM",
+        24,
+        66,
+        73,
+        1.3
+      ],
+      [
+        "higinio-marin-escavy",
+        "Higinio Marín Escavy",
+        "ST",
+        32,
+        66,
+        71,
+        1.6
+      ],
+      [
+        "javier-moreno-arrones-gil",
+        "Javier Moreno Arrones Gil",
+        "CB",
+        26,
+        66,
+        71,
+        1
+      ],
+      [
+        "victor-valverde-da-silva",
+        "Víctor Valverde da Silva",
+        "LM",
+        24,
+        65,
+        73,
+        1.3
+      ],
+      [
+        "javier-villar-del-fraile",
+        "Javier Villar del Fraile",
+        "CM",
+        23,
+        65,
+        76,
+        1.9
+      ],
+      [
+        "lorenzo-aguado-herrera",
+        "Lorenzo Aguado Herrera",
+        "RB",
+        23,
+        65,
+        70,
+        0.7000000000000001
+      ],
+      [
+        "mario-soberon-gutierrez",
+        "Mario Soberón Gutiérrez",
+        "ST",
+        29,
+        64,
+        71,
+        1.9
+      ],
+      [
+        "daniel-bernabeu-garcia",
+        "Daniel Bernabéu García",
+        "LB",
+        19,
+        62,
+        73,
+        0.5
+      ],
+      [
+        "hugo-martinez-gonzalez",
+        "Hugo Martínez González",
+        "CDM",
+        20,
+        62,
+        73,
+        0.55
+      ],
+      [
+        "mario-ramos-fernandez",
+        "Mario Ramos Fernández",
+        "GK",
+        22,
+        59,
+        71,
+        0.425
+      ],
+      [
+        "joaquin-domingo-ponce",
+        "Joaquín Domingo Ponce",
+        "RB",
+        20,
+        58,
+        71,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "es2-cd-tenerife",
+    "name": "CD Tenerife",
+    "color": "#b55d7a",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "mauro-rodolfo-pitton",
+        "Mauro Rodolfo Pittón",
+        "CM",
+        32,
+        72,
+        72,
+        1.8
+      ],
+      [
+        "jesus-alvarez-aguado",
+        "Jesús Álvarez Aguado",
+        "CDM",
+        26,
+        68,
+        69,
+        0.85
+      ],
+      [
+        "ivan-chapela-lopez",
+        "Iván Chapela López",
+        "LM",
+        27,
+        67,
+        70,
+        1.6
+      ],
+      [
+        "jorge-moreno-san-vidal",
+        "Jorge Moreno San Vidal",
+        "CB",
+        25,
+        67,
+        76,
+        2.1
+      ],
+      [
+        "grant-leon-ranos",
+        "Grant-Leon Ranos",
+        "ST",
+        23,
+        63,
+        74,
+        1.1
+      ],
+      [
+        "academy-gk-1",
+        "CD Tenerife Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "CD Tenerife Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "CD Tenerife Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "CD Tenerife Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "CD Tenerife Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "CD Tenerife Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "CD Tenerife Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "CD Tenerife Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "CD Tenerife Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "CD Tenerife Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "CD Tenerife Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "CD Tenerife Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-st-18",
+        "CD Tenerife Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "CD Tenerife Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "CD Tenerife Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "CD Tenerife Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "CD Tenerife Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "es2-fc-andorra",
+    "name": "FC Andorra",
+    "color": "#cad909",
+    "budget": 8,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "pau-lopez-sabata",
+        "Pau López Sabata",
+        "GK",
+        31,
+        77,
+        80,
+        13
+      ],
+      [
+        "gael-alonso-moreno",
+        "Gael Alonso Moreno",
+        "CB",
+        24,
+        68,
+        72,
+        1.2
+      ],
+      [
+        "sergio-molina-beloqui",
+        "Sergio Molina Beloqui",
+        "CM",
+        30,
+        67,
+        67,
+        0.8250000000000001
+      ],
+      [
+        "juan-sebastian-serrano",
+        "Juan Sebastián Serrano",
+        "RB",
+        24,
+        67,
+        77,
+        2.6
+      ],
+      [
+        "thomas-carrique",
+        "Thomas Carrique",
+        "RB",
+        27,
+        67,
+        68,
+        0.85
+      ],
+      [
+        "diego-alende-lopez",
+        "Diego Alende López",
+        "CB",
+        29,
+        67,
+        69,
+        1.1
+      ],
+      [
+        "lautaro-de-leon-billar",
+        "Lautaro de León Billar",
+        "ST",
+        25,
+        67,
+        72,
+        1.4
+      ],
+      [
+        "marc-domenech-costa",
+        "Marc Doménech Costa",
+        "CM",
+        23,
+        66,
+        69,
+        0.8
+      ],
+      [
+        "marti-vila-garcia",
+        "Martí Vilà García",
+        "LB",
+        27,
+        66,
+        68,
+        0.85
+      ],
+      [
+        "randy-schneider",
+        "Randy Schneider",
+        "CM",
+        25,
+        66,
+        73,
+        1.7
+      ],
+      [
+        "marc-bombardo-poyato",
+        "Marc Bombardó Poyato",
+        "CB",
+        20,
+        66,
+        78,
+        1.1
+      ],
+      [
+        "kevin-nicolas-ratti-fredes",
+        "Kevin Nicolás Ratti Fredes",
+        "GK",
+        33,
+        66,
+        69,
+        0.75
+      ],
+      [
+        "efe-akman",
+        "Efe Akman",
+        "CM",
+        20,
+        65,
+        79,
+        0.975
+      ],
+      [
+        "alejandro-calvo-mata",
+        "Alejandro Calvo Mata",
+        "RW",
+        22,
+        65,
+        72,
+        1.4
+      ],
+      [
+        "theo-le-normand",
+        "Théo Le Normand",
+        "CAM",
+        26,
+        64,
+        64,
+        0.325
+      ],
+      [
+        "enes-sali",
+        "Enes Sali",
+        "LW",
+        20,
+        61,
+        79,
+        1
+      ],
+      [
+        "academy-cb-1",
+        "FC Andorra Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "FC Andorra Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "FC Andorra Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "FC Andorra Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "FC Andorra Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cm-6",
+        "FC Andorra Academy CM 7",
+        "CM",
+        19,
+        60,
+        79,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "es2-cd-eldense",
+    "name": "CD Eldense",
+    "color": "#bdd57c",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "justin-smith",
+        "Justin Smith",
+        "CDM",
+        23,
+        68,
+        76,
+        1.5
+      ],
+      [
+        "jorge-martin-camunas",
+        "Jorge Martín Camuñas",
+        "LM",
+        25,
+        67,
+        72,
+        1.4
+      ],
+      [
+        "carlos-guirao-mora",
+        "Carlos Guirao Mora",
+        "CDM",
+        23,
+        67,
+        73,
+        1.5
+      ],
+      [
+        "manuel-nieto-sanchez",
+        "Manuel Nieto Sánchez",
+        "ST",
+        28,
+        67,
+        68,
+        1.2
+      ],
+      [
+        "javier-martinez-calvo",
+        "Javier Martínez Calvo",
+        "CM",
+        26,
+        67,
+        72,
+        1.7
+      ],
+      [
+        "juan-palomares-pulpillo",
+        "Juan Palomares Pulpillo",
+        "GK",
+        26,
+        66,
+        68,
+        0.675
+      ],
+      [
+        "academy-gk-1",
+        "CD Eldense Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "CD Eldense Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "CD Eldense Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "CD Eldense Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-rb-5",
+        "CD Eldense Academy RB 6",
+        "RB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cdm-6",
+        "CD Eldense Academy CDM 7",
+        "CDM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cm-7",
+        "CD Eldense Academy CM 8",
+        "CM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cam-8",
+        "CD Eldense Academy CAM 9",
+        "CAM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-lw-9",
+        "CD Eldense Academy LW 10",
+        "LW",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-rw-10",
+        "CD Eldense Academy RW 11",
+        "RW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-st-11",
+        "CD Eldense Academy ST 12",
+        "ST",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-18",
+        "CD Eldense Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "CD Eldense Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "CD Eldense Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "CD Eldense Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "CD Eldense Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "es2-celta-fortuna",
+    "name": "Celta Fortuna",
+    "color": "#bed0f7",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "hugo-francisco-cuenca-martinez",
+        "Hugo Francisco Cuenca Martínez",
+        "RW",
+        21,
+        61,
+        77,
+        0.9500000000000001
+      ],
+      [
+        "academy-gk-1",
+        "Celta Fortuna Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "Celta Fortuna Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Celta Fortuna Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "Celta Fortuna Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "Celta Fortuna Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "Celta Fortuna Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "Celta Fortuna Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "Celta Fortuna Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "Celta Fortuna Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "Celta Fortuna Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "Celta Fortuna Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "Celta Fortuna Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-lb-14",
+        "Celta Fortuna Academy LB 14",
+        "LB",
+        18,
+        61,
+        78,
+        0.6
+      ],
+      [
+        "academy-rm-15",
+        "Celta Fortuna Academy RM 15",
+        "RM",
+        18,
+        57,
+        79,
+        0.6
+      ],
+      [
+        "academy-cb-16",
+        "Celta Fortuna Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "Celta Fortuna Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "Celta Fortuna Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "Celta Fortuna Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "Celta Fortuna Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "Celta Fortuna Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "Celta Fortuna Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "es2-real-sociedad-b",
+    "name": "Real Sociedad B",
+    "color": "#4a6878",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "aitor-fraga-torres",
+        "Aitor Fraga Torres",
+        "GK",
+        23,
+        69,
+        74,
+        1.1
+      ],
+      [
+        "kazunari-kita",
+        "Kazunari Kita",
+        "CB",
+        21,
+        68,
+        77,
+        0.875
+      ],
+      [
+        "gorka-carrera-zarranz",
+        "Gorka Carrera Zarranz",
+        "ST",
+        21,
+        67,
+        71,
+        0.55
+      ],
+      [
+        "jon-balda-zubiri",
+        "Jon Balda Zubiri",
+        "LB",
+        24,
+        67,
+        72,
+        1
+      ],
+      [
+        "arkaitz-mariezkurrena-etxezarreta",
+        "Arkaitz Mariezkurrena Etxezarreta",
+        "ST",
+        21,
+        67,
+        80,
+        1.7
+      ],
+      [
+        "luken-beitia-aguirregomezcorta",
+        "Luken Beitia Aguirregomezcorta",
+        "CB",
+        22,
+        67,
+        79,
+        1.4
+      ],
+      [
+        "tomas-carbonell-del-rio",
+        "Tomás Carbonell del Rio",
+        "CM",
+        21,
+        65,
+        78,
+        1.2
+      ],
+      [
+        "lander-astiazaran-escabias",
+        "Lander Astiazarán Escabias",
+        "CAM",
+        20,
+        65,
+        76,
+        0.625
+      ],
+      [
+        "gorka-gorosabel-anorga",
+        "Gorka Gorosabel Añorga",
+        "CM",
+        20,
+        65,
+        77,
+        0.85
+      ],
+      [
+        "unax-agote-aranburu",
+        "Unax Agote Aranburu",
+        "LB",
+        23,
+        65,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "inaki-ruperez-urtasun",
+        "Iñaki Rupérez Urtasun",
+        "RB",
+        23,
+        64,
+        74,
+        1.3
+      ],
+      [
+        "daniel-diaz-gandara",
+        "Daniel Díaz Gándara",
+        "RM",
+        20,
+        64,
+        84,
+        1.5
+      ],
+      [
+        "alex-douma-johan-lebarbier",
+        "Alex Douma Johan Lebarbier",
+        "CM",
+        22,
+        63,
+        72,
+        0.6
+      ],
+      [
+        "alex-marchal-garcia",
+        "Alex Marchal García",
+        "LW",
+        19,
+        63,
+        82,
+        1.1
+      ],
+      [
+        "sydney-ehizogie-osazuwa-omoruyi",
+        "Sydney Ehizogie Osazuwa Omoruyi",
+        "ST",
+        19,
+        62,
+        80,
+        1
+      ],
+      [
+        "ekain-orobengoa-arbelaiz",
+        "Ekain Orobengoa Arbelaiz",
+        "ST",
+        22,
+        61,
+        69,
+        0.75
+      ],
+      [
+        "jon-eceizabarrena",
+        "Jon Eceizabarrena",
+        "CM",
+        21,
+        60,
+        75,
+        0.6
+      ],
+      [
+        "jon-garro-larrarte",
+        "Jon Garro Larrarte",
+        "RB",
+        21,
+        60,
+        71,
+        0.525
+      ],
+      [
+        "eneko-astigarraga-alkorta",
+        "Eneko Astigarraga Alkorta",
+        "CB",
+        22,
+        60,
+        75,
+        0.5750000000000001
+      ],
+      [
+        "academy-gk-1",
+        "Real Sociedad B Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Real Sociedad B Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Real Sociedad B Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  }
+];
 
-export function buildClubs(){ return hydrate(RAW_PLCLUBS); }
-export function buildChampionshipClubs(){ return hydrate(RAW_CHAMPIONSHIPCLUBS); }
-export function buildLaLigaClubs(){ return hydrate(RAW_LALIGACLUBS); }
-export function buildSerieAClubs(){ return hydrate(RAW_SERIEACLUBS); }
-export function buildBundesligaClubs(){ return hydrate(RAW_BUNDESLIGACLUBS); }
-export function buildLigue1Clubs(){ return hydrate(RAW_LIGUE1CLUBS); }
+const RAW_SERIEBCLUBS=[
+  {
+    "id": "it2-palermo",
+    "name": "Palermo",
+    "color": "#36de7a",
+    "budget": 19,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "joel-julius-ilmari-pohjanpalo",
+        "Joel Julius Ilmari Pohjanpalo",
+        "ST",
+        32,
+        76,
+        76,
+        4.1
+      ],
+      [
+        "gabriel-tadeu-strefezza-rebelato",
+        "Gabriel Tadeu Strefezza Rebelato",
+        "RM",
+        29,
+        76,
+        78,
+        14
+      ],
+      [
+        "antonio-palumbo",
+        "Antonio Palumbo",
+        "CAM",
+        30,
+        75,
+        75,
+        4.2
+      ],
+      [
+        "jesse-pekka-joronen",
+        "Jesse Pekka Joronen",
+        "GK",
+        33,
+        74,
+        74,
+        0.7000000000000001
+      ],
+      [
+        "hernani-azevedo-junior",
+        "Hernani Azevedo Júnior",
+        "CDM",
+        32,
+        74,
+        75,
+        3.9
+      ],
+      [
+        "mattia-bani",
+        "Mattia Bani",
+        "CB",
+        32,
+        74,
+        74,
+        1.3
+      ],
+      [
+        "tommaso-augello",
+        "Tommaso Augello",
+        "LB",
+        32,
+        74,
+        74,
+        3.6
+      ],
+      [
+        "filippo-ranocchia",
+        "Filippo Ranocchia",
+        "CM",
+        25,
+        73,
+        77,
+        3.5
+      ],
+      [
+        "niccolo-pierozzi",
+        "Niccolò Pierozzi",
+        "RB",
+        25,
+        73,
+        76,
+        2.7
+      ],
+      [
+        "jacopo-segre",
+        "Jacopo Segre",
+        "CM",
+        29,
+        72,
+        72,
+        1.4
+      ],
+      [
+        "giangiacomo-magnani",
+        "Giangiacomo Magnani",
+        "CB",
+        30,
+        72,
+        74,
+        3.5
+      ],
+      [
+        "pietro-ceccaroni",
+        "Pietro Ceccaroni",
+        "CB",
+        30,
+        72,
+        72,
+        1.3
+      ],
+      [
+        "matteo-luigi-brunori",
+        "Matteo Luigi Brunori",
+        "ST",
+        31,
+        72,
+        73,
+        3
+      ],
+      [
+        "jeremy-le-douaron",
+        "Jérémy Le Douaron",
+        "ST",
+        28,
+        72,
+        74,
+        4.6
+      ],
+      [
+        "emanuel-quartsin-gyasi",
+        "Emanuel Quartsin Gyasi",
+        "RM",
+        32,
+        71,
+        74,
+        3.5
+      ],
+      [
+        "patryk-peda",
+        "Patryk Peda",
+        "CB",
+        24,
+        71,
+        76,
+        2.1
+      ],
+      [
+        "nahuel-estevez-alvarez",
+        "Nahuel Estévez Álvarez",
+        "CM",
+        30,
+        71,
+        71,
+        1.6
+      ],
+      [
+        "claudio-amarildo-gomes",
+        "Claudio Amarildo Gomes",
+        "CM",
+        26,
+        71,
+        80,
+        5.5
+      ],
+      [
+        "dennis-trset-johnsen",
+        "Dennis Tørset Johnsen",
+        "ST",
+        28,
+        71,
+        71,
+        2
+      ],
+      [
+        "alexis-blin",
+        "Alexis Blin",
+        "CDM",
+        30,
+        68,
+        71,
+        1.6
+      ],
+      [
+        "tommaso-cassandro",
+        "Tommaso Cassandro",
+        "CB",
+        26,
+        68,
+        69,
+        1
+      ],
+      [
+        "mattia-fortin",
+        "Mattia Fortin",
+        "GK",
+        23,
+        67,
+        76,
+        1.7
+      ],
+      [
+        "andrea-bozzolan",
+        "Andrea Bozzolan",
+        "LB",
+        22,
+        65,
+        66,
+        0.325
+      ]
+    ]
+  },
+  {
+    "id": "it2-sampdoria",
+    "name": "Sampdoria",
+    "color": "#c06afe",
+    "budget": 17,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "peter-vindahl-jensen",
+        "Peter Vindahl Jensen",
+        "GK",
+        28,
+        74,
+        77,
+        5
+      ],
+      [
+        "tobias-lauritsen-sparta-rotterdam",
+        "Tobias Lauritsen",
+        "ST",
+        29,
+        74,
+        74,
+        2.5
+      ],
+      [
+        "salvatore-esposito",
+        "Salvatore Esposito",
+        "CDM",
+        25,
+        74,
+        78,
+        5.5
+      ],
+      [
+        "yari-verschaeren",
+        "Yari Verschaeren",
+        "CAM",
+        25,
+        74,
+        79,
+        4.7
+      ],
+      [
+        "bjorn-thomas-meijer",
+        "Bjorn Thomas Meijer",
+        "LB",
+        23,
+        73,
+        80,
+        5
+      ],
+      [
+        "luca-ravanelli",
+        "Luca Ravanelli",
+        "CB",
+        29,
+        72,
+        72,
+        1.5
+      ],
+      [
+        "danel-sinani",
+        "Danel Sinani",
+        "CAM",
+        29,
+        72,
+        72,
+        1.4
+      ],
+      [
+        "stefan-gartenmann",
+        "Stefan Gartenmann",
+        "CB",
+        29,
+        71,
+        73,
+        1.9
+      ],
+      [
+        "oliver-abildgaard-nielsen",
+        "Oliver Abildgaard Nielsen",
+        "CDM",
+        30,
+        71,
+        71,
+        1.6
+      ],
+      [
+        "mattia-viti",
+        "Mattia Viti",
+        "CB",
+        24,
+        71,
+        81,
+        4.9
+      ],
+      [
+        "gennaro-tutino",
+        "Gennaro Tutino",
+        "ST",
+        30,
+        70,
+        72,
+        2.4
+      ],
+      [
+        "alessandro-di-pardo",
+        "Alessandro Di Pardo",
+        "RB",
+        27,
+        70,
+        70,
+        1.2
+      ],
+      [
+        "tjas-begic",
+        "Tjaš Begić",
+        "CAM",
+        23,
+        70,
+        73,
+        1.6
+      ],
+      [
+        "manuel-cicconi",
+        "Manuel Cicconi",
+        "LB",
+        29,
+        69,
+        70,
+        1.6
+      ],
+      [
+        "liam-henderson",
+        "Liam Henderson",
+        "CM",
+        30,
+        69,
+        70,
+        1.6
+      ],
+      [
+        "jordan-ferri",
+        "Jordan Ferri",
+        "CDM",
+        34,
+        69,
+        73,
+        1.5
+      ],
+      [
+        "fabio-depaoli",
+        "Fabio Depaoli",
+        "RB",
+        29,
+        69,
+        71,
+        1.7
+      ],
+      [
+        "simone-ghidotti",
+        "Simone Ghidotti",
+        "GK",
+        26,
+        69,
+        75,
+        1.7
+      ],
+      [
+        "alex-ferrari",
+        "Alex Ferrari",
+        "CB",
+        32,
+        69,
+        69,
+        0.9500000000000001
+      ],
+      [
+        "alessandro-bellemo",
+        "Alessandro Bellemo",
+        "CM",
+        31,
+        69,
+        71,
+        1.8
+      ],
+      [
+        "alessandro-pio-riccio",
+        "Alessandro Pio Riccio",
+        "CB",
+        24,
+        67,
+        72,
+        1.2
+      ],
+      [
+        "nikola-sekulov",
+        "Nikola Sekulov",
+        "ST",
+        24,
+        65,
+        74,
+        1.6
+      ]
+    ]
+  },
+  {
+    "id": "it2-cremonese",
+    "name": "Cremonese",
+    "color": "#b75071",
+    "budget": 15,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "sebastiano-luperto",
+        "Sebastiano Luperto",
+        "CB",
+        30,
+        75,
+        77,
+        7
+      ],
+      [
+        "federico-baschirotto",
+        "Federico Baschirotto",
+        "CB",
+        29,
+        75,
+        76,
+        5.5
+      ],
+      [
+        "salvatore-elia",
+        "Salvatore Elia",
+        "RB",
+        27,
+        72,
+        72,
+        1.7
+      ],
+      [
+        "andrea-fulignati",
+        "Andrea Fulignati",
+        "GK",
+        31,
+        72,
+        72,
+        1.1
+      ],
+      [
+        "federico-bonazzoli",
+        "Federico Bonazzoli",
+        "ST",
+        29,
+        72,
+        72,
+        1.6
+      ],
+      [
+        "jari-vandeputte",
+        "Jari Vandeputte",
+        "CM",
+        30,
+        72,
+        72,
+        2.3
+      ],
+      [
+        "giuseppe-pezzella",
+        "Giuseppe Pezzella",
+        "LM",
+        28,
+        72,
+        72,
+        2
+      ],
+      [
+        "michele-collocolo",
+        "Michele Collocolo",
+        "CM",
+        26,
+        71,
+        75,
+        3.1
+      ],
+      [
+        "morten-thorsby",
+        "Morten Thorsby",
+        "CM",
+        30,
+        71,
+        72,
+        2.3
+      ],
+      [
+        "tommaso-barbieri",
+        "Tommaso Barbieri",
+        "RB",
+        24,
+        71,
+        76,
+        2.7
+      ],
+      [
+        "matteo-bianchetti",
+        "Matteo Bianchetti",
+        "CB",
+        33,
+        71,
+        71,
+        1.2
+      ],
+      [
+        "alessandro-vogliacco",
+        "Alessandro Vogliacco",
+        "CB",
+        28,
+        70,
+        72,
+        1.6
+      ],
+      [
+        "simone-pontisso",
+        "Simone Pontisso",
+        "CM",
+        29,
+        70,
+        70,
+        1.2
+      ],
+      [
+        "milan-uric",
+        "Milan Đurić",
+        "ST",
+        36,
+        70,
+        71,
+        0.8
+      ],
+      [
+        "tommaso-berti",
+        "Tommaso Berti",
+        "CAM",
+        22,
+        69,
+        77,
+        1.9
+      ],
+      [
+        "alberto-grassi",
+        "Alberto Grassi",
+        "CM",
+        31,
+        69,
+        70,
+        1.5
+      ],
+      [
+        "manuel-de-luca",
+        "Manuel De Luca",
+        "ST",
+        28,
+        69,
+        70,
+        1.7
+      ],
+      [
+        "marco-festa",
+        "Marco Festa",
+        "GK",
+        34,
+        68,
+        68,
+        0.4
+      ],
+      [
+        "fabio-gerli",
+        "Fabio Gerli",
+        "CDM",
+        29,
+        68,
+        68,
+        1.2
+      ],
+      [
+        "marco-nasti",
+        "Marco Nasti",
+        "ST",
+        23,
+        67,
+        75,
+        1.9
+      ],
+      [
+        "fellipe-jack-ozilio-moreira-pacheco",
+        "Fellipe Jack Ozilio Moreira Pacheco",
+        "CB",
+        20,
+        66,
+        79,
+        0.975
+      ],
+      [
+        "francesco-folino",
+        "Francesco Folino",
+        "CB",
+        24,
+        65,
+        73,
+        1.2
+      ],
+      [
+        "gianluca-saro",
+        "Gianluca Saro",
+        "GK",
+        26,
+        61,
+        66,
+        0.3
+      ],
+      [
+        "dachi-lordkipanidze",
+        "Dachi Lordkipanidze",
+        "CM",
+        21,
+        56,
+        68,
+        0.35000000000000003
+      ]
+    ]
+  },
+  {
+    "id": "it2-avellino",
+    "name": "Avellino",
+    "color": "#c4520a",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "armando-izzo",
+        "Armando Izzo",
+        "CB",
+        34,
+        74,
+        74,
+        1.5
+      ],
+      [
+        "tommaso-martinelli",
+        "Tommaso Martinelli",
+        "GK",
+        20,
+        70,
+        79,
+        2.2
+      ],
+      [
+        "tommaso-biasci",
+        "Tommaso Biasci",
+        "ST",
+        31,
+        70,
+        70,
+        1.2
+      ],
+      [
+        "roberto-insigne",
+        "Roberto Insigne",
+        "CAM",
+        32,
+        69,
+        72,
+        1.9
+      ],
+      [
+        "daniel-fila",
+        "Daniel Fila",
+        "ST",
+        24,
+        69,
+        79,
+        4.2
+      ],
+      [
+        "brando-moruzzi",
+        "Brando Moruzzi",
+        "LB",
+        22,
+        69,
+        74,
+        1.8
+      ],
+      [
+        "lorenco-simic",
+        "Lorenco Šimić",
+        "CB",
+        30,
+        69,
+        69,
+        1.1
+      ],
+      [
+        "tommaso-cancellotti",
+        "Tommaso Cancellotti",
+        "RB",
+        34,
+        68,
+        68,
+        0.45
+      ],
+      [
+        "luca-palmiero",
+        "Luca Palmiero",
+        "CDM",
+        30,
+        68,
+        68,
+        0.725
+      ],
+      [
+        "martin-njten-palumbo",
+        "Martin Njøten Palumbo",
+        "CAM",
+        24,
+        68,
+        69,
+        0.8
+      ],
+      [
+        "michele-besaggio",
+        "Michele Besaggio",
+        "CM",
+        24,
+        67,
+        73,
+        1.6
+      ],
+      [
+        "antony-iannarilli",
+        "Antony Iannarilli",
+        "GK",
+        35,
+        67,
+        67,
+        0.17
+      ],
+      [
+        "andrea-favilli",
+        "Andrea Favilli",
+        "ST",
+        29,
+        67,
+        67,
+        1
+      ],
+      [
+        "alessandro-fontanarosa",
+        "Alessandro Fontanarosa",
+        "CB",
+        23,
+        67,
+        74,
+        1.5
+      ],
+      [
+        "luca-pandolfi",
+        "Luca Pandolfi",
+        "ST",
+        28,
+        67,
+        68,
+        1.3
+      ],
+      [
+        "michael-venturi",
+        "Michael Venturi",
+        "CB",
+        27,
+        66,
+        71,
+        1.3
+      ],
+      [
+        "luca-di-maggio",
+        "Luca Di Maggio",
+        "CM",
+        21,
+        65,
+        76,
+        0.775
+      ],
+      [
+        "academy-cb-1",
+        "Avellino Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Avellino Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Avellino Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Avellino Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "Avellino Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "it2-pisa",
+    "name": "Pisa",
+    "color": "#49d277",
+    "budget": 13,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "matteo-tramoni",
+        "Mattéo Tramoni",
+        "CAM",
+        26,
+        74,
+        77,
+        5.5
+      ],
+      [
+        "simone-canestrelli",
+        "Simone Canestrelli",
+        "CB",
+        26,
+        72,
+        75,
+        2.2
+      ],
+      [
+        "stefano-moreo",
+        "Stefano Moreo",
+        "ST",
+        33,
+        72,
+        72,
+        1.5
+      ],
+      [
+        "simone-zanon",
+        "Simone Zanon",
+        "RB",
+        25,
+        72,
+        75,
+        2.2
+      ],
+      [
+        "felipe-ignacio-loyola-olea",
+        "Felipe Ignacio Loyola Olea",
+        "CM",
+        25,
+        71,
+        76,
+        2.8
+      ],
+      [
+        "simone-scuffet",
+        "Simone Scuffet",
+        "GK",
+        30,
+        71,
+        74,
+        1.9
+      ],
+      [
+        "samuele-angori",
+        "Samuele Angori",
+        "LM",
+        22,
+        71,
+        78,
+        3.1
+      ],
+      [
+        "mehdi-pascal-marcel-leris",
+        "Mehdi Pascal Marcel Léris",
+        "RM",
+        28,
+        71,
+        71,
+        1.3
+      ],
+      [
+        "antonio-aldo-caracciolo",
+        "Antonio Aldo Caracciolo",
+        "CB",
+        36,
+        71,
+        71,
+        0.5
+      ],
+      [
+        "adrian-semper",
+        "Adrian Šemper",
+        "GK",
+        28,
+        71,
+        74,
+        1.8
+      ],
+      [
+        "andrea-petagna",
+        "Andrea Petagna",
+        "ST",
+        31,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "giuseppe-leone",
+        "Giuseppe Leone",
+        "CM",
+        25,
+        70,
+        74,
+        2.1
+      ],
+      [
+        "emanuel-vignato",
+        "Emanuel Vignato",
+        "CAM",
+        26,
+        70,
+        73,
+        2.2
+      ],
+      [
+        "henrik-wendel-meister",
+        "Henrik Wendel Meister",
+        "ST",
+        22,
+        69,
+        76,
+        2.3
+      ],
+      [
+        "gabriele-piccinini",
+        "Gabriele Piccinini",
+        "CM",
+        25,
+        68,
+        75,
+        2.4
+      ],
+      [
+        "arturo-calabresi",
+        "Arturo Calabresi",
+        "CB",
+        30,
+        68,
+        68,
+        1
+      ],
+      [
+        "omar-correia",
+        "Omar Correia",
+        "CM",
+        26,
+        68,
+        69,
+        0.775
+      ],
+      [
+        "nicholas-bonfanti",
+        "Nicholas Bonfanti",
+        "ST",
+        24,
+        67,
+        74,
+        2.1
+      ],
+      [
+        "tomas-do-lago-pontes-esteves",
+        "Tomás do Lago Pontes Esteves",
+        "RB",
+        24,
+        67,
+        74,
+        1.9
+      ],
+      [
+        "emanuele-rao",
+        "Emanuele Rao",
+        "CAM",
+        20,
+        67,
+        76,
+        1.5
+      ],
+      [
+        "alessandro-confente",
+        "Alessandro Confente",
+        "GK",
+        28,
+        67,
+        67,
+        0.5750000000000001
+      ],
+      [
+        "malthe-hjholt",
+        "Malthe Højholt",
+        "CDM",
+        25,
+        66,
+        72,
+        1.2
+      ],
+      [
+        "mateus-henrique-vanzelli-lusuardi",
+        "Mateus Henrique Vanzelli Lusuardi",
+        "CB",
+        22,
+        66,
+        74,
+        1.5
+      ],
+      [
+        "tommaso-marras",
+        "Tommaso Marras",
+        "CAM",
+        22,
+        65,
+        65,
+        0.325
+      ],
+      [
+        "rosen-petkov-bozhinov",
+        "Rosen Petkov Bozhinov",
+        "CB",
+        21,
+        64,
+        75,
+        0.75
+      ],
+      [
+        "leonardo-loria",
+        "Leonardo Loria",
+        "GK",
+        27,
+        63,
+        68,
+        0.55
+      ],
+      [
+        "isak-vural",
+        "İsak Vural",
+        "CM",
+        20,
+        63,
+        79,
+        1
+      ],
+      [
+        "daniel-tyrell-denoon",
+        "Daniel Tyrell Denoon",
+        "CB",
+        22,
+        62,
+        73,
+        0.8250000000000001
+      ],
+      [
+        "louis-buffon",
+        "Louis Buffon",
+        "LM",
+        18,
+        60,
+        75,
+        0.55
+      ]
+    ]
+  },
+  {
+    "id": "it2-hellas-verona",
+    "name": "Hellas Verona",
+    "color": "#4b578d",
+    "budget": 14,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "suat-serdar",
+        "Suat Serdar",
+        "CM",
+        29,
+        75,
+        76,
+        7.5
+      ],
+      [
+        "nicola-leali",
+        "Nicola Leali",
+        "GK",
+        33,
+        74,
+        74,
+        0.925
+      ],
+      [
+        "domagoj-bradaric",
+        "Domagoj Bradarić",
+        "LB",
+        26,
+        72,
+        74,
+        2.3
+      ],
+      [
+        "antoine-joseph-emmanuel-bernede",
+        "Antoine Joseph Emmanuel Bernede",
+        "CM",
+        27,
+        72,
+        75,
+        3
+      ],
+      [
+        "tomas-suslov",
+        "Tomáš Suslov",
+        "CAM",
+        24,
+        72,
+        80,
+        5
+      ],
+      [
+        "grigoris-kastanos",
+        "Grigoris Kastanos",
+        "CAM",
+        28,
+        72,
+        72,
+        2.5
+      ],
+      [
+        "martin-snder-frese",
+        "Martin Sønder Frese",
+        "LB",
+        28,
+        72,
+        72,
+        1.3
+      ],
+      [
+        "abdoulrahmane-harroui",
+        "Abdoulrahmane Harroui",
+        "CM",
+        28,
+        71,
+        72,
+        2.5
+      ],
+      [
+        "amin-sarr",
+        "Amin Sarr",
+        "ST",
+        25,
+        71,
+        76,
+        2.9
+      ],
+      [
+        "daniel-fernando-mosquera-bonilla",
+        "Daniel Fernando Mosquera Bonilla",
+        "ST",
+        26,
+        70,
+        74,
+        2.5
+      ],
+      [
+        "samuele-mulattieri",
+        "Samuele Mulattieri",
+        "ST",
+        25,
+        70,
+        74,
+        2.6
+      ],
+      [
+        "rafik-belghali",
+        "Rafik Belghali",
+        "RB",
+        24,
+        70,
+        73,
+        1.6
+      ],
+      [
+        "tobias-slotsager",
+        "Tobias Slotsager",
+        "CB",
+        20,
+        69,
+        82,
+        3.1
+      ],
+      [
+        "dailon-rocha-livramento-do-rosario",
+        "Dailon Rocha Livramento do Rosario",
+        "ST",
+        25,
+        68,
+        75,
+        2.4
+      ],
+      [
+        "andrias-edmundsson",
+        "Andrias Edmundsson",
+        "CB",
+        25,
+        67,
+        68,
+        0.75
+      ],
+      [
+        "seid-korac",
+        "Seid Korač",
+        "CB",
+        24,
+        67,
+        72,
+        1
+      ],
+      [
+        "nicolo-calabrese",
+        "Nicolò Calabrese",
+        "CB",
+        21,
+        66,
+        70,
+        0.45
+      ],
+      [
+        "kacper-sezonienko",
+        "Kacper Sezonienko",
+        "LM",
+        23,
+        66,
+        69,
+        0.775
+      ],
+      [
+        "mattia-compagnon",
+        "Mattia Compagnon",
+        "RM",
+        24,
+        66,
+        70,
+        1.1
+      ],
+      [
+        "fallou-cham",
+        "Fallou Cham",
+        "RB",
+        20,
+        66,
+        75,
+        1.8
+      ],
+      [
+        "nunzio-lella",
+        "Nunzio Lella",
+        "CM",
+        26,
+        66,
+        71,
+        1.3
+      ],
+      [
+        "charlys-matheus-lima-pontes",
+        "Charlys Matheus Lima Pontes",
+        "CM",
+        22,
+        65,
+        70,
+        0.975
+      ],
+      [
+        "daniel-oladele-akinbiyi-oyegoke",
+        "Daniel Oladele Akinbiyi Oyegoke",
+        "RB",
+        23,
+        65,
+        73,
+        0.8250000000000001
+      ],
+      [
+        "giacomo-toniolo",
+        "Giacomo Toniolo",
+        "GK",
+        22,
+        56,
+        66,
+        0.275
+      ]
+    ]
+  },
+  {
+    "id": "it2-benevento",
+    "name": "Benevento",
+    "color": "#d3d970",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "david-chidozie-okereke",
+        "David Chidozie Okereke",
+        "ST",
+        29,
+        72,
+        74,
+        4.6
+      ],
+      [
+        "luigi-cherubini",
+        "Luigi Cherubini",
+        "CAM",
+        22,
+        69,
+        76,
+        1.9
+      ],
+      [
+        "leonardo-sernicola",
+        "Leonardo Sernicola",
+        "RB",
+        29,
+        69,
+        73,
+        2.8
+      ],
+      [
+        "pietro-beruatto",
+        "Pietro Beruatto",
+        "LM",
+        27,
+        69,
+        70,
+        1.6
+      ],
+      [
+        "simone-verdi",
+        "Simone Verdi",
+        "CAM",
+        34,
+        68,
+        71,
+        1.5
+      ],
+      [
+        "raffaele-celia",
+        "Raffaele Celia",
+        "LB",
+        27,
+        65,
+        66,
+        0.775
+      ],
+      [
+        "academy-gk-1",
+        "Benevento Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "Benevento Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Benevento Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "Benevento Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "Benevento Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "Benevento Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "Benevento Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "Benevento Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "Benevento Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "Benevento Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "Benevento Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "Benevento Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-lb-19",
+        "Benevento Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "Benevento Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "Benevento Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "Benevento Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "it2-sudtirol",
+    "name": "Südtirol",
+    "color": "#cde688",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "salvatore-andrea-molina",
+        "Salvatore Andrea Molina",
+        "RB",
+        34,
+        72,
+        72,
+        0.8250000000000001
+      ],
+      [
+        "daniele-casiraghi",
+        "Daniele Casiraghi",
+        "CM",
+        33,
+        71,
+        72,
+        1.8
+      ],
+      [
+        "marco-varnier",
+        "Marco Varnier",
+        "CB",
+        28,
+        70,
+        71,
+        1.5
+      ],
+      [
+        "niklas-anton-juhana-pyyhtia",
+        "Niklas Anton Juhana Pyyhtiä",
+        "CM",
+        22,
+        70,
+        77,
+        3.1
+      ],
+      [
+        "hamza-el-kaouakibi",
+        "Hamza El Kaouakibi",
+        "RB",
+        28,
+        69,
+        69,
+        0.75
+      ],
+      [
+        "simone-tronchin",
+        "Simone Tronchin",
+        "CDM",
+        23,
+        69,
+        73,
+        1.6
+      ],
+      [
+        "andrea-giorgini",
+        "Andrea Giorgini",
+        "CB",
+        24,
+        69,
+        75,
+        2.2
+      ],
+      [
+        "silvio-merkaj",
+        "Silvio Merkaj",
+        "ST",
+        28,
+        68,
+        68,
+        1.1
+      ],
+      [
+        "simone-davi",
+        "Simone Davì",
+        "LB",
+        27,
+        68,
+        70,
+        1.2
+      ],
+      [
+        "frederic-shtjefan-veseli",
+        "Frédéric Shtjefan Veseli",
+        "CB",
+        33,
+        68,
+        68,
+        0.775
+      ],
+      [
+        "bjarki-steinn-bjarkason",
+        "Bjarki Steinn Bjarkason",
+        "LM",
+        26,
+        68,
+        68,
+        0.7000000000000001
+      ],
+      [
+        "davide-veroli",
+        "Davide Veroli",
+        "CB",
+        23,
+        68,
+        79,
+        2.5
+      ],
+      [
+        "fabian-tait",
+        "Fabian Tait",
+        "CM",
+        33,
+        67,
+        67,
+        0.8
+      ],
+      [
+        "alessandro-plizzari",
+        "Alessandro Plizzari",
+        "GK",
+        26,
+        67,
+        69,
+        0.775
+      ],
+      [
+        "aljosa-vasic",
+        "Aljoša Vasić",
+        "CM",
+        24,
+        67,
+        74,
+        2
+      ],
+      [
+        "federico-davi",
+        "Federico Davi",
+        "LB",
+        24,
+        67,
+        67,
+        0.4
+      ],
+      [
+        "vasco-rafael-fortes-lopes",
+        "Vasco Rafael Fortes Lopes",
+        "RM",
+        27,
+        66,
+        68,
+        1.2
+      ],
+      [
+        "fabio-rispoli",
+        "Fabio Rispoli",
+        "CM",
+        19,
+        66,
+        74,
+        0.525
+      ],
+      [
+        "giacomo-stabile",
+        "Giacomo Stabile",
+        "CB",
+        21,
+        66,
+        74,
+        1.5
+      ],
+      [
+        "jacopo-martini",
+        "Jacopo Martini",
+        "CM",
+        21,
+        65,
+        73,
+        0.875
+      ],
+      [
+        "rares-catalin-burnete",
+        "Rareș Cătălin Burnete",
+        "ST",
+        22,
+        65,
+        75,
+        0.975
+      ],
+      [
+        "academy-gk-1",
+        "Südtirol Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "it2-modena",
+    "name": "Modena",
+    "color": "#405b06",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "francesco-filippo-zampano",
+        "Francesco Filippo Zampano",
+        "LB",
+        32,
+        73,
+        73,
+        1.4
+      ],
+      [
+        "paulo-daniel-dentello-azzi",
+        "Paulo Daniel Dentello Azzi",
+        "LB",
+        32,
+        72,
+        72,
+        1.6
+      ],
+      [
+        "alessandro-bianco",
+        "Alessandro Bianco",
+        "CM",
+        23,
+        72,
+        80,
+        4.2
+      ],
+      [
+        "leandro-chichizola",
+        "Leandro Chichizola",
+        "GK",
+        36,
+        72,
+        72,
+        0.21
+      ],
+      [
+        "davide-adorni",
+        "Davide Adorni",
+        "CB",
+        34,
+        72,
+        72,
+        1
+      ],
+      [
+        "gaston-brugman-duarte",
+        "Gastón Brugman Duarte",
+        "CM",
+        34,
+        71,
+        73,
+        2.4
+      ],
+      [
+        "simone-santoro",
+        "Simone Santoro",
+        "CM",
+        26,
+        71,
+        72,
+        1.8
+      ],
+      [
+        "giuseppe-caso",
+        "Giuseppe Caso",
+        "CAM",
+        27,
+        70,
+        70,
+        1.7
+      ],
+      [
+        "daniel-tonoli",
+        "Daniel Tonoli",
+        "CB",
+        24,
+        69,
+        74,
+        1.8
+      ],
+      [
+        "bryant-nieling",
+        "Bryant Nieling",
+        "CB",
+        23,
+        69,
+        74,
+        1.5
+      ],
+      [
+        "pedro-manuel-lobo-peixoto-mineiro-mendes",
+        "Pedro Manuel Lobo Peixoto Mineiro Mendes",
+        "ST",
+        27,
+        69,
+        72,
+        2
+      ],
+      [
+        "alessandro-sersanti",
+        "Alessandro Sersanti",
+        "CM",
+        24,
+        68,
+        74,
+        2
+      ],
+      [
+        "giuseppe-ambrosino-di-bruttopilo",
+        "Giuseppe Ambrosino Di Bruttopilo",
+        "ST",
+        23,
+        67,
+        77,
+        2.3
+      ],
+      [
+        "gady-pierre-beyuku-bowutankoyi",
+        "Gady-Pierre Beyuku Bowutankoyi",
+        "RB",
+        20,
+        67,
+        77,
+        0.9
+      ],
+      [
+        "giacomo-olzer",
+        "Giacomo Olzer",
+        "CAM",
+        25,
+        67,
+        68,
+        0.85
+      ],
+      [
+        "steven-nador",
+        "Steven Nador",
+        "CB",
+        24,
+        67,
+        69,
+        0.8
+      ],
+      [
+        "kleis-bozhanaj",
+        "Kleis Bozhanaj",
+        "CAM",
+        25,
+        65,
+        69,
+        1
+      ],
+      [
+        "academy-gk-1",
+        "Modena Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Modena Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Modena Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "Modena Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-rb-5",
+        "Modena Academy RB 6",
+        "RB",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "it2-mantova",
+    "name": "Mantova",
+    "color": "#c6e2f0",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "francesco-bardi",
+        "Francesco Bardi",
+        "GK",
+        34,
+        72,
+        73,
+        1
+      ],
+      [
+        "cesar-alejandro-falletti-dos-santos",
+        "César Alejandro Falletti dos Santos",
+        "CAM",
+        33,
+        71,
+        71,
+        1.5
+      ],
+      [
+        "davis-mensah",
+        "Davis Mensah",
+        "ST",
+        35,
+        69,
+        69,
+        0.9
+      ],
+      [
+        "simone-trimboli",
+        "Simone Trimboli",
+        "CM",
+        24,
+        69,
+        75,
+        1.8
+      ],
+      [
+        "francesco-ruocco",
+        "Francesco Ruocco",
+        "CAM",
+        25,
+        69,
+        71,
+        1.6
+      ],
+      [
+        "leonardo-mancuso",
+        "Leonardo Mancuso",
+        "ST",
+        34,
+        69,
+        69,
+        0.875
+      ],
+      [
+        "davide-bragantini",
+        "Davide Bragantini",
+        "CAM",
+        23,
+        69,
+        77,
+        2.7
+      ],
+      [
+        "rares-ilie",
+        "Rareş Ilie",
+        "CAM",
+        23,
+        68,
+        78,
+        3.1
+      ],
+      [
+        "ettore-gliozzi",
+        "Ettore Gliozzi",
+        "ST",
+        30,
+        68,
+        68,
+        0.85
+      ],
+      [
+        "andrea-meroni",
+        "Andrea Meroni",
+        "CB",
+        29,
+        68,
+        68,
+        0.975
+      ],
+      [
+        "vanja-vlahovic",
+        "Vanja Vlahovic",
+        "ST",
+        22,
+        67,
+        79,
+        2.1
+      ],
+      [
+        "nicolo-radaelli",
+        "Nicolò Radaelli",
+        "RB",
+        23,
+        67,
+        74,
+        1.8
+      ],
+      [
+        "stefano-cella",
+        "Stefano Cella",
+        "CB",
+        25,
+        67,
+        72,
+        1.3
+      ],
+      [
+        "david-wieser",
+        "David Wieser",
+        "CM",
+        24,
+        67,
+        73,
+        1.7
+      ],
+      [
+        "fahem-benssouna-ali-benaissa-yahia",
+        "Fahem Benssouna Ali Benaïssa-Yahia",
+        "LB",
+        24,
+        67,
+        72,
+        1.4
+      ],
+      [
+        "zan-majer",
+        "Žan Majer",
+        "CM",
+        34,
+        66,
+        67,
+        0.8
+      ],
+      [
+        "lorenzo-ignacchiti",
+        "Lorenzo Ignacchiti",
+        "CM",
+        22,
+        66,
+        74,
+        1.3
+      ],
+      [
+        "alessio-castellini",
+        "Alessio Castellini",
+        "CB",
+        23,
+        66,
+        69,
+        0.7000000000000001
+      ],
+      [
+        "flavio-paoletti",
+        "Flavio Paoletti",
+        "CM",
+        23,
+        65,
+        69,
+        0.55
+      ],
+      [
+        "giacomo-fedel",
+        "Giacomo Fedel",
+        "RB",
+        24,
+        65,
+        68,
+        0.925
+      ],
+      [
+        "manuel-gasparini",
+        "Manuel Gasparini",
+        "GK",
+        24,
+        60,
+        68,
+        0.47500000000000003
+      ],
+      [
+        "academy-cb-1",
+        "Mantova Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "it2-catanzaro",
+    "name": "Catanzaro",
+    "color": "#bdd4f7",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "mehdi-emile-dorval",
+        "Mehdi Emile Dorval",
+        "LB",
+        25,
+        72,
+        76,
+        2.6
+      ],
+      [
+        "mirko-pigliacelli",
+        "Mirko Pigliacelli",
+        "GK",
+        33,
+        72,
+        72,
+        1.2
+      ],
+      [
+        "pietro-iemmello",
+        "Pietro Iemmello",
+        "ST",
+        34,
+        72,
+        72,
+        1.5
+      ],
+      [
+        "federico-di-francesco",
+        "Federico Di Francesco",
+        "LM",
+        32,
+        72,
+        74,
+        3.5
+      ],
+      [
+        "filippo-maria-pittarello",
+        "Filippo Maria Pittarello",
+        "ST",
+        29,
+        70,
+        70,
+        1
+      ],
+      [
+        "marco-ruggero",
+        "Marco Ruggero",
+        "CB",
+        26,
+        70,
+        73,
+        1.7
+      ],
+      [
+        "simone-pafundi",
+        "Simone Pafundi",
+        "CAM",
+        20,
+        70,
+        84,
+        3.1
+      ],
+      [
+        "marco-dalessandro",
+        "Marco D'Alessandro",
+        "LM",
+        35,
+        70,
+        70,
+        0.75
+      ],
+      [
+        "jacopo-petriccione",
+        "Jacopo Petriccione",
+        "CM",
+        31,
+        70,
+        70,
+        1.2
+      ],
+      [
+        "matias-antonini-lui",
+        "Matias Antonini Lui",
+        "CB",
+        28,
+        68,
+        68,
+        0.75
+      ],
+      [
+        "emanuele-pecorino",
+        "Emanuele Pecorino",
+        "ST",
+        25,
+        68,
+        71,
+        1.2
+      ],
+      [
+        "nicola-mosti",
+        "Nicola Mosti",
+        "CAM",
+        28,
+        68,
+        68,
+        1.1
+      ],
+      [
+        "antonio-candela",
+        "Antonio Candela",
+        "RB",
+        26,
+        68,
+        75,
+        2.2
+      ],
+      [
+        "samuel-giovane",
+        "Samuel Giovane",
+        "CDM",
+        23,
+        67,
+        75,
+        1.9
+      ],
+      [
+        "nicolo-buso",
+        "Nicolò Buso",
+        "CAM",
+        26,
+        67,
+        68,
+        1.2
+      ],
+      [
+        "ervin-bashi",
+        "Ervin Bashi",
+        "CB",
+        21,
+        66,
+        74,
+        1.4
+      ],
+      [
+        "gabriele-alesi",
+        "Gabriele Alesi",
+        "CAM",
+        22,
+        66,
+        68,
+        0.35000000000000003
+      ],
+      [
+        "bruno-verrengia",
+        "Bruno Verrengia",
+        "CB",
+        22,
+        64,
+        66,
+        0.35000000000000003
+      ],
+      [
+        "goncalo-do-lago-pontes-esteves",
+        "Gonçalo do Lago Pontes Esteves",
+        "RB",
+        22,
+        64,
+        72,
+        1.3
+      ],
+      [
+        "ruggero-frosinini",
+        "Ruggero Frosinini",
+        "CB",
+        25,
+        64,
+        66,
+        0.45
+      ],
+      [
+        "christian-marietta",
+        "Christian Marietta",
+        "GK",
+        24,
+        61,
+        68,
+        0.55
+      ],
+      [
+        "edoardo-borrelli",
+        "Edoardo Borrelli",
+        "GK",
+        22,
+        60,
+        71,
+        0.47500000000000003
+      ]
+    ]
+  },
+  {
+    "id": "it2-padova",
+    "name": "Padova",
+    "color": "#b9e1f7",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "luca-zanimacchia",
+        "Luca Zanimacchia",
+        "RB",
+        28,
+        71,
+        72,
+        2.6
+      ],
+      [
+        "gianluca-caprari",
+        "Gianluca Caprari",
+        "ST",
+        33,
+        71,
+        74,
+        3.5
+      ],
+      [
+        "francesco-di-mariano",
+        "Francesco Di Mariano",
+        "ST",
+        30,
+        70,
+        71,
+        1.8
+      ],
+      [
+        "kevin-lasagna",
+        "Kevin Lasagna",
+        "ST",
+        34,
+        70,
+        71,
+        1.5
+      ],
+      [
+        "matteo-lovato",
+        "Matteo Lovato",
+        "CB",
+        26,
+        70,
+        71,
+        1.4
+      ],
+      [
+        "lorenzo-carissoni",
+        "Lorenzo Carissoni",
+        "RB",
+        29,
+        69,
+        69,
+        0.5
+      ],
+      [
+        "mattia-bortolussi",
+        "Mattia Bortolussi",
+        "ST",
+        30,
+        69,
+        69,
+        1.4
+      ],
+      [
+        "alessandro-capelli",
+        "Alessandro Capelli",
+        "RM",
+        29,
+        69,
+        69,
+        0.85
+      ],
+      [
+        "emanuele-zuelli",
+        "Emanuele Zuelli",
+        "CM",
+        24,
+        68,
+        73,
+        1.7
+      ],
+      [
+        "cristian-buonaiuto",
+        "Cristian Buonaiuto",
+        "ST",
+        33,
+        68,
+        69,
+        1.1
+      ],
+      [
+        "kevin-varas",
+        "Kevin Varas",
+        "CAM",
+        33,
+        68,
+        68,
+        0.8
+      ],
+      [
+        "antonio-barreca",
+        "Antonio Barreca",
+        "LB",
+        31,
+        68,
+        68,
+        0.875
+      ],
+      [
+        "marco-pompetti",
+        "Marco Pompetti",
+        "CM",
+        26,
+        68,
+        72,
+        1.8
+      ],
+      [
+        "luca-moro",
+        "Luca Moro",
+        "ST",
+        25,
+        68,
+        73,
+        1.8
+      ],
+      [
+        "christian-diego-pastina",
+        "Christian Diego Pastina",
+        "CB",
+        25,
+        67,
+        72,
+        1.3
+      ],
+      [
+        "carlo-faedo",
+        "Carlo Faedo",
+        "CB",
+        27,
+        67,
+        69,
+        1
+      ],
+      [
+        "filippo-lorenzo-sgarbi",
+        "Filippo Lorenzo Sgarbi",
+        "CB",
+        28,
+        67,
+        68,
+        0.8
+      ],
+      [
+        "pietro-fusi",
+        "Pietro Fusi",
+        "CM",
+        28,
+        67,
+        67,
+        1.1
+      ],
+      [
+        "alessandro-sorrentino",
+        "Alessandro Sorrentino",
+        "GK",
+        24,
+        67,
+        72,
+        1.1
+      ],
+      [
+        "giulio-favale",
+        "Giulio Favale",
+        "LB",
+        28,
+        67,
+        67,
+        0.9
+      ],
+      [
+        "alessandro-dellavalle",
+        "Alessandro Dellavalle",
+        "CB",
+        22,
+        66,
+        78,
+        1.7
+      ],
+      [
+        "alessandro-seghetti",
+        "Alessandro Seghetti",
+        "ST",
+        22,
+        62,
+        72,
+        0.75
+      ],
+      [
+        "jacopo-bacci",
+        "Jacopo Bacci",
+        "CM",
+        21,
+        56,
+        71,
+        0.35000000000000003
+      ],
+      [
+        "academy-gk-1",
+        "Padova Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "it2-ascoli",
+    "name": "Ascoli",
+    "color": "#3e628b",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "federico-agustin-gattoni",
+        "Federico Agustín Gattoni",
+        "CB",
+        27,
+        70,
+        72,
+        2.2
+      ],
+      [
+        "matteo-ricci",
+        "Matteo Ricci",
+        "CDM",
+        32,
+        68,
+        68,
+        0.725
+      ],
+      [
+        "andrea-oliveri",
+        "Andrea Oliveri",
+        "RM",
+        23,
+        66,
+        72,
+        1.1
+      ],
+      [
+        "giacomo-de-pieri",
+        "Giacomo De Pieri",
+        "CAM",
+        19,
+        65,
+        80,
+        1.7
+      ],
+      [
+        "sergiu-perciun",
+        "Sergiu Perciun",
+        "CAM",
+        20,
+        62,
+        74,
+        0.525
+      ],
+      [
+        "academy-gk-1",
+        "Ascoli Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "Ascoli Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Ascoli Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "Ascoli Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "Ascoli Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "Ascoli Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "Ascoli Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "Ascoli Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "Ascoli Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "Ascoli Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "Ascoli Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "Ascoli Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-st-18",
+        "Ascoli Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "Ascoli Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "Ascoli Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "Ascoli Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "Ascoli Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "it2-l-r-vicenza",
+    "name": "L. R. Vicenza",
+    "color": "#366374",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "gabriele-moncini",
+        "Gabriele Moncini",
+        "ST",
+        30,
+        69,
+        69,
+        1.4
+      ],
+      [
+        "tommaso-corazza",
+        "Tommaso Corazza",
+        "LB",
+        22,
+        68,
+        77,
+        2.2
+      ],
+      [
+        "riccardo-marchizza",
+        "Riccardo Marchizza",
+        "LB",
+        28,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "nicolo-brighenti",
+        "Nicolò Brighenti",
+        "CB",
+        37,
+        67,
+        67,
+        0.275
+      ],
+      [
+        "mattia-valoti",
+        "Mattia Valoti",
+        "CM",
+        33,
+        67,
+        70,
+        1.3
+      ],
+      [
+        "frank-cedric-tsadjout",
+        "Frank Cédric Tsadjout",
+        "ST",
+        27,
+        67,
+        70,
+        1.5
+      ],
+      [
+        "alessandro-pietrelli",
+        "Alessandro Pietrelli",
+        "RM",
+        23,
+        66,
+        69,
+        1.2
+      ],
+      [
+        "academy-gk-1",
+        "L. R. Vicenza Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "L. R. Vicenza Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "L. R. Vicenza Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "L. R. Vicenza Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "L. R. Vicenza Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "L. R. Vicenza Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "L. R. Vicenza Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "L. R. Vicenza Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "L. R. Vicenza Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "L. R. Vicenza Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "L. R. Vicenza Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "L. R. Vicenza Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-rm-20",
+        "L. R. Vicenza Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "L. R. Vicenza Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "L. R. Vicenza Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "it2-entella",
+    "name": "Entella",
+    "color": "#51d7f7",
+    "budget": 7,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "simone-colombi",
+        "Simone Colombi",
+        "GK",
+        35,
+        70,
+        70,
+        0.17
+      ],
+      [
+        "stefano-di-mario",
+        "Stefano Di Mario",
+        "LB",
+        21,
+        70,
+        76,
+        2.1
+      ],
+      [
+        "andrea-franzoni",
+        "Andrea Franzoni",
+        "CM",
+        29,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "andrea-tiritiello",
+        "Andrea Tiritiello",
+        "CB",
+        31,
+        68,
+        68,
+        0.7000000000000001
+      ],
+      [
+        "ivan-marconi",
+        "Ivan Marconi",
+        "CB",
+        36,
+        68,
+        68,
+        0.23
+      ],
+      [
+        "bernat-guiu-vilanova",
+        "Bernat Guiu Vilanova",
+        "ST",
+        25,
+        67,
+        71,
+        1.3
+      ],
+      [
+        "francesco-mezzoni",
+        "Francesco Mezzoni",
+        "RB",
+        26,
+        67,
+        67,
+        0.625
+      ],
+      [
+        "luca-parodi",
+        "Luca Parodi",
+        "CB",
+        31,
+        67,
+        67,
+        0.7000000000000001
+      ],
+      [
+        "federico-del-frate",
+        "Federico Del Frate",
+        "GK",
+        30,
+        67,
+        69,
+        0.925
+      ],
+      [
+        "davide-bariti",
+        "Davide Bariti",
+        "RB",
+        35,
+        67,
+        67,
+        0.625
+      ],
+      [
+        "leonardo-benedetti",
+        "Leonardo Benedetti",
+        "CM",
+        26,
+        67,
+        72,
+        1.5
+      ],
+      [
+        "niccolo-squizzato",
+        "Niccolò Squizzato",
+        "CDM",
+        24,
+        67,
+        74,
+        1.8
+      ],
+      [
+        "giacomo-corona",
+        "Giacomo Corona",
+        "ST",
+        22,
+        66,
+        74,
+        1.1
+      ],
+      [
+        "academy-cb-1",
+        "Entella Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Entella Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Entella Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Entella Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "Entella Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cm-6",
+        "Entella Academy CM 7",
+        "CM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cam-7",
+        "Entella Academy CAM 8",
+        "CAM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-lw-8",
+        "Entella Academy LW 9",
+        "LW",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-rw-9",
+        "Entella Academy RW 10",
+        "RW",
+        18,
+        58,
+        74,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "it2-empoli",
+    "name": "Empoli",
+    "color": "#c36074",
+    "budget": 8,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "gerard-yepes-laut",
+        "Gerard Yepes Laut",
+        "CM",
+        24,
+        70,
+        81,
+        4
+      ],
+      [
+        "samuele-perisan",
+        "Samuele Perisan",
+        "GK",
+        29,
+        69,
+        72,
+        1.4
+      ],
+      [
+        "stiven-shpendi",
+        "Stiven Shpendi",
+        "ST",
+        23,
+        69,
+        74,
+        1.6
+      ],
+      [
+        "marco-curto",
+        "Marco Curto",
+        "CB",
+        27,
+        69,
+        74,
+        1.8
+      ],
+      [
+        "lars-joseph-ceesay",
+        "Lars Joseph Ceesay",
+        "RM",
+        28,
+        69,
+        69,
+        1.1
+      ],
+      [
+        "karim-zedadka",
+        "Karim Zedadka",
+        "LB",
+        26,
+        68,
+        69,
+        0.8
+      ],
+      [
+        "luca-magnino",
+        "Luca Magnino",
+        "CDM",
+        29,
+        68,
+        69,
+        1.2
+      ],
+      [
+        "duccio-degli-innocenti",
+        "Duccio Degli Innocenti",
+        "CDM",
+        23,
+        68,
+        72,
+        1.6
+      ],
+      [
+        "simone-romagnoli",
+        "Simone Romagnoli",
+        "CB",
+        36,
+        68,
+        70,
+        0.425
+      ],
+      [
+        "cristian-cauz",
+        "Cristian Căuz",
+        "CB",
+        30,
+        67,
+        68,
+        0.975
+      ],
+      [
+        "bogdan-popov",
+        "Bogdan Popov",
+        "ST",
+        19,
+        67,
+        80,
+        1.7
+      ],
+      [
+        "luca-belardinelli",
+        "Luca Belardinelli",
+        "CM",
+        25,
+        66,
+        71,
+        1.3
+      ],
+      [
+        "edoardo-saporiti",
+        "Edoardo Saporiti",
+        "CAM",
+        25,
+        66,
+        72,
+        1.4
+      ],
+      [
+        "filippo-distefano",
+        "Filippo Distefano",
+        "ST",
+        23,
+        65,
+        76,
+        1.6
+      ],
+      [
+        "gabriele-indragoli",
+        "Gabriele Indragoli",
+        "CB",
+        22,
+        62,
+        73,
+        0.75
+      ],
+      [
+        "lorenzo-tosto",
+        "Lorenzo Tosto",
+        "CB",
+        20,
+        62,
+        75,
+        0.55
+      ],
+      [
+        "thomas-campaniello",
+        "Thomas Campaniello",
+        "ST",
+        18,
+        58,
+        78,
+        0.45
+      ],
+      [
+        "academy-gk-1",
+        "Empoli Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Empoli Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Empoli Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "Empoli Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-rb-5",
+        "Empoli Academy RB 6",
+        "RB",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "it2-cesena",
+    "name": "Cesena",
+    "color": "#c9eaf7",
+    "budget": 9,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "dimitri-bisoli",
+        "Dimitri Bisoli",
+        "CM",
+        32,
+        72,
+        72,
+        1.9
+      ],
+      [
+        "cristian-shpendi",
+        "Cristian Shpendi",
+        "ST",
+        23,
+        70,
+        79,
+        3.6
+      ],
+      [
+        "jonathan-klinsmann",
+        "Jonathan Klinsmann",
+        "GK",
+        29,
+        69,
+        69,
+        0.875
+      ],
+      [
+        "massimiliano-mangraviti",
+        "Massimiliano Mangraviti",
+        "CB",
+        28,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "andrea-ciofi",
+        "Andrea Ciofi",
+        "CB",
+        27,
+        69,
+        69,
+        1.1
+      ],
+      [
+        "antonio-fiori",
+        "Antonio Fiori",
+        "LM",
+        23,
+        69,
+        76,
+        2.7
+      ],
+      [
+        "jacopo-gelli",
+        "Jacopo Gelli",
+        "CB",
+        25,
+        68,
+        69,
+        0.925
+      ],
+      [
+        "gianluca-frabotta",
+        "Gianluca Frabotta",
+        "LB",
+        27,
+        68,
+        70,
+        1.4
+      ],
+      [
+        "mihajlo-ilic",
+        "Mihajlo Ilić",
+        "CB",
+        23,
+        67,
+        81,
+        2.8
+      ],
+      [
+        "alessandro-debenedetti",
+        "Alessandro Debenedetti",
+        "ST",
+        22,
+        66,
+        77,
+        1.9
+      ],
+      [
+        "marco-olivieri",
+        "Marco Olivieri",
+        "ST",
+        27,
+        66,
+        66,
+        0.85
+      ],
+      [
+        "matteo-francesconi",
+        "Matteo Francesconi",
+        "CM",
+        22,
+        66,
+        72,
+        1.1
+      ],
+      [
+        "maat-daniel-caprini",
+        "Maat Daniel Caprini",
+        "LM",
+        20,
+        65,
+        76,
+        0.775
+      ],
+      [
+        "luca-dandrea",
+        "Luca D'Andrea",
+        "RM",
+        22,
+        65,
+        76,
+        1.4
+      ],
+      [
+        "matteo-piacentini",
+        "Matteo Piacentini",
+        "CB",
+        27,
+        65,
+        67,
+        0.675
+      ],
+      [
+        "mark-natta",
+        "Mark Natta",
+        "CB",
+        23,
+        64,
+        72,
+        1
+      ],
+      [
+        "vittorio-magni",
+        "Vittorio Magni",
+        "RB",
+        20,
+        62,
+        74,
+        0.9
+      ],
+      [
+        "matteo-guidi",
+        "Matteo Guidi",
+        "CB",
+        23,
+        62,
+        68,
+        0.525
+      ],
+      [
+        "riccardo-pagano",
+        "Riccardo Pagano",
+        "CM",
+        21,
+        62,
+        71,
+        0.725
+      ],
+      [
+        "alessandro-siano",
+        "Alessandro Siano",
+        "GK",
+        25,
+        62,
+        62,
+        0.17
+      ],
+      [
+        "academy-cb-1",
+        "Cesena Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Cesena Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "it2-arezzo",
+    "name": "Arezzo",
+    "color": "#d15e8b",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "julian-illanes-minucci",
+        "Julián Illanes Minucci",
+        "CB",
+        29,
+        70,
+        70,
+        1.1
+      ],
+      [
+        "alessandro-arena",
+        "Alessandro Arena",
+        "RW",
+        26,
+        68,
+        71,
+        1.3
+      ],
+      [
+        "andrea-cagnano",
+        "Andrea Cagnano",
+        "LB",
+        28,
+        66,
+        66,
+        0.75
+      ],
+      [
+        "andrea-seculin",
+        "Andrea Seculin",
+        "GK",
+        36,
+        65,
+        66,
+        0.15
+      ],
+      [
+        "alessandro-nunziante",
+        "Alessandro Nunziante",
+        "GK",
+        19,
+        62,
+        75,
+        0.325
+      ],
+      [
+        "academy-cb-1",
+        "Arezzo Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Arezzo Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Arezzo Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Arezzo Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "Arezzo Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cm-6",
+        "Arezzo Academy CM 7",
+        "CM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cam-7",
+        "Arezzo Academy CAM 8",
+        "CAM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-lw-8",
+        "Arezzo Academy LW 9",
+        "LW",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-rw-9",
+        "Arezzo Academy RW 10",
+        "RW",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-st-10",
+        "Arezzo Academy ST 11",
+        "ST",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-cb-16",
+        "Arezzo Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "Arezzo Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "Arezzo Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "Arezzo Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "Arezzo Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "Arezzo Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "Arezzo Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "it2-carrarese-calcio",
+    "name": "Carrarese Calcio",
+    "color": "#44d470",
+    "budget": 8,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "nicolas-adrian-schiavi",
+        "Nicolás Adrián Schiavi",
+        "CM",
+        31,
+        72,
+        72,
+        1.8
+      ],
+      [
+        "fabio-abiuso",
+        "Fabio Abiuso",
+        "ST",
+        23,
+        69,
+        76,
+        2.3
+      ],
+      [
+        "bartosz-salamon",
+        "Bartosz Salamon",
+        "CB",
+        35,
+        69,
+        69,
+        0.4
+      ],
+      [
+        "niccolo-belloni",
+        "Niccolò Belloni",
+        "LB",
+        32,
+        68,
+        68,
+        0.5750000000000001
+      ],
+      [
+        "jonas-jakob-rouhi",
+        "Jonas Jakob Rouhi",
+        "LB",
+        22,
+        68,
+        77,
+        1.8
+      ],
+      [
+        "mattia-finotto",
+        "Mattia Finotto",
+        "ST",
+        33,
+        68,
+        68,
+        0.975
+      ],
+      [
+        "filippo-oliana",
+        "Filippo Oliana",
+        "CB",
+        27,
+        68,
+        72,
+        1.3
+      ],
+      [
+        "vincenzo-fiorillo",
+        "Vincenzo Fiorillo",
+        "GK",
+        36,
+        68,
+        68,
+        0.13
+      ],
+      [
+        "marco-imperiale",
+        "Marco Imperiale",
+        "CB",
+        27,
+        67,
+        70,
+        1.2
+      ],
+      [
+        "filippo-melegoni",
+        "Filippo Melegoni",
+        "CM",
+        27,
+        67,
+        67,
+        0.85
+      ],
+      [
+        "fabio-andrea-ruggeri",
+        "Fabio Andrea Ruggeri",
+        "CB",
+        21,
+        66,
+        76,
+        1.1
+      ],
+      [
+        "gabriele-parlanti",
+        "Gabriele Parlanti",
+        "CM",
+        22,
+        65,
+        76,
+        1.4
+      ],
+      [
+        "tommaso-rubino",
+        "Tommaso Rubino",
+        "CAM",
+        19,
+        65,
+        76,
+        0.75
+      ],
+      [
+        "filippo-reale",
+        "Filippo Reale",
+        "CB",
+        20,
+        64,
+        75,
+        1.1
+      ],
+      [
+        "giovanni-gabriele-garofani",
+        "Giovanni Gabriele Garofani",
+        "GK",
+        23,
+        63,
+        75,
+        1
+      ],
+      [
+        "david-vujevic",
+        "David Vujevic",
+        "CB",
+        19,
+        60,
+        75,
+        0.47500000000000003
+      ],
+      [
+        "stefano-mazzini",
+        "Stefano Mazzini",
+        "GK",
+        27,
+        59,
+        62,
+        0.23
+      ],
+      [
+        "academy-cb-1",
+        "Carrarese Calcio Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Carrarese Calcio Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Carrarese Calcio Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Carrarese Calcio Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "Carrarese Calcio Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "it2-ss-juve-stabia",
+    "name": "SS Juve Stabia",
+    "color": "#b76af0",
+    "budget": 7,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "marco-bellich",
+        "Marco Bellich",
+        "CB",
+        27,
+        70,
+        72,
+        1.6
+      ],
+      [
+        "nicola-pietrangeli",
+        "Nicola Pietrangeli",
+        "CB",
+        26,
+        69,
+        76,
+        2.6
+      ],
+      [
+        "leonardo-candellone",
+        "Leonardo Candellone",
+        "ST",
+        29,
+        69,
+        69,
+        1.3
+      ],
+      [
+        "nermin-karic",
+        "Nermin Karić",
+        "CM",
+        27,
+        69,
+        71,
+        1.6
+      ],
+      [
+        "christian-pierobon",
+        "Christian Pierobon",
+        "CM",
+        24,
+        68,
+        74,
+        2
+      ],
+      [
+        "kevin-piscopo",
+        "Kevin Piscopo",
+        "CAM",
+        28,
+        67,
+        68,
+        1.3
+      ],
+      [
+        "davide-buglio",
+        "Davide Buglio",
+        "CM",
+        28,
+        66,
+        68,
+        1.3
+      ],
+      [
+        "davide-bettella",
+        "Davide Bettella",
+        "CB",
+        26,
+        66,
+        70,
+        0.9500000000000001
+      ],
+      [
+        "tommaso-maggioni",
+        "Tommaso Maggioni",
+        "RB",
+        25,
+        66,
+        70,
+        1.1
+      ],
+      [
+        "justin-kumi",
+        "Justin Kumi",
+        "CM",
+        22,
+        66,
+        78,
+        1.7
+      ],
+      [
+        "pietro-boer",
+        "Pietro Boer",
+        "GK",
+        24,
+        65,
+        73,
+        0.925
+      ],
+      [
+        "federico-artioli",
+        "Federico Artioli",
+        "CDM",
+        25,
+        65,
+        71,
+        1
+      ],
+      [
+        "gregorio-morachioli",
+        "Gregorio Morachioli",
+        "CAM",
+        26,
+        65,
+        67,
+        0.775
+      ],
+      [
+        "thomas-battistella",
+        "Thomas Battistella",
+        "CM",
+        25,
+        64,
+        71,
+        1.2
+      ],
+      [
+        "sana-eusebio-mango-fernandes",
+        "Saná Eusébio Mango Fernandes",
+        "ST",
+        20,
+        61,
+        75,
+        0.9500000000000001
+      ],
+      [
+        "matteo-baldi",
+        "Matteo Baldi",
+        "RB",
+        24,
+        61,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "academy-gk-1",
+        "SS Juve Stabia Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "SS Juve Stabia Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "SS Juve Stabia Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "SS Juve Stabia Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-rb-5",
+        "SS Juve Stabia Academy RB 6",
+        "RB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cdm-6",
+        "SS Juve Stabia Academy CDM 7",
+        "CDM",
+        19,
+        60,
+        79,
+        0.8
+      ]
+    ]
+  }
+];
+
+const RAW_LIGUE2CLUBS=[
+  {
+    "id": "fr2-fc-nantes",
+    "name": "FC Nantes",
+    "color": "#45ec87",
+    "budget": 15,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "ibrahima-sissoko",
+        "Ibrahima Sissoko",
+        "CDM",
+        28,
+        74,
+        77,
+        7.5
+      ],
+      [
+        "maxime-dupe",
+        "Maxime Dupé",
+        "GK",
+        33,
+        74,
+        74,
+        2.1
+      ],
+      [
+        "frederic-guilbert",
+        "Frédéric Guilbert",
+        "RB",
+        31,
+        73,
+        75,
+        4.8
+      ],
+      [
+        "johann-lepenant",
+        "Johann Lepenant",
+        "CM",
+        23,
+        73,
+        81,
+        8.5
+      ],
+      [
+        "mathieu-cafaro",
+        "Mathieu Cafaro",
+        "LM",
+        29,
+        71,
+        73,
+        3.1
+      ],
+      [
+        "kelvin-amian-adou",
+        "Kelvin Amian Adou",
+        "RB",
+        28,
+        71,
+        74,
+        3.2
+      ],
+      [
+        "mostafa-mohamed-ahmed-abdalla",
+        "Mostafa Mohamed Ahmed Abdalla",
+        "ST",
+        28,
+        71,
+        73,
+        3.3
+      ],
+      [
+        "ignatius-kpene-ganago",
+        "Ignatius Kpene Ganago",
+        "ST",
+        27,
+        71,
+        74,
+        2.9
+      ],
+      [
+        "killian-corredor",
+        "Killian Corredor",
+        "LM",
+        25,
+        71,
+        76,
+        4.2
+      ],
+      [
+        "tylel-tati",
+        "Tylel Tati",
+        "CB",
+        18,
+        71,
+        83,
+        2.4
+      ],
+      [
+        "louis-leroux",
+        "Louis Leroux",
+        "CM",
+        20,
+        71,
+        82,
+        3.8
+      ],
+      [
+        "bahereba-guirassy",
+        "Bahereba Guirassy",
+        "LW",
+        20,
+        71,
+        79,
+        2.4
+      ],
+      [
+        "fabien-centonze",
+        "Fabien Centonze",
+        "RB",
+        30,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "lucas-perrin",
+        "Lucas Perrin",
+        "CB",
+        27,
+        70,
+        72,
+        1.6
+      ],
+      [
+        "yassine-benhattab",
+        "Yassine Benhattab",
+        "RM",
+        23,
+        69,
+        77,
+        2.3
+      ],
+      [
+        "saidou-sow",
+        "Saïdou Sow",
+        "CB",
+        24,
+        69,
+        76,
+        2.6
+      ],
+      [
+        "dehmaine-tabibou-assoumani",
+        "Dehmaine Tabibou Assoumani",
+        "CM",
+        21,
+        69,
+        79,
+        1.4
+      ],
+      [
+        "antoine-joujou",
+        "Antoine Joujou",
+        "LM",
+        23,
+        68,
+        75,
+        2.2
+      ],
+      [
+        "wilitty-younoussa",
+        "Wilitty Younoussa",
+        "CM",
+        25,
+        66,
+        73,
+        1.6
+      ],
+      [
+        "lamine-diack",
+        "Lamine Diack",
+        "CDM",
+        25,
+        65,
+        73,
+        1.5
+      ],
+      [
+        "bahmed-deuff",
+        "Bahmed Deuff",
+        "CDM",
+        20,
+        65,
+        77,
+        0.9
+      ],
+      [
+        "sekou-doucoure",
+        "Sékou Doucouré",
+        "CB",
+        21,
+        64,
+        77,
+        1.1
+      ],
+      [
+        "diockoumalang-gomes",
+        "Diockoumalang Gomes",
+        "CDM",
+        21,
+        63,
+        78,
+        1.1
+      ],
+      [
+        "alexis-mirbach",
+        "Alexis Mirbach",
+        "GK",
+        21,
+        60,
+        73,
+        0.425
+      ]
+    ]
+  },
+  {
+    "id": "fr2-as-saint-etienne",
+    "name": "AS Saint-Étienne",
+    "color": "#c4df83",
+    "budget": 14,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jakob-breum-martinsen",
+        "Jakob Breum Martinsen",
+        "CAM",
+        22,
+        75,
+        82,
+        9.5
+      ],
+      [
+        "lucas-frederic-stassin",
+        "Lucas Frédéric Stassin",
+        "ST",
+        21,
+        74,
+        83,
+        13
+      ],
+      [
+        "zuriko-davitashvili",
+        "Zuriko Davitashvili",
+        "LM",
+        25,
+        74,
+        80,
+        6.5
+      ],
+      [
+        "julien-le-cardinal",
+        "Julien Le Cardinal",
+        "CB",
+        29,
+        73,
+        76,
+        4.5
+      ],
+      [
+        "gautier-larsonneur",
+        "Gautier Larsonneur",
+        "GK",
+        29,
+        73,
+        76,
+        3.6
+      ],
+      [
+        "augustine-boakye",
+        "Augustine Boakye",
+        "RW",
+        25,
+        72,
+        75,
+        2.2
+      ],
+      [
+        "irvin-cardona",
+        "Irvin Cardona",
+        "RM",
+        29,
+        72,
+        73,
+        3.2
+      ],
+      [
+        "chico-faria-camara-lamba",
+        "Chico Faria Camará Lamba",
+        "CB",
+        23,
+        71,
+        80,
+        3.3
+      ],
+      [
+        "thierno-mamadou-lamarana-ballo",
+        "Thierno Mamadou Lamarana Ballo",
+        "LM",
+        24,
+        71,
+        79,
+        4.8
+      ],
+      [
+        "pierre-emmanuel-ekwah-elimby",
+        "Pierre-Emmanuel Ekwah Elimby",
+        "CM",
+        24,
+        70,
+        79,
+        3.9
+      ],
+      [
+        "joao-diogo-fonseca-ferreira",
+        "João Diogo Fonseca Ferreira",
+        "RB",
+        25,
+        70,
+        78,
+        3.5
+      ],
+      [
+        "maxime-bernauer",
+        "Maxime Bernauer",
+        "CB",
+        28,
+        70,
+        72,
+        1.6
+      ],
+      [
+        "sohaib-nair",
+        "Sohaib Naïr",
+        "CB",
+        24,
+        70,
+        77,
+        2.5
+      ],
+      [
+        "mickael-nade",
+        "Mickaël Nadé",
+        "CB",
+        27,
+        70,
+        75,
+        2.3
+      ],
+      [
+        "tamar-svetlin",
+        "Tamar Svetlin",
+        "CM",
+        25,
+        70,
+        71,
+        1.5
+      ],
+      [
+        "aron-csongvai",
+        "Áron Csongvai",
+        "CM",
+        25,
+        70,
+        76,
+        2.5
+      ],
+      [
+        "aimen-moueffek",
+        "Aïmen Moueffek",
+        "CM",
+        25,
+        69,
+        75,
+        2.4
+      ],
+      [
+        "mamour-ndiaye",
+        "Mamour Ndiaye",
+        "GK",
+        20,
+        68,
+        79,
+        1.5
+      ],
+      [
+        "benjamin-craig-old",
+        "Benjamin Craig Old",
+        "LB",
+        24,
+        68,
+        77,
+        2.7
+      ],
+      [
+        "mahmoud-jaber",
+        "Mahmoud Jaber",
+        "CM",
+        26,
+        67,
+        68,
+        0.8
+      ],
+      [
+        "ebenezer-annan",
+        "Ebenezer Annan",
+        "LB",
+        24,
+        66,
+        72,
+        1.5
+      ],
+      [
+        "joshua-james-leslie-duffus",
+        "Joshua James Leslie Duffus",
+        "ST",
+        21,
+        63,
+        77,
+        0.875
+      ],
+      [
+        "nadir-el-jamali",
+        "Nadir El Jamali",
+        "CM",
+        19,
+        62,
+        72,
+        0.47500000000000003
+      ],
+      [
+        "djylian-nguessan",
+        "Djylian N'Guessan",
+        "ST",
+        18,
+        61,
+        80,
+        0.8250000000000001
+      ],
+      [
+        "strahinja-stojkovic",
+        "Strahinja Stojković",
+        "RB",
+        19,
+        60,
+        75,
+        0.4
+      ],
+      [
+        "lassana-traore",
+        "Lassana Traoré",
+        "LB",
+        19,
+        60,
+        72,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "fr2-stade-de-reims",
+    "name": "Stade de Reims",
+    "color": "#c76a8c",
+    "budget": 14,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "keito-nakamura",
+        "Keito Nakamura",
+        "LM",
+        26,
+        76,
+        79,
+        10
+      ],
+      [
+        "daouda-guindo",
+        "Daouda Guindo",
+        "LB",
+        23,
+        73,
+        76,
+        2.2
+      ],
+      [
+        "theo-leoni",
+        "Théo Leoni",
+        "CM",
+        26,
+        73,
+        76,
+        3.2
+      ],
+      [
+        "theoson-jordan-siebatcheu",
+        "Theoson-Jordan Siebatcheu",
+        "ST",
+        30,
+        72,
+        73,
+        3
+      ],
+      [
+        "oumar-diakite",
+        "Oumar Diakité",
+        "ST",
+        22,
+        72,
+        82,
+        5.5
+      ],
+      [
+        "sambou-soumano",
+        "Sambou Soumano",
+        "ST",
+        25,
+        72,
+        78,
+        3.8
+      ],
+      [
+        "sergio-akieme-rodriguez",
+        "Sergio Akieme Rodríguez",
+        "LB",
+        28,
+        71,
+        74,
+        3.2
+      ],
+      [
+        "reda-jousef-khadra",
+        "Reda Jousef Khadra",
+        "CAM",
+        25,
+        71,
+        78,
+        3.7
+      ],
+      [
+        "joseph-stanley-okumu",
+        "Joseph Stanley Okumu",
+        "CB",
+        29,
+        71,
+        75,
+        3.1
+      ],
+      [
+        "roman-mory-diaman-gbane",
+        "Roman Mory Diaman Gbane",
+        "CDM",
+        25,
+        70,
+        75,
+        2.2
+      ],
+      [
+        "youssef-el-kachati",
+        "Youssef El Kachati",
+        "ST",
+        26,
+        70,
+        74,
+        2.1
+      ],
+      [
+        "mohamed-hassouni-daramy",
+        "Mohamed Hassouni Daramy",
+        "ST",
+        24,
+        69,
+        80,
+        6
+      ],
+      [
+        "tom-ritzy-hulsmann",
+        "Tom Ritzy Hülsmann",
+        "GK",
+        22,
+        68,
+        74,
+        0.7000000000000001
+      ],
+      [
+        "yaya-kader-fofana",
+        "Yaya Kader Fofana",
+        "CM",
+        22,
+        67,
+        79,
+        2.7
+      ],
+      [
+        "ange-martial-tia",
+        "Ange Martial Tia",
+        "CAM",
+        19,
+        67,
+        78,
+        0.625
+      ],
+      [
+        "samuel-junior-kotto",
+        "Samuel Junior Kotto",
+        "CB",
+        23,
+        67,
+        71,
+        1
+      ],
+      [
+        "elie-ntamon",
+        "Elie N'Tamon",
+        "CB",
+        22,
+        66,
+        74,
+        1.2
+      ],
+      [
+        "yohan-demoncy",
+        "Yohan Demoncy",
+        "ST",
+        30,
+        66,
+        69,
+        1.4
+      ],
+      [
+        "alexis-sauvage",
+        "Alexis Sauvage",
+        "GK",
+        34,
+        66,
+        66,
+        0.275
+      ],
+      [
+        "amine-salama",
+        "Amine Salama",
+        "ST",
+        26,
+        66,
+        72,
+        1.6
+      ],
+      [
+        "john-joe-patrick-finn-benoa",
+        "John Joe Patrick Finn Benoa",
+        "CM",
+        22,
+        65,
+        78,
+        2.1
+      ],
+      [
+        "hafiz-umar-ibrahim",
+        "Hafiz Umar Ibrahim",
+        "ST",
+        20,
+        64,
+        77,
+        0.9500000000000001
+      ],
+      [
+        "quentin-paris",
+        "Quentin Paris",
+        "ST",
+        19,
+        64,
+        75,
+        0.75
+      ],
+      [
+        "soumaila-sylla",
+        "Soumaïla Sylla",
+        "GK",
+        22,
+        60,
+        68,
+        0.47500000000000003
+      ]
+    ]
+  },
+  {
+    "id": "fr2-fc-metz",
+    "name": "FC Metz",
+    "color": "#4de97e",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "teji-tedy-savanier",
+        "Téji Tedy Savanier",
+        "CAM",
+        34,
+        73,
+        75,
+        3.5
+      ],
+      [
+        "habibou-mouhamadou-diallo",
+        "Habibou Mouhamadou Diallo",
+        "ST",
+        31,
+        71,
+        72,
+        2.3
+      ],
+      [
+        "jessy-deminguet",
+        "Jessy Deminguet",
+        "CDM",
+        28,
+        71,
+        73,
+        2.7
+      ],
+      [
+        "nampalys-mendy",
+        "Nampalys Mendy",
+        "CDM",
+        34,
+        71,
+        73,
+        1.5
+      ],
+      [
+        "jonathan-frost-fischer",
+        "Jonathan Frost Fischer",
+        "GK",
+        24,
+        71,
+        75,
+        1.8
+      ],
+      [
+        "maxime-jean-yves-colin",
+        "Maxime Jean-Yves Colin",
+        "LB",
+        34,
+        69,
+        69,
+        0.725
+      ],
+      [
+        "florian-jeremie-miguel",
+        "Florian Jérémie Miguel",
+        "LB",
+        30,
+        69,
+        70,
+        1.4
+      ],
+      [
+        "pape-moussa-fall",
+        "Pape Moussa Fall",
+        "ST",
+        22,
+        68,
+        71,
+        0.55
+      ],
+      [
+        "pape-mamadou-sy",
+        "Pape Mamadou Sy",
+        "GK",
+        29,
+        68,
+        68,
+        0.45
+      ],
+      [
+        "cristian-david-castro-devenish",
+        "Cristian David Castro Devenish",
+        "CB",
+        25,
+        68,
+        76,
+        2.6
+      ],
+      [
+        "jean-ruiz",
+        "Jean Ruiz",
+        "CB",
+        28,
+        68,
+        69,
+        1.1
+      ],
+      [
+        "alpha-amadou-toure",
+        "Alpha Amadou Touré",
+        "CDM",
+        20,
+        68,
+        78,
+        1.1
+      ],
+      [
+        "giorgi-abuashvili",
+        "Giorgi Abuashvili",
+        "LM",
+        23,
+        67,
+        76,
+        1.9
+      ],
+      [
+        "urie-michel-mboula",
+        "Urie-Michel Mboula",
+        "CB",
+        23,
+        67,
+        76,
+        2.1
+      ],
+      [
+        "morgan-bokele-mputu",
+        "Morgan Bokele Mputu",
+        "LM",
+        22,
+        66,
+        77,
+        1.8
+      ],
+      [
+        "ibou-sane",
+        "Ibou Sané",
+        "ST",
+        21,
+        65,
+        78,
+        1.2
+      ],
+      [
+        "lima-joseph-mangondo",
+        "Lima Joseph Mangondo",
+        "ST",
+        21,
+        60,
+        74,
+        0.525
+      ],
+      [
+        "academy-cb-1",
+        "FC Metz Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "FC Metz Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "FC Metz Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "FC Metz Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "FC Metz Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "fr2-red-star-fc",
+    "name": "Red Star FC",
+    "color": "#40e10c",
+    "budget": 9,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "gaetan-pierre-bernard-poussin",
+        "Gaëtan Pierre Bernard Poussin",
+        "GK",
+        27,
+        72,
+        77,
+        2.7
+      ],
+      [
+        "pierre-lemonnier",
+        "Pierre Lemonnier",
+        "CB",
+        33,
+        71,
+        71,
+        0.8250000000000001
+      ],
+      [
+        "dylan-durivaux",
+        "Dylan Durivaux",
+        "CB",
+        25,
+        70,
+        70,
+        0.975
+      ],
+      [
+        "damien-durand",
+        "Damien Durand",
+        "ST",
+        31,
+        70,
+        70,
+        1
+      ],
+      [
+        "balthazar-jean-philippe-marie-pierret",
+        "Balthazar Jean Philippe Marie Pierret",
+        "CDM",
+        26,
+        69,
+        73,
+        1.6
+      ],
+      [
+        "leonardo-daniel-ulineia-buta",
+        "Leonardo Daniel Ulineia Buta",
+        "LB",
+        24,
+        69,
+        74,
+        2
+      ],
+      [
+        "bradley-danger",
+        "Bradley Danger",
+        "CB",
+        28,
+        68,
+        68,
+        0.9
+      ],
+      [
+        "ryad-hachem",
+        "Ryad Hachem",
+        "CM",
+        28,
+        67,
+        67,
+        1.1
+      ],
+      [
+        "saif-eddine-khaoui",
+        "Saîf-Eddine Khaoui",
+        "CM",
+        31,
+        66,
+        70,
+        1.5
+      ],
+      [
+        "matthieu-emmanuel-wilfrid-huard",
+        "Matthieu Emmanuel Wilfrid Huard",
+        "CB",
+        28,
+        66,
+        67,
+        0.9
+      ],
+      [
+        "kevin-cabral",
+        "Kévin Cabral",
+        "ST",
+        27,
+        66,
+        66,
+        0.85
+      ],
+      [
+        "kemo-cisse",
+        "Kémo Cissé",
+        "LM",
+        29,
+        66,
+        66,
+        0.47500000000000003
+      ],
+      [
+        "theo-magnin",
+        "Théo Magnin",
+        "RB",
+        23,
+        65,
+        74,
+        1.5
+      ],
+      [
+        "josue-escartin",
+        "Josué Escartin",
+        "CB",
+        23,
+        65,
+        73,
+        1
+      ],
+      [
+        "samuel-renel",
+        "Samuel Renel",
+        "CM",
+        24,
+        65,
+        72,
+        1.4
+      ],
+      [
+        "jovany-ikanga",
+        "Jovany Ikanga",
+        "ST",
+        24,
+        65,
+        68,
+        0.55
+      ],
+      [
+        "guillaume-trani",
+        "Guillaume Trani",
+        "CAM",
+        28,
+        64,
+        64,
+        0.55
+      ],
+      [
+        "islamdine-halifa",
+        "Islamdine Halifa",
+        "CDM",
+        21,
+        58,
+        68,
+        0.425
+      ],
+      [
+        "academy-gk-1",
+        "Red Star FC Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Red Star FC Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Red Star FC Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "Red Star FC Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "fr2-montpellier",
+    "name": "Montpellier",
+    "color": "#b55d09",
+    "budget": 9,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "julien-laporte",
+        "Julien Laporte",
+        "CB",
+        32,
+        73,
+        73,
+        2.1
+      ],
+      [
+        "florian-tardieu",
+        "Florian Tardieu",
+        "CM",
+        34,
+        70,
+        71,
+        0.925
+      ],
+      [
+        "enzo-gianni-tchato-mbiayi",
+        "Enzo Gianni Tchato Mbiayi",
+        "RB",
+        23,
+        70,
+        79,
+        4
+      ],
+      [
+        "theo-sainte-luce",
+        "Théo Sainte-Luce",
+        "LB",
+        27,
+        70,
+        72,
+        1.7
+      ],
+      [
+        "simon-brady-ngapandouetnbu",
+        "Simon Brady Ngapandouetnbu",
+        "GK",
+        23,
+        69,
+        74,
+        1.7
+      ],
+      [
+        "khalil-fayad",
+        "Khalil Fayad",
+        "CM",
+        22,
+        69,
+        79,
+        3.6
+      ],
+      [
+        "nicolas-pays",
+        "Nicolas Pays",
+        "RM",
+        23,
+        68,
+        75,
+        1.3
+      ],
+      [
+        "daylam-meddah",
+        "Daylam Meddah",
+        "CB",
+        23,
+        67,
+        72,
+        1.2
+      ],
+      [
+        "mamadou-camara",
+        "Mamadou Camara",
+        "ST",
+        25,
+        67,
+        72,
+        1.4
+      ],
+      [
+        "mathieu-michel",
+        "Mathieu Michel",
+        "GK",
+        35,
+        66,
+        66,
+        0.275
+      ],
+      [
+        "everson-junior-pereira-da-silva",
+        "Everson Junior Pereira da Silva",
+        "CDM",
+        22,
+        65,
+        74,
+        1.3
+      ],
+      [
+        "theo-chennahi",
+        "Théo Chennahi",
+        "CDM",
+        21,
+        65,
+        75,
+        0.775
+      ],
+      [
+        "yanis-ali-issoufou",
+        "Yanis Ali Issoufou",
+        "LM",
+        19,
+        65,
+        76,
+        0.925
+      ],
+      [
+        "yael-mouanga-boudzoumou",
+        "Yaël Mouanga Boudzoumou",
+        "CB",
+        21,
+        64,
+        77,
+        1.7
+      ],
+      [
+        "naoufel-el-hannach",
+        "Naoufel El Hannach",
+        "RB",
+        19,
+        64,
+        79,
+        0.775
+      ],
+      [
+        "wilfried-chancy-ndollo-bille",
+        "Wilfried Chancy Ndollo Bille",
+        "RB",
+        21,
+        63,
+        77,
+        1.3
+      ],
+      [
+        "junior-ndiaye",
+        "Junior Ndiaye",
+        "ST",
+        21,
+        62,
+        76,
+        0.975
+      ],
+      [
+        "axel-gueguin",
+        "Axel Gueguin",
+        "RM",
+        21,
+        61,
+        76,
+        0.8
+      ],
+      [
+        "viktor-dzodic",
+        "Viktor Džodić",
+        "GK",
+        19,
+        58,
+        73,
+        0.275
+      ],
+      [
+        "academy-cb-1",
+        "Montpellier Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Montpellier Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Montpellier Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "fr2-pau-fc",
+    "name": "Pau FC",
+    "color": "#c0e2f6",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jessy-benet",
+        "Jessy Bénet",
+        "CM",
+        31,
+        73,
+        73,
+        1.8
+      ],
+      [
+        "anthony-briancon",
+        "Anthony Briançon",
+        "CB",
+        31,
+        69,
+        69,
+        1.1
+      ],
+      [
+        "brice-maubleu",
+        "Brice Maubleu",
+        "GK",
+        36,
+        69,
+        70,
+        0.18
+      ],
+      [
+        "gaetan-paquiez",
+        "Gaëtan Paquiez",
+        "RB",
+        32,
+        69,
+        69,
+        0.625
+      ],
+      [
+        "giovani-versini",
+        "Giovani Versini",
+        "RM",
+        22,
+        69,
+        69,
+        0.725
+      ],
+      [
+        "mathys-tourraine",
+        "Mathys Tourraine",
+        "RB",
+        25,
+        67,
+        74,
+        2
+      ],
+      [
+        "hacene-benali",
+        "Hacène Benali",
+        "ST",
+        26,
+        66,
+        70,
+        1.2
+      ],
+      [
+        "abdel-hakim-abdallah",
+        "Abdel Hakim Abdallah",
+        "LB",
+        29,
+        66,
+        66,
+        0.8250000000000001
+      ],
+      [
+        "tom-tony-pouilly",
+        "Tom Tony Pouilly",
+        "RB",
+        23,
+        65,
+        74,
+        1.8
+      ],
+      [
+        "esteban-salles",
+        "Esteban Salles",
+        "GK",
+        32,
+        65,
+        65,
+        0.375
+      ],
+      [
+        "kyllian-gasnier",
+        "Kyllian Gasnier",
+        "CAM",
+        24,
+        63,
+        70,
+        0.975
+      ],
+      [
+        "luan-gadegbeku",
+        "Luan Gadegbeku",
+        "CM",
+        19,
+        60,
+        74,
+        0.525
+      ],
+      [
+        "cheikh-fall",
+        "Cheikh Fall",
+        "CM",
+        22,
+        58,
+        69,
+        0.4
+      ],
+      [
+        "academy-cb-1",
+        "Pau FC Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Pau FC Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Pau FC Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Pau FC Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "Pau FC Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cm-6",
+        "Pau FC Academy CM 7",
+        "CM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cam-7",
+        "Pau FC Academy CAM 8",
+        "CAM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-lw-8",
+        "Pau FC Academy LW 9",
+        "LW",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-rw-9",
+        "Pau FC Academy RW 10",
+        "RW",
+        18,
+        58,
+        74,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "fr2-grenoble-foot-38",
+    "name": "Grenoble Foot 38",
+    "color": "#c2eb07",
+    "budget": 7,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "clement-vidal",
+        "Clément Vidal",
+        "CB",
+        26,
+        69,
+        72,
+        1.5
+      ],
+      [
+        "leonardo-cerri",
+        "Leonardo Cerri",
+        "ST",
+        23,
+        69,
+        76,
+        2.3
+      ],
+      [
+        "mattheo-xantippe",
+        "Matthéo Xantippe",
+        "LB",
+        24,
+        69,
+        75,
+        2.2
+      ],
+      [
+        "mael-corboz",
+        "Mael Corboz",
+        "CM",
+        32,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "alexandre-olliero",
+        "Alexandre Olliero",
+        "GK",
+        30,
+        68,
+        70,
+        1
+      ],
+      [
+        "yadaly-diaby",
+        "Yadaly Diaby",
+        "LM",
+        26,
+        68,
+        68,
+        0.975
+      ],
+      [
+        "loris-mouyokolo",
+        "Loris Mouyokolo",
+        "CB",
+        25,
+        66,
+        73,
+        1.5
+      ],
+      [
+        "moussa-kalilou-djitte",
+        "Moussa Kalilou Djitté",
+        "ST",
+        26,
+        65,
+        71,
+        1.3
+      ],
+      [
+        "mamady-alex-bangre",
+        "Mamady Alex Bangré",
+        "RM",
+        25,
+        65,
+        70,
+        0.925
+      ],
+      [
+        "bobby-allain",
+        "Bobby Allain",
+        "GK",
+        34,
+        65,
+        65,
+        0.23
+      ],
+      [
+        "nesta-zahui",
+        "Nesta Zahui",
+        "RM",
+        23,
+        64,
+        66,
+        0.45
+      ],
+      [
+        "baptiste-mouazan",
+        "Baptiste Mouazan",
+        "CAM",
+        24,
+        64,
+        71,
+        1.2
+      ],
+      [
+        "wandja-allan-tchaptchet",
+        "Wandja Allan Tchaptchet",
+        "CB",
+        24,
+        63,
+        72,
+        1.2
+      ],
+      [
+        "evans-fabrice-maurin",
+        "Evans Fabrice Maurin",
+        "LM",
+        25,
+        63,
+        68,
+        0.675
+      ],
+      [
+        "samba-lele-diba",
+        "Samba Lélé Diba",
+        "CDM",
+        22,
+        63,
+        76,
+        0.925
+      ],
+      [
+        "efe-sarkaya",
+        "Efe Sarıkaya",
+        "CB",
+        20,
+        62,
+        74,
+        0.55
+      ],
+      [
+        "mathieu-mion",
+        "Mathieu Mion",
+        "LB",
+        26,
+        62,
+        62,
+        0.23
+      ],
+      [
+        "mohamed-bechikh",
+        "Mohamed Bechikh",
+        "ST",
+        21,
+        61,
+        75,
+        0.775
+      ],
+      [
+        "ange-loic-ngatta",
+        "Ange Loïc N'Gatta",
+        "RB",
+        22,
+        61,
+        73,
+        0.5750000000000001
+      ],
+      [
+        "academy-cb-1",
+        "Grenoble Foot 38 Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Grenoble Foot 38 Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Grenoble Foot 38 Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "fr2-fc-annecy",
+    "name": "FC Annecy",
+    "color": "#cde57a",
+    "budget": 7,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "antoine-larose",
+        "Antoine Larose",
+        "RW",
+        33,
+        71,
+        71,
+        1.1
+      ],
+      [
+        "florian-escales",
+        "Florian Escales",
+        "GK",
+        30,
+        70,
+        72,
+        1.3
+      ],
+      [
+        "clement-billemaz",
+        "Clément Billemaz",
+        "LM",
+        27,
+        69,
+        69,
+        1
+      ],
+      [
+        "ahmed-kashi",
+        "Ahmed Kashi",
+        "CM",
+        37,
+        69,
+        69,
+        0.275
+      ],
+      [
+        "francois-lajugie",
+        "François Lajugie",
+        "CB",
+        30,
+        68,
+        68,
+        0.625
+      ],
+      [
+        "moise-orell-dion-sahi",
+        "Moïse Orell Dion Sahi",
+        "ST",
+        24,
+        68,
+        74,
+        2.1
+      ],
+      [
+        "julien-kouadio",
+        "Julien Kouadio",
+        "CB",
+        26,
+        67,
+        69,
+        0.775
+      ],
+      [
+        "axel-drouhin",
+        "Axel Drouhin",
+        "CB",
+        26,
+        67,
+        73,
+        1.4
+      ],
+      [
+        "thibault-rambaud",
+        "Thibault Rambaud",
+        "ST",
+        29,
+        67,
+        67,
+        0.25
+      ],
+      [
+        "ben-hamed-toure",
+        "Ben Hamed Touré",
+        "ST",
+        23,
+        65,
+        70,
+        0.975
+      ],
+      [
+        "thomas-callens",
+        "Thomas Callens",
+        "GK",
+        28,
+        65,
+        67,
+        0.525
+      ],
+      [
+        "thibault-delphis",
+        "Thibault Delphis",
+        "CB",
+        23,
+        64,
+        73,
+        1.3
+      ],
+      [
+        "zepiqueno-redmond",
+        "Zépiqueno Redmond",
+        "ST",
+        20,
+        64,
+        81,
+        1.5
+      ],
+      [
+        "alexis-casadei",
+        "Alexis Casadei",
+        "CM",
+        21,
+        63,
+        63,
+        0.2
+      ],
+      [
+        "kilyan-jusseron-veniere",
+        "Kilyan Jusseron-Veniere",
+        "LM",
+        20,
+        63,
+        73,
+        0.525
+      ],
+      [
+        "paul-venot",
+        "Paul Venot",
+        "CM",
+        24,
+        62,
+        64,
+        0.325
+      ],
+      [
+        "matteo-veillon",
+        "Mattéo Veillon",
+        "CB",
+        24,
+        61,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "mateo-gonzalez",
+        "Matéo Gonzalez",
+        "GK",
+        21,
+        57,
+        67,
+        0.22
+      ],
+      [
+        "pascal-mozie",
+        "Pascal Mozie",
+        "CDM",
+        18,
+        57,
+        68,
+        0.2
+      ],
+      [
+        "academy-cb-1",
+        "FC Annecy Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "FC Annecy Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "FC Annecy Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "fr2-rodez-af",
+    "name": "Rodez AF",
+    "color": "#baeb06",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "quentin-braat",
+        "Quentin Braat",
+        "GK",
+        29,
+        72,
+        72,
+        1.2
+      ],
+      [
+        "jean-lambert-evans-allan",
+        "Jean Lambert Evan's Allan",
+        "LB",
+        27,
+        69,
+        69,
+        0.47500000000000003
+      ],
+      [
+        "mathis-magnin",
+        "Mathis Magnin",
+        "CB",
+        24,
+        68,
+        73,
+        1
+      ],
+      [
+        "ibrahima-balde",
+        "Ibrahima Baldé",
+        "ST",
+        23,
+        68,
+        72,
+        1.5
+      ],
+      [
+        "clement-jolibois",
+        "Clément Jolibois",
+        "CB",
+        29,
+        66,
+        66,
+        0.425
+      ],
+      [
+        "jordan-mendes",
+        "Jordan Mendes",
+        "CDM",
+        22,
+        66,
+        69,
+        0.55
+      ],
+      [
+        "nachon-nsingi-nguidi",
+        "Nachon Nsingi Nguidi",
+        "ST",
+        25,
+        66,
+        72,
+        1.4
+      ],
+      [
+        "raphael-lipinski",
+        "Raphaël Lipinski",
+        "CB",
+        24,
+        66,
+        70,
+        0.85
+      ],
+      [
+        "samy-benchamma",
+        "Samy Benchamma",
+        "CDM",
+        26,
+        65,
+        69,
+        0.675
+      ],
+      [
+        "mathis-touho",
+        "Mathis Touho",
+        "LW",
+        21,
+        65,
+        70,
+        0.5
+      ],
+      [
+        "loni-laurent-quenabio",
+        "Loni Laurent Quenabio",
+        "CB",
+        25,
+        65,
+        71,
+        1
+      ],
+      [
+        "octave-joly",
+        "Octave Joly",
+        "CM",
+        24,
+        64,
+        72,
+        0.85
+      ],
+      [
+        "kenny-nagera",
+        "Kenny Nagera",
+        "ST",
+        24,
+        63,
+        68,
+        0.725
+      ],
+      [
+        "dylan-vangi",
+        "Dylan Vangi",
+        "CB",
+        21,
+        62,
+        73,
+        0.725
+      ],
+      [
+        "lucas-margueron",
+        "Lucas Margueron",
+        "GK",
+        25,
+        61,
+        66,
+        0.4
+      ],
+      [
+        "mehdi-baaloudj",
+        "Mehdi Baaloudj",
+        "ST",
+        25,
+        61,
+        68,
+        0.625
+      ],
+      [
+        "ryan-ponti",
+        "Ryan Ponti",
+        "LM",
+        28,
+        61,
+        61,
+        0.22
+      ],
+      [
+        "enzo-crombez",
+        "Enzo Crombez",
+        "GK",
+        23,
+        61,
+        71,
+        0.65
+      ],
+      [
+        "corentin-issanchou",
+        "Corentin Issanchou",
+        "RB",
+        21,
+        59,
+        73,
+        0.47500000000000003
+      ],
+      [
+        "hermann-tebily",
+        "Hermann Tebily",
+        "ST",
+        24,
+        59,
+        68,
+        0.5
+      ],
+      [
+        "academy-cb-1",
+        "Rodez AF Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Rodez AF Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "fr2-en-avant-guingamp",
+    "name": "En Avant Guingamp",
+    "color": "#c7ecff",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "donatien-gomis",
+        "Donatien Gomis",
+        "CB",
+        31,
+        71,
+        71,
+        1.3
+      ],
+      [
+        "dylan-louiserre",
+        "Dylan Louiserre",
+        "CM",
+        31,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "amine-hemia",
+        "Amine Hemia",
+        "ST",
+        28,
+        69,
+        71,
+        1.9
+      ],
+      [
+        "tom-ducrocq",
+        "Tom Ducrocq",
+        "CDM",
+        27,
+        69,
+        75,
+        2.1
+      ],
+      [
+        "adrian-ortola-vano",
+        "Adrián Ortolá Vañó",
+        "GK",
+        33,
+        68,
+        70,
+        0.85
+      ],
+      [
+        "erwin-koffi",
+        "Erwin Koffi",
+        "RB",
+        31,
+        67,
+        68,
+        1
+      ],
+      [
+        "albin-demouchy",
+        "Albin Demouchy",
+        "CB",
+        24,
+        66,
+        69,
+        0.675
+      ],
+      [
+        "teddy-bartouche-selbonne",
+        "Teddy Bartouche-Selbonne",
+        "GK",
+        29,
+        65,
+        65,
+        0.375
+      ],
+      [
+        "stanislas-kielt",
+        "Stanislas Kielt",
+        "ST",
+        24,
+        64,
+        67,
+        0.5
+      ],
+      [
+        "jeremie-matumona-makanga",
+        "Jérémie Matumona Makanga",
+        "RB",
+        20,
+        63,
+        70,
+        0.675
+      ],
+      [
+        "darly-nlandu-lufuilu",
+        "Darly N'Landu Lufuilu",
+        "CM",
+        26,
+        63,
+        67,
+        0.7000000000000001
+      ],
+      [
+        "teddy-andami-averlant",
+        "Teddy Andami Averlant",
+        "RM",
+        26,
+        62,
+        63,
+        0.325
+      ],
+      [
+        "tanguy-ahile",
+        "Tanguy Ahile",
+        "CDM",
+        22,
+        62,
+        73,
+        0.47500000000000003
+      ],
+      [
+        "gautier-ott",
+        "Gautier Ott",
+        "LM",
+        24,
+        62,
+        69,
+        0.75
+      ],
+      [
+        "noah-marec",
+        "Noah Marec",
+        "GK",
+        22,
+        59,
+        70,
+        0.425
+      ],
+      [
+        "academy-cb-1",
+        "En Avant Guingamp Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "En Avant Guingamp Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "En Avant Guingamp Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "En Avant Guingamp Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "En Avant Guingamp Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cm-6",
+        "En Avant Guingamp Academy CM 7",
+        "CM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cam-7",
+        "En Avant Guingamp Academy CAM 8",
+        "CAM",
+        18,
+        61,
+        72,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "fr2-laval-mfc",
+    "name": "Laval MFC",
+    "color": "#d36e79",
+    "budget": 7,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "francis-coquelin",
+        "Francis Coquelin",
+        "CM",
+        35,
+        71,
+        75,
+        2.6
+      ],
+      [
+        "mamadou-samassa",
+        "Mamadou Samassa",
+        "GK",
+        36,
+        71,
+        72,
+        0.25
+      ],
+      [
+        "malik-sellouki",
+        "Malik Sellouki",
+        "CM",
+        26,
+        68,
+        73,
+        1.8
+      ],
+      [
+        "cyril-paul-mandouki",
+        "Cyril Paul Mandouki",
+        "CDM",
+        35,
+        68,
+        68,
+        0.5
+      ],
+      [
+        "jules-gaudin",
+        "Jules Gaudin",
+        "LB",
+        26,
+        68,
+        73,
+        1.6
+      ],
+      [
+        "sam-sanna",
+        "Sam Sanna",
+        "CM",
+        27,
+        68,
+        72,
+        1.8
+      ],
+      [
+        "julien-maggiotti",
+        "Julien Maggiotti",
+        "CAM",
+        31,
+        66,
+        67,
+        1
+      ],
+      [
+        "aboubacar-moustapha-lo",
+        "Aboubacar Moustapha Lô",
+        "CB",
+        26,
+        66,
+        71,
+        1
+      ],
+      [
+        "teddy-bouriaud",
+        "Teddy Bouriaud",
+        "CM",
+        29,
+        66,
+        66,
+        0.425
+      ],
+      [
+        "william-ludovic-brandon-bianda",
+        "William Ludovic Brandon Bianda",
+        "CB",
+        26,
+        64,
+        68,
+        0.725
+      ],
+      [
+        "aboubakary-kante",
+        "Aboubakary Kanté",
+        "ST",
+        32,
+        64,
+        65,
+        0.7000000000000001
+      ],
+      [
+        "sidi-bane",
+        "Sidi Bane",
+        "CB",
+        22,
+        64,
+        74,
+        1.2
+      ],
+      [
+        "ethan-clavreul",
+        "Ethan Clavreul",
+        "LM",
+        20,
+        63,
+        71,
+        0.35000000000000003
+      ],
+      [
+        "trevis-dago",
+        "Trévis Dago",
+        "ST",
+        21,
+        63,
+        74,
+        1.1
+      ],
+      [
+        "maxime-hautbois",
+        "Maxime Hautbois",
+        "GK",
+        35,
+        63,
+        63,
+        0.08
+      ],
+      [
+        "matteo-commaret",
+        "Mattéo Commaret",
+        "CB",
+        24,
+        62,
+        64,
+        0.3
+      ],
+      [
+        "corentin-fatou",
+        "Corentin Fatou",
+        "ST",
+        27,
+        62,
+        64,
+        0.425
+      ],
+      [
+        "aymeric-faurand-tournaire",
+        "Aymeric Faurand-Tournaire",
+        "ST",
+        22,
+        60,
+        72,
+        0.6
+      ],
+      [
+        "noa-grace-di-tshibalabala-mupemba",
+        "Noa-Grace Di-Tshibalabala Mupemba",
+        "ST",
+        24,
+        58,
+        65,
+        0.425
+      ],
+      [
+        "academy-cb-1",
+        "Laval MFC Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Laval MFC Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Laval MFC Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "fr2-as-nancy-lorraine",
+    "name": "AS Nancy Lorraine",
+    "color": "#cfe809",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "enzo-basilio",
+        "Enzo Basilio",
+        "GK",
+        31,
+        69,
+        71,
+        1.2
+      ],
+      [
+        "nordine-kandil",
+        "Nordine Kandil",
+        "LM",
+        24,
+        69,
+        77,
+        3.1
+      ],
+      [
+        "nicolas-saint-ruf",
+        "Nicolas Saint-Ruf",
+        "CB",
+        33,
+        69,
+        69,
+        0.47500000000000003
+      ],
+      [
+        "zakaria-fdaouch",
+        "Zakaria Fdaouch",
+        "LM",
+        29,
+        66,
+        66,
+        0.325
+      ],
+      [
+        "logan-ndenbe",
+        "Logan Ndenbe",
+        "LB",
+        26,
+        66,
+        70,
+        1.1
+      ],
+      [
+        "mamadou-fofana",
+        "Mamadou Fofana",
+        "CM",
+        26,
+        66,
+        70,
+        1.1
+      ],
+      [
+        "nehemiah-fernandez-veliz",
+        "Nehemiah Fernandez Veliz",
+        "CB",
+        21,
+        65,
+        71,
+        0.8250000000000001
+      ],
+      [
+        "walid-bouabdeli",
+        "Walid Bouabdeli",
+        "CAM",
+        26,
+        65,
+        70,
+        1.1
+      ],
+      [
+        "adrian-dabasse",
+        "Adrian Dabasse",
+        "ST",
+        33,
+        64,
+        66,
+        0.725
+      ],
+      [
+        "thierno-balde",
+        "Thierno Baldé",
+        "RB",
+        24,
+        64,
+        74,
+        1.8
+      ],
+      [
+        "elydjah-mendy",
+        "Elydjah Mendy",
+        "CB",
+        26,
+        64,
+        67,
+        0.45
+      ],
+      [
+        "brandon-bokangu",
+        "Brandon Bokangu",
+        "ST",
+        26,
+        63,
+        65,
+        0.525
+      ],
+      [
+        "yannis-nahounou",
+        "Yannis Nahounou",
+        "CB",
+        22,
+        63,
+        72,
+        0.8250000000000001
+      ],
+      [
+        "chafik-el-hansar",
+        "Chafik El Hansar",
+        "CDM",
+        21,
+        61,
+        67,
+        0.425
+      ],
+      [
+        "zakaria-ztouti",
+        "Zakaria Ztouti",
+        "ST",
+        19,
+        59,
+        70,
+        0.325
+      ],
+      [
+        "academy-gk-1",
+        "AS Nancy Lorraine Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "AS Nancy Lorraine Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "AS Nancy Lorraine Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "AS Nancy Lorraine Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-rb-5",
+        "AS Nancy Lorraine Academy RB 6",
+        "RB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cdm-6",
+        "AS Nancy Lorraine Academy CDM 7",
+        "CDM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cm-7",
+        "AS Nancy Lorraine Academy CM 8",
+        "CM",
+        18,
+        61,
+        72,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "fr2-us-boulogne",
+    "name": "US Boulogne",
+    "color": "#53e5f2",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "aurelien-platret",
+        "Aurélien Platret",
+        "RM",
+        23,
+        67,
+        70,
+        0.7000000000000001
+      ],
+      [
+        "joffrey-bultel",
+        "Joffrey Bultel",
+        "CDM",
+        26,
+        66,
+        68,
+        0.65
+      ],
+      [
+        "julien-boyer",
+        "Julien Boyer",
+        "LB",
+        28,
+        66,
+        66,
+        0.5750000000000001
+      ],
+      [
+        "demba-thiam",
+        "Demba Thiam",
+        "RB",
+        36,
+        66,
+        66,
+        0.13
+      ],
+      [
+        "nolan-binet",
+        "Nolan Binet",
+        "CM",
+        22,
+        65,
+        69,
+        0.7000000000000001
+      ],
+      [
+        "noah-fatar",
+        "Noah Fatar",
+        "RM",
+        24,
+        65,
+        68,
+        0.65
+      ],
+      [
+        "abdel-hbouch",
+        "Abdel Hbouch",
+        "LM",
+        27,
+        65,
+        65,
+        0.4
+      ],
+      [
+        "sonny-duflos",
+        "Sonny Duflos",
+        "CM",
+        31,
+        64,
+        64,
+        0.19
+      ],
+      [
+        "adrien-pinot",
+        "Adrien Pinot",
+        "CB",
+        25,
+        64,
+        65,
+        0.325
+      ],
+      [
+        "ibrahim-kone",
+        "Ibrahim Koné",
+        "GK",
+        36,
+        64,
+        64,
+        0.05
+      ],
+      [
+        "theo-epailly",
+        "Theo Epailly",
+        "LM",
+        27,
+        63,
+        63,
+        0.25
+      ],
+      [
+        "blondy-rudolph-nna-noukeu",
+        "Blondy Rudolph Nna Noukeu",
+        "GK",
+        25,
+        63,
+        65,
+        0.325
+      ],
+      [
+        "azamat-uriev",
+        "Azamat Uriev",
+        "GK",
+        22,
+        62,
+        66,
+        0.4
+      ],
+      [
+        "louis-siliadin",
+        "Louis Siliadin",
+        "LB",
+        24,
+        61,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "xavier-lenogue",
+        "Xavier Lenogue",
+        "GK",
+        29,
+        59,
+        62,
+        0.21
+      ],
+      [
+        "jonathan-kapenga",
+        "Jonathan Kapenga",
+        "CB",
+        22,
+        59,
+        67,
+        0.425
+      ],
+      [
+        "sohan-paillard",
+        "Sohan Paillard",
+        "RM",
+        22,
+        58,
+        67,
+        0.45
+      ],
+      [
+        "academy-cb-1",
+        "US Boulogne Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "US Boulogne Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "US Boulogne Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "US Boulogne Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "US Boulogne Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "fr2-usl-dunkerque",
+    "name": "USL Dunkerque",
+    "color": "#366c77",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "steven-nkemboanza-mike-christopher-nzonzi",
+        "Steven N'Kemboanza Mike Christopher Nzonzi",
+        "CDM",
+        37,
+        69,
+        72,
+        0.45
+      ],
+      [
+        "opa-sangante",
+        "Opa Sanganté",
+        "CB",
+        35,
+        69,
+        70,
+        0.525
+      ],
+      [
+        "thomas-robinet",
+        "Thomas Robinet",
+        "ST",
+        30,
+        69,
+        69,
+        0.85
+      ],
+      [
+        "lenny-vallier",
+        "Lenny Vallier",
+        "LB",
+        27,
+        67,
+        69,
+        1.2
+      ],
+      [
+        "maxence-andre-prevot",
+        "Maxence André Prévot",
+        "GK",
+        29,
+        66,
+        67,
+        0.725
+      ],
+      [
+        "allan-linguet",
+        "Allan Linguet",
+        "RB",
+        27,
+        66,
+        67,
+        0.725
+      ],
+      [
+        "adrien-lebeau",
+        "Adrien Lebeau",
+        "CAM",
+        27,
+        65,
+        70,
+        1.3
+      ],
+      [
+        "ousmane-toure",
+        "Ousmane Touré",
+        "CB",
+        21,
+        65,
+        77,
+        1.6
+      ],
+      [
+        "bram-lagae",
+        "Bram Lagae",
+        "CB",
+        22,
+        64,
+        73,
+        1.5
+      ],
+      [
+        "victor-mayela",
+        "Victor Mayela",
+        "CB",
+        22,
+        64,
+        74,
+        0.5750000000000001
+      ],
+      [
+        "thena-massock",
+        "Théna Massock",
+        "CDM",
+        19,
+        61,
+        79,
+        0.775
+      ],
+      [
+        "alex-daho",
+        "Alex Daho",
+        "LM",
+        22,
+        60,
+        71,
+        0.55
+      ],
+      [
+        "souleymane-keita",
+        "Souleymane Keita",
+        "LM",
+        20,
+        60,
+        69,
+        0.45
+      ],
+      [
+        "lenny-dziki",
+        "Lenny Dziki",
+        "RB",
+        21,
+        57,
+        66,
+        0.3
+      ],
+      [
+        "academy-gk-1",
+        "USL Dunkerque Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "USL Dunkerque Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "USL Dunkerque Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-lb-4",
+        "USL Dunkerque Academy LB 5",
+        "LB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-rb-5",
+        "USL Dunkerque Academy RB 6",
+        "RB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-cdm-6",
+        "USL Dunkerque Academy CDM 7",
+        "CDM",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cm-7",
+        "USL Dunkerque Academy CM 8",
+        "CM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cam-8",
+        "USL Dunkerque Academy CAM 9",
+        "CAM",
+        19,
+        62,
+        73,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "fr2-fc-sochaux-montbeliard",
+    "name": "FC Sochaux-Montbéliard",
+    "color": "#41d901",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "victor-lobry",
+        "Victor Lobry",
+        "CM",
+        31,
+        67,
+        67,
+        0.8250000000000001
+      ],
+      [
+        "mathis-clairicia",
+        "Mathis Clairicia",
+        "ST",
+        24,
+        66,
+        76,
+        2.3
+      ],
+      [
+        "dalangunypole-gomis",
+        "Dalangunypole Gomis",
+        "CB",
+        22,
+        61,
+        72,
+        0.8250000000000001
+      ],
+      [
+        "academy-gk-1",
+        "FC Sochaux-Montbéliard Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "FC Sochaux-Montbéliard Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "FC Sochaux-Montbéliard Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "FC Sochaux-Montbéliard Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "FC Sochaux-Montbéliard Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "FC Sochaux-Montbéliard Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "FC Sochaux-Montbéliard Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "FC Sochaux-Montbéliard Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "FC Sochaux-Montbéliard Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "FC Sochaux-Montbéliard Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "FC Sochaux-Montbéliard Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "FC Sochaux-Montbéliard Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-cb-16",
+        "FC Sochaux-Montbéliard Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "FC Sochaux-Montbéliard Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "FC Sochaux-Montbéliard Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "FC Sochaux-Montbéliard Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "FC Sochaux-Montbéliard Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "FC Sochaux-Montbéliard Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "FC Sochaux-Montbéliard Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "fr2-clermont-foot-63",
+    "name": "Clermont Foot 63",
+    "color": "#51dc7d",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "andy-joseph-pelmard",
+        "Andy Joseph Pelmard",
+        "CB",
+        26,
+        69,
+        75,
+        2.1
+      ],
+      [
+        "yoann-salmier",
+        "Yoann Salmier",
+        "CB",
+        33,
+        68,
+        69,
+        0.9
+      ],
+      [
+        "maidine-douane",
+        "Maïdine Douane",
+        "LM",
+        24,
+        67,
+        73,
+        1.6
+      ],
+      [
+        "theo-guivarch",
+        "Théo Guivarch",
+        "GK",
+        30,
+        66,
+        67,
+        0.65
+      ],
+      [
+        "ivan-adnan-joshua-mbahia",
+        "Ivan Adnan Joshua M'Bahia",
+        "CB",
+        21,
+        65,
+        70,
+        0.375
+      ],
+      [
+        "cheick-oumar-konate",
+        "Cheick Oumar Konaté",
+        "RB",
+        22,
+        65,
+        71,
+        1.1
+      ],
+      [
+        "massamba-ndiaye",
+        "Massamba N'Diaye",
+        "GK",
+        24,
+        65,
+        68,
+        0.75
+      ],
+      [
+        "allan-ackra",
+        "Allan Ackra",
+        "CDM",
+        22,
+        64,
+        69,
+        0.75
+      ],
+      [
+        "kenji-van-boto",
+        "Kenji-Van Boto",
+        "LB",
+        30,
+        64,
+        64,
+        0.525
+      ],
+      [
+        "abdellah-baallal",
+        "Abdellah Baallal",
+        "CM",
+        21,
+        64,
+        69,
+        0.45
+      ],
+      [
+        "ibrahim-moriba-coulibaly",
+        "Ibrahim Moriba Coulibaly",
+        "RB",
+        20,
+        63,
+        73,
+        0.55
+      ],
+      [
+        "ousmane-diop",
+        "Ousmane Diop",
+        "RM",
+        21,
+        63,
+        73,
+        1.1
+      ],
+      [
+        "adrien-hunou",
+        "Adrien Hunou",
+        "ST",
+        32,
+        63,
+        64,
+        0.5
+      ],
+      [
+        "enzo-cantero",
+        "Enzo Cantero",
+        "RM",
+        21,
+        61,
+        68,
+        0.5
+      ],
+      [
+        "yuliwes-bellache",
+        "Yuliwes Bellache",
+        "CAM",
+        23,
+        60,
+        69,
+        0.55
+      ],
+      [
+        "julien-astic",
+        "Julien Astic",
+        "CDM",
+        21,
+        59,
+        71,
+        0.525
+      ],
+      [
+        "stan-berkani",
+        "Stan Berkani",
+        "CDM",
+        23,
+        59,
+        64,
+        0.3
+      ],
+      [
+        "matys-donavin",
+        "Matys Donavin",
+        "CB",
+        19,
+        57,
+        73,
+        0.4
+      ],
+      [
+        "academy-cb-1",
+        "Clermont Foot 63 Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Clermont Foot 63 Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Clermont Foot 63 Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Clermont Foot 63 Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "fr2-dijon-football-cote-d-or",
+    "name": "Dijon Football Côte d’Or",
+    "color": "#bb68f5",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "academy-gk-1",
+        "Dijon Football Côte d’Or Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "Dijon Football Côte d’Or Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Dijon Football Côte d’Or Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "Dijon Football Côte d’Or Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "Dijon Football Côte d’Or Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "Dijon Football Côte d’Or Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "Dijon Football Côte d’Or Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "Dijon Football Côte d’Or Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "Dijon Football Côte d’Or Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "Dijon Football Côte d’Or Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "Dijon Football Côte d’Or Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "Dijon Football Côte d’Or Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-st-13",
+        "Dijon Football Côte d’Or Academy ST 13",
+        "ST",
+        18,
+        60,
+        77,
+        0.6
+      ],
+      [
+        "academy-lb-14",
+        "Dijon Football Côte d’Or Academy LB 14",
+        "LB",
+        18,
+        61,
+        78,
+        0.6
+      ],
+      [
+        "academy-rm-15",
+        "Dijon Football Côte d’Or Academy RM 15",
+        "RM",
+        18,
+        57,
+        79,
+        0.6
+      ],
+      [
+        "academy-cb-16",
+        "Dijon Football Côte d’Or Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "Dijon Football Côte d’Or Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "Dijon Football Côte d’Or Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "Dijon Football Côte d’Or Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "Dijon Football Côte d’Or Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "Dijon Football Côte d’Or Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "Dijon Football Côte d’Or Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  }
+];
+
+const RAW_BUNDES2CLUBS=[
+  {
+    "id": "de2-fc-schalke-04",
+    "name": "FC Schalke 04",
+    "color": "#b96274",
+    "budget": 15,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "robin-everardus-gosens",
+        "Robin Everardus Gosens",
+        "LB",
+        32,
+        78,
+        80,
+        18
+      ],
+      [
+        "edin-dzeko",
+        "Edin Džeko",
+        "ST",
+        40,
+        78,
+        81,
+        9
+      ],
+      [
+        "kenan-karaman",
+        "Kenan Karaman",
+        "CAM",
+        32,
+        74,
+        74,
+        2.5
+      ],
+      [
+        "loris-sven-karius",
+        "Loris Sven Karius",
+        "GK",
+        33,
+        74,
+        74,
+        0.8
+      ],
+      [
+        "soufiane-el-faouzi",
+        "Soufiane El-Faouzi",
+        "CM",
+        24,
+        73,
+        76,
+        2.3
+      ],
+      [
+        "dejan-ljubicic",
+        "Dejan Ljubičić",
+        "CM",
+        28,
+        73,
+        74,
+        3.5
+      ],
+      [
+        "maximilian-wober",
+        "Maximilian Wöber",
+        "CB",
+        28,
+        73,
+        76,
+        5.5
+      ],
+      [
+        "timo-becker",
+        "Timo Becker",
+        "RB",
+        29,
+        72,
+        72,
+        1.6
+      ],
+      [
+        "adil-aouchiche",
+        "Adil Aouchiche",
+        "CAM",
+        24,
+        72,
+        76,
+        2.7
+      ],
+      [
+        "hasan-kurucay",
+        "Hasan Kuruçay",
+        "CB",
+        29,
+        72,
+        72,
+        1.5
+      ],
+      [
+        "eric-junior-dina-ebimbe",
+        "Éric Junior Dina Ebimbe",
+        "LM",
+        25,
+        72,
+        76,
+        3.4
+      ],
+      [
+        "nikola-katic",
+        "Nikola Katić",
+        "CB",
+        29,
+        72,
+        72,
+        1.4
+      ],
+      [
+        "moussa-sylla",
+        "Moussa Sylla",
+        "ST",
+        26,
+        72,
+        77,
+        4.3
+      ],
+      [
+        "ron-schallenberg",
+        "Ron Schallenberg",
+        "CDM",
+        27,
+        71,
+        71,
+        1.4
+      ],
+      [
+        "chukwubuike-junior-adamu",
+        "Chukwubuike Junior Adamu",
+        "ST",
+        25,
+        70,
+        76,
+        2.9
+      ],
+      [
+        "kevin-muller",
+        "Kevin Müller",
+        "GK",
+        35,
+        70,
+        74,
+        0.725
+      ],
+      [
+        "finn-dominik-porath",
+        "Finn-Dominik Porath",
+        "RM",
+        29,
+        69,
+        72,
+        2.4
+      ],
+      [
+        "mertcan-ayhan",
+        "Mertcan Ayhan",
+        "CB",
+        20,
+        69,
+        77,
+        0.6
+      ],
+      [
+        "vitalie-becker",
+        "Vitalie Becker",
+        "LB",
+        21,
+        68,
+        74,
+        0.75
+      ],
+      [
+        "tomas-kalas",
+        "Tomáš Kalas",
+        "CB",
+        33,
+        68,
+        68,
+        0.775
+      ],
+      [
+        "bryan-lasme",
+        "Bryan Lasme",
+        "ST",
+        27,
+        67,
+        68,
+        1.1
+      ],
+      [
+        "adrian-tobias-gantenbein",
+        "Adrian Tobias Gantenbein",
+        "RB",
+        25,
+        67,
+        70,
+        1
+      ],
+      [
+        "janik-jay-bachmann",
+        "Janik Jay Bachmann",
+        "CDM",
+        30,
+        66,
+        66,
+        0.725
+      ],
+      [
+        "christian-pierre-louis-gomis",
+        "Christian Pierre Louis Gomis",
+        "ST",
+        26,
+        66,
+        67,
+        0.7000000000000001
+      ],
+      [
+        "max-gruger",
+        "Max Grüger",
+        "CDM",
+        21,
+        65,
+        75,
+        1.5
+      ],
+      [
+        "anton-leander-donkor",
+        "Anton-Leander Donkor",
+        "LB",
+        28,
+        64,
+        66,
+        0.8250000000000001
+      ],
+      [
+        "emil-winther-hjlund",
+        "Emil Winther Højlund",
+        "ST",
+        21,
+        61,
+        76,
+        0.8
+      ],
+      [
+        "johannes-siebeking",
+        "Johannes Siebeking",
+        "GK",
+        20,
+        59,
+        74,
+        0.47500000000000003
+      ],
+      [
+        "zaid-amoussou-tchibara",
+        "Zaid Amoussou-Tchibara",
+        "RW",
+        20,
+        58,
+        75,
+        0.525
+      ]
+    ]
+  },
+  {
+    "id": "de2-hertha-bsc",
+    "name": "Hertha BSC",
+    "color": "#48608d",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "josip-brekalo",
+        "Josip Brekalo",
+        "LM",
+        28,
+        73,
+        75,
+        6
+      ],
+      [
+        "paul-seguin",
+        "Paul Seguin",
+        "CDM",
+        31,
+        71,
+        71,
+        1.6
+      ],
+      [
+        "linus-jasper-gechter",
+        "Linus Jasper Gechter",
+        "CB",
+        22,
+        70,
+        78,
+        2.9
+      ],
+      [
+        "mads-giersing-valentin-pedersen",
+        "Mads Giersing Valentin Pedersen",
+        "LB",
+        30,
+        70,
+        72,
+        2.1
+      ],
+      [
+        "jon-dagur-thorsteinssonjon-dagur-orsteinsson",
+        "Jón Dagur ThorsteinssonJón Dagur Þorsteinsson",
+        "LW",
+        27,
+        70,
+        70,
+        1.6
+      ],
+      [
+        "marton-dardai",
+        "Márton Dárdai",
+        "CB",
+        24,
+        70,
+        76,
+        2.3
+      ],
+      [
+        "jan-luca-schuler",
+        "Jan-Luca Schuler",
+        "ST",
+        27,
+        69,
+        69,
+        1.1
+      ],
+      [
+        "deyovaisio-evan-zeefuik",
+        "Deyovaisio Evan Zeefuik",
+        "LB",
+        28,
+        69,
+        70,
+        1.5
+      ],
+      [
+        "leon-jensen",
+        "Leon Jensen",
+        "CM",
+        29,
+        68,
+        70,
+        1.6
+      ],
+      [
+        "niklas-kolbe",
+        "Niklas Kolbe",
+        "CB",
+        29,
+        68,
+        69,
+        1
+      ],
+      [
+        "farid-alfa-ruprecht",
+        "Farid Alfa-Ruprecht",
+        "RM",
+        20,
+        68,
+        80,
+        1.7
+      ],
+      [
+        "sebastian-grnning-andersen",
+        "Sebastian Grønning Andersen",
+        "ST",
+        29,
+        67,
+        68,
+        1.2
+      ],
+      [
+        "marius-gersbeck",
+        "Marius Gersbeck",
+        "GK",
+        31,
+        67,
+        68,
+        0.8
+      ],
+      [
+        "pascal-klemens",
+        "Pascal Klemens",
+        "CDM",
+        21,
+        67,
+        79,
+        2.5
+      ],
+      [
+        "julian-eitschberger",
+        "Julian Eitschberger",
+        "RB",
+        22,
+        67,
+        79,
+        2.5
+      ],
+      [
+        "kevin-simone-sessa",
+        "Kevin Simone Sessa",
+        "CM",
+        26,
+        67,
+        73,
+        1.8
+      ],
+      [
+        "gustav-rse-christensen",
+        "Gustav Ørsøe Christensen",
+        "LM",
+        22,
+        65,
+        74,
+        0.9500000000000001
+      ],
+      [
+        "konstantin-gunter-georg-heide",
+        "Konstantin Günter Georg Heide",
+        "GK",
+        20,
+        63,
+        77,
+        1
+      ],
+      [
+        "boris-chi-mamuzah-lum",
+        "Boris Chi Mamuzah Lum",
+        "CDM",
+        18,
+        62,
+        82,
+        0.75
+      ],
+      [
+        "tim-goller",
+        "Tim Goller",
+        "GK",
+        21,
+        60,
+        74,
+        0.47500000000000003
+      ],
+      [
+        "academy-cb-1",
+        "Hertha BSC Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Hertha BSC Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "de2-dusseldorf",
+    "name": "Düsseldorf",
+    "color": "#3a6787",
+    "budget": 8,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "dominique-heintz",
+        "Dominique Heintz",
+        "CB",
+        33,
+        71,
+        73,
+        2.1
+      ],
+      [
+        "jorrit-petrus-carolina-hendrix",
+        "Jorrit Petrus Carolina Hendrix",
+        "CDM",
+        31,
+        71,
+        72,
+        2
+      ],
+      [
+        "fabian-schleusener",
+        "Fabian Schleusener",
+        "ST",
+        34,
+        70,
+        70,
+        0.9
+      ],
+      [
+        "tim-christopher-oberdorf",
+        "Tim Christopher Oberdorf",
+        "CB",
+        30,
+        70,
+        72,
+        2
+      ],
+      [
+        "matthias-jurgen-zimmermann",
+        "Matthias Jürgen Zimmermann",
+        "RB",
+        34,
+        68,
+        71,
+        0.925
+      ],
+      [
+        "andreas-muller",
+        "Andreas Müller",
+        "CDM",
+        26,
+        68,
+        74,
+        2.1
+      ],
+      [
+        "philipp-forster",
+        "Philipp Förster",
+        "CAM",
+        31,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "elias-aboulguie-egouli",
+        "Elias Aboulguie Egouli",
+        "CB",
+        24,
+        67,
+        68,
+        0.525
+      ],
+      [
+        "lasse-finn-rie",
+        "Lasse Finn Rieß",
+        "GK",
+        25,
+        67,
+        74,
+        1.6
+      ],
+      [
+        "yassine-bouchama",
+        "Yassine Bouchama",
+        "CAM",
+        29,
+        67,
+        67,
+        0.725
+      ],
+      [
+        "eric-hottmann",
+        "Eric Hottmann",
+        "ST",
+        26,
+        66,
+        69,
+        0.875
+      ],
+      [
+        "marcel-benger",
+        "Marcel Benger",
+        "CDM",
+        28,
+        66,
+        69,
+        1.1
+      ],
+      [
+        "jomaine-ellay-consbruch",
+        "Jomaine Ellay Consbruch",
+        "CM",
+        24,
+        65,
+        74,
+        2
+      ],
+      [
+        "sascha-risch",
+        "Sascha Risch",
+        "LB",
+        26,
+        65,
+        68,
+        0.75
+      ],
+      [
+        "louis-sascha-lord",
+        "Louis Sascha Lord",
+        "GK",
+        22,
+        62,
+        73,
+        0.47500000000000003
+      ],
+      [
+        "felix-meiser",
+        "Felix Meiser",
+        "CB",
+        19,
+        60,
+        75,
+        0.525
+      ],
+      [
+        "kaden-nana-kwaku-attakora-amaniampong",
+        "Kaden Nana Kwaku Attakora Amaniampong",
+        "RB",
+        22,
+        60,
+        70,
+        0.7000000000000001
+      ],
+      [
+        "academy-cb-1",
+        "Düsseldorf Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Düsseldorf Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Düsseldorf Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-rb-4",
+        "Düsseldorf Academy RB 5",
+        "RB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-cdm-5",
+        "Düsseldorf Academy CDM 6",
+        "CDM",
+        18,
+        59,
+        78,
+        0.65
+      ]
+    ]
+  },
+  {
+    "id": "de2-sv-darmstadt-98",
+    "name": "SV Darmstadt 98",
+    "color": "#43660e",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "marcel-schuhen",
+        "Marcel Schuhen",
+        "GK",
+        33,
+        72,
+        72,
+        1.2
+      ],
+      [
+        "ho-jae-lee",
+        "Ho-jae Lee",
+        "ST",
+        25,
+        71,
+        76,
+        2.9
+      ],
+      [
+        "hiroki-akiyama",
+        "Hiroki Akiyama",
+        "CDM",
+        25,
+        71,
+        73,
+        1.7
+      ],
+      [
+        "kai-klefisch",
+        "Kai Klefisch",
+        "CDM",
+        26,
+        71,
+        75,
+        2.4
+      ],
+      [
+        "fabian-nurnberger",
+        "Fabian Nürnberger",
+        "LB",
+        27,
+        70,
+        72,
+        2.2
+      ],
+      [
+        "luca-marseiler",
+        "Luca Marseiler",
+        "LM",
+        29,
+        70,
+        70,
+        1.2
+      ],
+      [
+        "noah-raphael-weihaupt",
+        "Noah Raphael Weißhaupt",
+        "LM",
+        24,
+        70,
+        77,
+        4.4
+      ],
+      [
+        "patric-pfeiffer",
+        "Patric Pfeiffer",
+        "CB",
+        27,
+        70,
+        72,
+        1.5
+      ],
+      [
+        "aleksandar-vukotic",
+        "Aleksandar Vukotić",
+        "CB",
+        31,
+        70,
+        70,
+        1.3
+      ],
+      [
+        "milan-smit",
+        "Milan Smit",
+        "ST",
+        23,
+        68,
+        74,
+        1.9
+      ],
+      [
+        "matthias-bader",
+        "Matthias Bader",
+        "RB",
+        29,
+        68,
+        71,
+        1.7
+      ],
+      [
+        "lars-kehl",
+        "Lars Kehl",
+        "CAM",
+        24,
+        68,
+        74,
+        2.1
+      ],
+      [
+        "lance-duijvestijn",
+        "Lance Duijvestijn",
+        "CAM",
+        27,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "matondo-merveille-papela",
+        "Matondo-Merveille Papela",
+        "CM",
+        25,
+        67,
+        73,
+        1.6
+      ],
+      [
+        "christopher-lannert",
+        "Christopher Lannert",
+        "RB",
+        28,
+        67,
+        68,
+        1.1
+      ],
+      [
+        "raoul-petretta",
+        "Raoul Petretta",
+        "LB",
+        29,
+        66,
+        67,
+        0.925
+      ],
+      [
+        "florian-kleinhansl",
+        "Florian Kleinhansl",
+        "LB",
+        26,
+        66,
+        72,
+        1.4
+      ],
+      [
+        "carlo-sickinger",
+        "Carlo Sickinger",
+        "CDM",
+        29,
+        66,
+        69,
+        1.3
+      ],
+      [
+        "yosuke-furukawa",
+        "Yosuke Furukawa",
+        "LM",
+        23,
+        65,
+        69,
+        0.775
+      ],
+      [
+        "yannik-luka-luhrs",
+        "Yannik Luka Lührs",
+        "CB",
+        23,
+        65,
+        74,
+        1.2
+      ],
+      [
+        "fynn-luca-lakenmacher",
+        "Fynn-Luca Lakenmacher",
+        "ST",
+        26,
+        65,
+        69,
+        1
+      ],
+      [
+        "alexander-brunst-zollner",
+        "Alexander Brunst-Zöllner",
+        "GK",
+        31,
+        64,
+        67,
+        0.65
+      ],
+      [
+        "meldin-dreskovic",
+        "Meldin Dreskovic",
+        "CB",
+        28,
+        63,
+        66,
+        0.625
+      ],
+      [
+        "benedikt-borner",
+        "Benedikt Börner",
+        "GK",
+        20,
+        58,
+        74,
+        0.47500000000000003
+      ],
+      [
+        "max-pfister",
+        "Max Pfister",
+        "CB",
+        19,
+        55,
+        73,
+        0.3
+      ]
+    ]
+  },
+  {
+    "id": "de2-vfl-bochum-1848",
+    "name": "VfL Bochum 1848",
+    "color": "#37630d",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "timo-horn",
+        "Timo Horn",
+        "GK",
+        33,
+        73,
+        73,
+        1.5
+      ],
+      [
+        "philipp-hofmann",
+        "Philipp Hofmann",
+        "ST",
+        33,
+        72,
+        72,
+        1.9
+      ],
+      [
+        "maximilian-wittek",
+        "Maximilian Wittek",
+        "LB",
+        31,
+        72,
+        73,
+        2.7
+      ],
+      [
+        "karol-mets",
+        "Karol Mets",
+        "CB",
+        33,
+        71,
+        71,
+        1
+      ],
+      [
+        "oliver-olsen",
+        "Oliver Olsen",
+        "RB",
+        26,
+        70,
+        73,
+        1.9
+      ],
+      [
+        "philipp-strompf",
+        "Philipp Strompf",
+        "CB",
+        28,
+        70,
+        71,
+        1.5
+      ],
+      [
+        "gerrit-stephan-barba-holtmann",
+        "Gerrit Stephan Barba Holtmann",
+        "LM",
+        31,
+        70,
+        70,
+        1.5
+      ],
+      [
+        "berkan-taz",
+        "Berkan Taz",
+        "CAM",
+        27,
+        70,
+        71,
+        1.6
+      ],
+      [
+        "koji-miyoshi",
+        "Koji Miyoshi",
+        "RM",
+        29,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "ibrahim-sissoko",
+        "Ibrahim Sissoko",
+        "ST",
+        30,
+        69,
+        72,
+        2.3
+      ],
+      [
+        "daniel-patrick-hanslik",
+        "Daniel Patrick Hanslik",
+        "ST",
+        29,
+        69,
+        69,
+        1.4
+      ],
+      [
+        "michael-steinwender",
+        "Michael Steinwender",
+        "CB",
+        26,
+        68,
+        73,
+        1.4
+      ],
+      [
+        "mats-henry-pannewig",
+        "Mats Henry Pannewig",
+        "CM",
+        21,
+        68,
+        75,
+        1.3
+      ],
+      [
+        "jean-manuel-mbom",
+        "Jean-Manuel Mbom",
+        "RB",
+        26,
+        67,
+        74,
+        1.9
+      ],
+      [
+        "christian-theodor-kjelder-rasmussen",
+        "Christian Theodor Kjelder Rasmussen",
+        "RM",
+        23,
+        67,
+        74,
+        1.9
+      ],
+      [
+        "mikkel-rakneberg",
+        "Mikkel Rakneberg",
+        "LB",
+        24,
+        65,
+        72,
+        1
+      ],
+      [
+        "mansour-ouro-tagba",
+        "Mansour Ouro-Tagba",
+        "ST",
+        21,
+        65,
+        75,
+        0.8
+      ],
+      [
+        "yigit-karademir",
+        "Yiğit Karademir",
+        "CB",
+        22,
+        63,
+        74,
+        0.925
+      ],
+      [
+        "hugo-johannes-walter-rolleke",
+        "Hugo Johannes Walter Rölleke",
+        "GK",
+        21,
+        60,
+        75,
+        0.525
+      ],
+      [
+        "alessandro-crimaldi",
+        "Alessandro Crimaldi",
+        "LW",
+        18,
+        60,
+        73,
+        0.525
+      ],
+      [
+        "academy-cb-1",
+        "VfL Bochum 1848 Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "VfL Bochum 1848 Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "de2-holstein-kiel",
+    "name": "Holstein Kiel",
+    "color": "#3861fe",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "jonas-meffert",
+        "Jonas Meffert",
+        "CDM",
+        32,
+        71,
+        72,
+        2
+      ],
+      [
+        "john-michael-tolkin",
+        "John Michael Tolkin",
+        "LB",
+        24,
+        71,
+        80,
+        4
+      ],
+      [
+        "david-zec",
+        "David Zec",
+        "CB",
+        26,
+        71,
+        76,
+        2.5
+      ],
+      [
+        "steven-skrzybski",
+        "Steven Skrzybski",
+        "CAM",
+        33,
+        70,
+        72,
+        1.9
+      ],
+      [
+        "phil-harres",
+        "Phil Harres",
+        "ST",
+        24,
+        70,
+        74,
+        2.1
+      ],
+      [
+        "adrian-kapralik",
+        "Adrián Kaprálik",
+        "RM",
+        24,
+        69,
+        74,
+        1.9
+      ],
+      [
+        "jonas-torrissen-therkelsen",
+        "Jonas Torrissen Therkelsen",
+        "CAM",
+        23,
+        69,
+        77,
+        1.9
+      ],
+      [
+        "ivan-nekic",
+        "Ivan Nekić",
+        "CB",
+        25,
+        68,
+        73,
+        1.6
+      ],
+      [
+        "timon-moritz-weiner",
+        "Timon Moritz Weiner",
+        "GK",
+        27,
+        68,
+        72,
+        1.4
+      ],
+      [
+        "marko-ivezic",
+        "Marko Ivezić",
+        "CB",
+        24,
+        68,
+        74,
+        1.7
+      ],
+      [
+        "kasper-stie-davidsen",
+        "Kasper Stie Davidsen",
+        "CDM",
+        21,
+        68,
+        77,
+        1.1
+      ],
+      [
+        "hiroki-sekine",
+        "Hiroki Sekine",
+        "RB",
+        24,
+        68,
+        78,
+        3.6
+      ],
+      [
+        "lasse-rosenboom",
+        "Lasse Rosenboom",
+        "RB",
+        24,
+        68,
+        74,
+        2
+      ],
+      [
+        "gyan-de-regt",
+        "Gyan de Regt",
+        "LW",
+        23,
+        67,
+        74,
+        1.6
+      ],
+      [
+        "faride-alidou",
+        "Faride Alidou",
+        "RM",
+        25,
+        66,
+        73,
+        1.6
+      ],
+      [
+        "taisei-abe",
+        "Taisei Abe",
+        "CDM",
+        22,
+        65,
+        68,
+        0.625
+      ],
+      [
+        "andu-yobel-kelati",
+        "Andu Yobel Kelati",
+        "CAM",
+        24,
+        65,
+        72,
+        1.3
+      ],
+      [
+        "frederik-roslyng",
+        "Frederik Roslyng",
+        "CB",
+        20,
+        64,
+        76,
+        1.1
+      ],
+      [
+        "marcus-muller",
+        "Marcus Müller",
+        "ST",
+        24,
+        63,
+        70,
+        0.9
+      ],
+      [
+        "marcel-engelhardt",
+        "Marcel Engelhardt",
+        "GK",
+        33,
+        63,
+        64,
+        0.3
+      ],
+      [
+        "hamza-muqaj",
+        "Hamza Muqaj",
+        "CM",
+        20,
+        61,
+        74,
+        0.775
+      ],
+      [
+        "lio-mark-rothenhagen",
+        "Lio Mark Rothenhagen",
+        "GK",
+        20,
+        60,
+        73,
+        0.375
+      ],
+      [
+        "leon-parduzi",
+        "Leon Parduzi",
+        "LB",
+        19,
+        59,
+        73,
+        0.5
+      ]
+    ]
+  },
+  {
+    "id": "de2-karlsruher-sc",
+    "name": "Karlsruher SC",
+    "color": "#54617e",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "marvin-wanitzek",
+        "Marvin Wanitzek",
+        "CM",
+        33,
+        75,
+        76,
+        6
+      ],
+      [
+        "marcel-franke",
+        "Marcel Franke",
+        "CB",
+        33,
+        70,
+        71,
+        1.2
+      ],
+      [
+        "christoph-kobald",
+        "Christoph Kobald",
+        "CB",
+        29,
+        70,
+        70,
+        1.1
+      ],
+      [
+        "moritz-broschinski",
+        "Moritz Broschinski",
+        "ST",
+        25,
+        69,
+        73,
+        2
+      ],
+      [
+        "sebastian-alexander-jung",
+        "Sebastian Alexander Jung",
+        "RB",
+        36,
+        69,
+        70,
+        0.5
+      ],
+      [
+        "louey-ben-farhat",
+        "Louey Ben Farhat",
+        "ST",
+        20,
+        68,
+        81,
+        1.5
+      ],
+      [
+        "rafael-pinto-pedrosa",
+        "Rafael Pinto Pedrosa",
+        "RB",
+        18,
+        68,
+        80,
+        1.4
+      ],
+      [
+        "hans-christian-bernat",
+        "Hans Christian Bernat",
+        "GK",
+        25,
+        68,
+        73,
+        1.4
+      ],
+      [
+        "hyeok-kyu-kwon",
+        "Hyeok-kyu Kwon",
+        "CDM",
+        25,
+        67,
+        74,
+        1.9
+      ],
+      [
+        "viktor-bergh",
+        "Viktor Bergh",
+        "LB",
+        27,
+        67,
+        67,
+        0.725
+      ],
+      [
+        "lilian-niclas-egloff",
+        "Lilian Niclas Egloff",
+        "CM",
+        24,
+        67,
+        73,
+        1.6
+      ],
+      [
+        "noel-eichinger",
+        "Noel Eichinger",
+        "CAM",
+        25,
+        67,
+        68,
+        0.675
+      ],
+      [
+        "tim-civeja",
+        "Tim Civeja",
+        "CM",
+        24,
+        67,
+        71,
+        1.1
+      ],
+      [
+        "shio-fukuda",
+        "Shio Fukuda",
+        "ST",
+        22,
+        66,
+        76,
+        1.4
+      ],
+      [
+        "robin-himmelmann",
+        "Robin Himmelmann",
+        "GK",
+        37,
+        65,
+        66,
+        0.09
+      ],
+      [
+        "paul-scholl",
+        "Paul Scholl",
+        "CB",
+        20,
+        65,
+        78,
+        0.55
+      ],
+      [
+        "santeri-vaananen",
+        "Santeri Väänänen",
+        "CM",
+        24,
+        65,
+        74,
+        1.9
+      ],
+      [
+        "kevin-wiethaup",
+        "Kevin Wiethaup",
+        "CM",
+        21,
+        63,
+        76,
+        0.5750000000000001
+      ],
+      [
+        "marc-niclas-duhring",
+        "Marc Niclas Dühring",
+        "LB",
+        22,
+        60,
+        70,
+        0.525
+      ],
+      [
+        "academy-cb-1",
+        "Karlsruher SC Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Karlsruher SC Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-lb-3",
+        "Karlsruher SC Academy LB 4",
+        "LB",
+        18,
+        62,
+        76,
+        1.1
+      ]
+    ]
+  },
+  {
+    "id": "de2-1-fc-nurnberg",
+    "name": "1. FC Nürnberg",
+    "color": "#cfddff",
+    "budget": 9,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "julian-justvan",
+        "Julian Justvan",
+        "CAM",
+        28,
+        73,
+        74,
+        3.5
+      ],
+      [
+        "mohamed-ali-zoma",
+        "Mohamed Alì Zoma",
+        "ST",
+        22,
+        72,
+        74,
+        1.9
+      ],
+      [
+        "finn-ole-becker",
+        "Finn Ole Becker",
+        "CM",
+        26,
+        72,
+        75,
+        3.1
+      ],
+      [
+        "adam-markhiev",
+        "Adam Markhiev",
+        "CDM",
+        24,
+        71,
+        74,
+        2
+      ],
+      [
+        "rafael-lubach",
+        "Rafael Lubach",
+        "CM",
+        21,
+        70,
+        77,
+        2.6
+      ],
+      [
+        "jan-reichert",
+        "Jan Reichert",
+        "GK",
+        25,
+        70,
+        74,
+        1.7
+      ],
+      [
+        "rayan-ghrieb",
+        "Rayan Ghrieb",
+        "RW",
+        27,
+        68,
+        69,
+        1.4
+      ],
+      [
+        "alexios-kalogeropoulos",
+        "Alexios Kalogeropoulos",
+        "CB",
+        22,
+        68,
+        82,
+        2.7
+      ],
+      [
+        "christian-mathenia",
+        "Christian Mathenia",
+        "GK",
+        34,
+        67,
+        67,
+        0.325
+      ],
+      [
+        "fynn-otto",
+        "Fynn Otto",
+        "CB",
+        24,
+        67,
+        71,
+        1
+      ],
+      [
+        "sigurd-hauso-haugen",
+        "Sigurd Hauso Haugen",
+        "ST",
+        29,
+        67,
+        67,
+        0.925
+      ],
+      [
+        "mikayil-ngor-faye",
+        "Mikayil Ngor Faye",
+        "CB",
+        22,
+        67,
+        82,
+        2.7
+      ],
+      [
+        "adriano-grimaldi",
+        "Adriano Grimaldi",
+        "ST",
+        35,
+        66,
+        68,
+        0.5750000000000001
+      ],
+      [
+        "tim-janisch",
+        "Tim Janisch",
+        "RB",
+        21,
+        66,
+        77,
+        1.8
+      ],
+      [
+        "piet-lasse-scobel",
+        "Piet Lasse Scobel",
+        "ST",
+        21,
+        64,
+        73,
+        0.6
+      ],
+      [
+        "can-yahya-moustfa",
+        "Can Yahya Moustfa",
+        "LW",
+        21,
+        62,
+        69,
+        0.25
+      ],
+      [
+        "justin-kai-von-der-hitz",
+        "Justin-Kai von der Hitz",
+        "RB",
+        19,
+        62,
+        82,
+        0.775
+      ],
+      [
+        "winners-mark-osawe",
+        "Winners Mark Osawe",
+        "CDM",
+        19,
+        61,
+        77,
+        0.8
+      ],
+      [
+        "eric-porstner",
+        "Eric Porstner",
+        "LB",
+        19,
+        61,
+        72,
+        0.375
+      ],
+      [
+        "robin-lisewski",
+        "Robin Lisewski",
+        "GK",
+        20,
+        58,
+        74,
+        0.47500000000000003
+      ],
+      [
+        "kristian-mandic",
+        "Kristian Mandić",
+        "CB",
+        18,
+        57,
+        79,
+        0.5
+      ],
+      [
+        "academy-cb-1",
+        "1. FC Nürnberg Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ]
+    ]
+  },
+  {
+    "id": "de2-hannover-96",
+    "name": "Hannover 96",
+    "color": "#cdd88d",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "marcel-hartel",
+        "Marcel Hartel",
+        "CAM",
+        30,
+        76,
+        76,
+        5.5
+      ],
+      [
+        "benjamin-kallman",
+        "Benjamin Källman",
+        "ST",
+        28,
+        72,
+        73,
+        2.7
+      ],
+      [
+        "maurice-neubauer",
+        "Maurice Neubauer",
+        "LB",
+        30,
+        72,
+        73,
+        2.7
+      ],
+      [
+        "pascal-david-loretz",
+        "Pascal David Loretz",
+        "GK",
+        23,
+        72,
+        82,
+        4.6
+      ],
+      [
+        "boris-tomiak",
+        "Boris Tomiak",
+        "CB",
+        28,
+        71,
+        74,
+        2.2
+      ],
+      [
+        "lars-timo-gindorf",
+        "Lars Timo Gindorf",
+        "CAM",
+        25,
+        70,
+        72,
+        1.6
+      ],
+      [
+        "virgil-eugen-ghita",
+        "Virgil Eugen Ghiță",
+        "CB",
+        28,
+        70,
+        72,
+        1.7
+      ],
+      [
+        "stefan-teitur-thordarsonstefan-teitur-orarson",
+        "Stefán Teitur ThórdarsonStefán Teitur Þórðarson",
+        "CM",
+        27,
+        70,
+        72,
+        1.8
+      ],
+      [
+        "mustapha-bundu-shong-hames",
+        "Mustapha Bundu Shong Hames",
+        "RW",
+        29,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "kolja-nuno-oudenne",
+        "Kolja Nuno Oudenne",
+        "LM",
+        24,
+        69,
+        72,
+        1.4
+      ],
+      [
+        "jean-hugonet",
+        "Jean Hugonet",
+        "CB",
+        26,
+        69,
+        74,
+        2.2
+      ],
+      [
+        "ime-okon",
+        "Ime Okon",
+        "CB",
+        22,
+        68,
+        74,
+        1.9
+      ],
+      [
+        "waniss-taibi",
+        "Waniss Taïbi",
+        "CM",
+        24,
+        68,
+        76,
+        2.8
+      ],
+      [
+        "benedikt-pichler",
+        "Benedikt Pichler",
+        "ST",
+        29,
+        68,
+        68,
+        1.3
+      ],
+      [
+        "bastian-allgeier",
+        "Bastian Allgeier",
+        "CB",
+        24,
+        67,
+        74,
+        1.9
+      ],
+      [
+        "husseyn-chakroun",
+        "Husseyn Chakroun",
+        "LW",
+        21,
+        67,
+        76,
+        1.4
+      ],
+      [
+        "hayate-matsuda",
+        "Hayate Matsuda",
+        "RM",
+        22,
+        67,
+        73,
+        1
+      ],
+      [
+        "leo-weinkauf",
+        "Leo Weinkauf",
+        "GK",
+        30,
+        66,
+        67,
+        0.675
+      ],
+      [
+        "franz-roggow",
+        "Franz Roggow",
+        "CDM",
+        24,
+        65,
+        75,
+        1.8
+      ],
+      [
+        "denis-husser",
+        "Denis Husser",
+        "ST",
+        18,
+        58,
+        77,
+        0.45
+      ],
+      [
+        "jonas-schwanke",
+        "Jonas Schwanke",
+        "GK",
+        19,
+        57,
+        72,
+        0.325
+      ],
+      [
+        "taycan-kurt",
+        "Taycan Kurt",
+        "LW",
+        18,
+        55,
+        75,
+        0.35000000000000003
+      ]
+    ]
+  },
+  {
+    "id": "de2-sc-paderborn-07",
+    "name": "SC Paderborn 07",
+    "color": "#ced6f8",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "felix-gotze",
+        "Felix Götze",
+        "CB",
+        28,
+        72,
+        73,
+        2.4
+      ],
+      [
+        "raphael-sanchez-obermair",
+        "Raphael Sanchez Obermair",
+        "LM",
+        30,
+        72,
+        72,
+        2.3
+      ],
+      [
+        "laurin-curda",
+        "Laurin Curda",
+        "RM",
+        24,
+        72,
+        73,
+        1.6
+      ],
+      [
+        "tjark-lasse-scheller",
+        "Tjark Lasse Scheller",
+        "CB",
+        24,
+        71,
+        75,
+        2.2
+      ],
+      [
+        "laurin-ulrich",
+        "Laurin Ulrich",
+        "CM",
+        21,
+        71,
+        80,
+        1.7
+      ],
+      [
+        "santiago-castaneda",
+        "Santiago Castaneda",
+        "CDM",
+        21,
+        70,
+        78,
+        2.6
+      ],
+      [
+        "oliver-batista-meier",
+        "Oliver Batista Meier",
+        "CAM",
+        25,
+        70,
+        75,
+        2.4
+      ],
+      [
+        "mattes-hansen",
+        "Mattes Hansen",
+        "CB",
+        22,
+        69,
+        76,
+        2.2
+      ],
+      [
+        "nahuel-nicolas-noll",
+        "Nahuel Nicolas Noll",
+        "GK",
+        23,
+        69,
+        73,
+        1.3
+      ],
+      [
+        "gabriel-vidovic",
+        "Gabriel Vidović",
+        "LM",
+        22,
+        68,
+        78,
+        2.7
+      ],
+      [
+        "steffen-tigges",
+        "Steffen Tigges",
+        "ST",
+        28,
+        68,
+        68,
+        1.2
+      ],
+      [
+        "deniz-zeitler",
+        "Deniz Zeitler",
+        "ST",
+        19,
+        68,
+        78,
+        1.1
+      ],
+      [
+        "sebastian-reinhard-klaas",
+        "Sebastian Reinhard Klaas",
+        "CM",
+        28,
+        68,
+        68,
+        0.975
+      ],
+      [
+        "jano-ter-horst",
+        "Jano ter Horst",
+        "RB",
+        24,
+        68,
+        73,
+        1.5
+      ],
+      [
+        "luka-uric",
+        "Luka Đurić",
+        "CM",
+        23,
+        67,
+        68,
+        0.675
+      ],
+      [
+        "stefano-marino",
+        "Stefano Marino",
+        "ST",
+        22,
+        67,
+        71,
+        0.55
+      ],
+      [
+        "nyamekye-awortwie-grant",
+        "Nyamekye Awortwie-Grant",
+        "CB",
+        26,
+        67,
+        67,
+        0.325
+      ],
+      [
+        "tom-baack",
+        "Tom Baack",
+        "CM",
+        27,
+        67,
+        71,
+        1.6
+      ],
+      [
+        "marcel-hoffmeier",
+        "Marcel Hoffmeier",
+        "CB",
+        27,
+        67,
+        71,
+        1.3
+      ],
+      [
+        "nick-batzner",
+        "Nick Bätzner",
+        "CAM",
+        26,
+        67,
+        70,
+        1.3
+      ],
+      [
+        "timur-gayret",
+        "Timur Gayret",
+        "CM",
+        28,
+        67,
+        67,
+        0.8250000000000001
+      ],
+      [
+        "ruben-muller",
+        "Ruben Müller",
+        "CAM",
+        21,
+        67,
+        67,
+        0.47500000000000003
+      ],
+      [
+        "sven-michel",
+        "Sven Michel",
+        "ST",
+        36,
+        67,
+        69,
+        0.675
+      ],
+      [
+        "jonah-benedict-sticker",
+        "Jonah Benedict Sticker",
+        "LB",
+        22,
+        66,
+        73,
+        1
+      ],
+      [
+        "kennedy-onyedika-okpala",
+        "Kennedy Onyedika Okpala",
+        "ST",
+        21,
+        65,
+        76,
+        0.975
+      ],
+      [
+        "tristan-zobel",
+        "Tristan Zobel",
+        "CB",
+        22,
+        65,
+        70,
+        0.525
+      ],
+      [
+        "markus-schubert",
+        "Markus Schubert",
+        "GK",
+        28,
+        65,
+        69,
+        0.75
+      ],
+      [
+        "clemens-lippmann",
+        "Clemens Lippmann",
+        "RB",
+        20,
+        65,
+        65,
+        0.21
+      ],
+      [
+        "florian-pruhs",
+        "Florian Pruhs",
+        "GK",
+        20,
+        60,
+        73,
+        0.23
+      ]
+    ]
+  },
+  {
+    "id": "de2-1-fc-magdeburg",
+    "name": "1. FC Magdeburg",
+    "color": "#4be3f8",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "bars-fahri-atik",
+        "Barış Fahri Atik",
+        "LW",
+        31,
+        73,
+        73,
+        2.3
+      ],
+      [
+        "mateusz-zukowski",
+        "Mateusz Żukowski",
+        "ST",
+        24,
+        72,
+        72,
+        0.925
+      ],
+      [
+        "alexander-nollenberger",
+        "Alexander Nollenberger",
+        "LM",
+        29,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "dominik-reimann",
+        "Dominik Reimann",
+        "GK",
+        29,
+        68,
+        70,
+        1.1
+      ],
+      [
+        "tobias-muller",
+        "Tobias Müller",
+        "CB",
+        32,
+        68,
+        68,
+        1
+      ],
+      [
+        "falko-michel",
+        "Falko Michel",
+        "CDM",
+        25,
+        68,
+        71,
+        1.3
+      ],
+      [
+        "emmanuel-iyoha",
+        "Emmanuel Iyoha",
+        "LM",
+        28,
+        68,
+        69,
+        1.3
+      ],
+      [
+        "lubambo-musonda",
+        "Lubambo Musonda",
+        "RM",
+        31,
+        68,
+        68,
+        1.2
+      ],
+      [
+        "herbert-bockhorn",
+        "Herbert Bockhorn",
+        "RB",
+        31,
+        68,
+        69,
+        1.2
+      ],
+      [
+        "paul-jaeckel",
+        "Paul Jaeckel",
+        "CB",
+        28,
+        68,
+        71,
+        1.5
+      ],
+      [
+        "torben-musel",
+        "Torben Müsel",
+        "CM",
+        27,
+        67,
+        67,
+        0.775
+      ],
+      [
+        "daniel-heber",
+        "Daniel Heber",
+        "CB",
+        32,
+        67,
+        68,
+        1
+      ],
+      [
+        "moritz-broni-kwarteng",
+        "Moritz-Broni Kwarteng",
+        "RW",
+        28,
+        67,
+        69,
+        1.5
+      ],
+      [
+        "roko-simic",
+        "Roko Šimić",
+        "ST",
+        23,
+        67,
+        77,
+        2.3
+      ],
+      [
+        "anselmo-garcia-macnulty",
+        "Anselmo García MacNulty",
+        "CB",
+        23,
+        67,
+        81,
+        2.8
+      ],
+      [
+        "luka-mikael-hyrylainen",
+        "Luka-Mikael Hyryläinen",
+        "CDM",
+        22,
+        66,
+        76,
+        1.8
+      ],
+      [
+        "richmond-tachie",
+        "Richmond Tachie",
+        "ST",
+        27,
+        66,
+        70,
+        1.3
+      ],
+      [
+        "pierre-nadjombe",
+        "Pierre Nadjombe",
+        "RB",
+        23,
+        65,
+        74,
+        1
+      ],
+      [
+        "do-young-yun",
+        "Do-young Yun",
+        "RM",
+        19,
+        63,
+        77,
+        1.1
+      ],
+      [
+        "noah-kruth",
+        "Noah Kruth",
+        "GK",
+        23,
+        62,
+        69,
+        0.7000000000000001
+      ],
+      [
+        "magnus-elias-walther-baars",
+        "Magnus Elias Walther Baars",
+        "LW",
+        19,
+        61,
+        71,
+        0.525
+      ],
+      [
+        "eldin-dzogovic",
+        "Eldin Dzogovic",
+        "RB",
+        23,
+        61,
+        71,
+        0.525
+      ],
+      [
+        "tarek-chahed",
+        "Tarek Chahed",
+        "RB",
+        30,
+        60,
+        60,
+        0.22
+      ],
+      [
+        "robert-kampa",
+        "Robert Kampa",
+        "GK",
+        21,
+        57,
+        69,
+        0.35000000000000003
+      ]
+    ]
+  },
+  {
+    "id": "de2-sv-elversberg",
+    "name": "SV Elversberg",
+    "color": "#4a6289",
+    "budget": 13,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "noel-futkeu",
+        "Noel Futkeu",
+        "ST",
+        23,
+        73,
+        77,
+        3.3
+      ],
+      [
+        "lukas-emanuel-petkov",
+        "Lukas Emanuel Petkov",
+        "RM",
+        25,
+        73,
+        76,
+        2.5
+      ],
+      [
+        "luca-sirch",
+        "Luca Sirch",
+        "CB",
+        27,
+        72,
+        76,
+        2.4
+      ],
+      [
+        "nicolas-kristof",
+        "Nicolas Kristof",
+        "GK",
+        26,
+        72,
+        74,
+        1.9
+      ],
+      [
+        "maximilian-rohr",
+        "Maximilian Rohr",
+        "CB",
+        31,
+        71,
+        71,
+        1
+      ],
+      [
+        "ukasz-poreba",
+        "Łukasz Poręba",
+        "CDM",
+        26,
+        71,
+        73,
+        1.8
+      ],
+      [
+        "lukas-finn-pinckert",
+        "Lukas Finn Pinckert",
+        "CB",
+        26,
+        71,
+        72,
+        1.8
+      ],
+      [
+        "tom-zimmerschied",
+        "Tom Zimmerschied",
+        "LM",
+        27,
+        71,
+        71,
+        1.5
+      ],
+      [
+        "lasse-gunther",
+        "Lasse Günther",
+        "LB",
+        23,
+        70,
+        75,
+        2.2
+      ],
+      [
+        "francis-ikechukwu-onyeka",
+        "Francis-Ikechukwu Onyeka",
+        "CAM",
+        19,
+        70,
+        83,
+        0.775
+      ],
+      [
+        "amara-conde",
+        "Amara Condé",
+        "CDM",
+        29,
+        69,
+        69,
+        1
+      ],
+      [
+        "florian-yves-le-joncour",
+        "Florian Yves Le Joncour",
+        "CB",
+        31,
+        69,
+        69,
+        1.1
+      ],
+      [
+        "jan-kwasi-gyamerah",
+        "Jan Kwasi Gyamerah",
+        "RB",
+        31,
+        69,
+        69,
+        1
+      ],
+      [
+        "maurice-krattenmacher",
+        "Maurice Krattenmacher",
+        "CAM",
+        21,
+        68,
+        83,
+        3.3
+      ],
+      [
+        "felix-keidel",
+        "Felix Keidel",
+        "LB",
+        23,
+        68,
+        74,
+        1.8
+      ],
+      [
+        "luca-pascal-schnellbacher",
+        "Luca Pascal Schnellbacher",
+        "ST",
+        32,
+        67,
+        69,
+        1.2
+      ],
+      [
+        "david-mokwa-ngabi-ntusu",
+        "David Mokwa Ngabi Ntusu",
+        "ST",
+        22,
+        67,
+        72,
+        1.3
+      ],
+      [
+        "william-cole-campbell",
+        "William Cole Campbell",
+        "RM",
+        20,
+        67,
+        82,
+        2.4
+      ],
+      [
+        "jason-ceka",
+        "Jason Ceka",
+        "RM",
+        26,
+        67,
+        68,
+        0.9500000000000001
+      ],
+      [
+        "noah-yanis-darvich",
+        "Noah Yanis Darvich",
+        "RM",
+        19,
+        67,
+        82,
+        1.1
+      ],
+      [
+        "julius-frederik-schmahl",
+        "Julius Frederik Schmahl",
+        "CM",
+        23,
+        67,
+        74,
+        2.1
+      ],
+      [
+        "nicholas-mickelson",
+        "Nicholas Mickelson ู ่ ิ ั ่ ิ ิ ั",
+        "LB",
+        27,
+        66,
+        66,
+        0.5750000000000001
+      ],
+      [
+        "luca-pfeiffer",
+        "Luca Pfeiffer",
+        "ST",
+        30,
+        66,
+        67,
+        1
+      ],
+      [
+        "tim-boss",
+        "Tim Boss",
+        "GK",
+        33,
+        64,
+        64,
+        0.3
+      ],
+      [
+        "frank-lehmann",
+        "Frank Lehmann",
+        "GK",
+        37,
+        61,
+        61,
+        0.035
+      ],
+      [
+        "luis-seifert",
+        "Luis Seifert",
+        "CB",
+        22,
+        58,
+        73,
+        0.47500000000000003
+      ]
+    ]
+  },
+  {
+    "id": "de2-braunschweig",
+    "name": "Braunschweig",
+    "color": "#37690a",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "ron-thorben-hoffmann",
+        "Ron-Thorben Hoffmann",
+        "GK",
+        27,
+        72,
+        75,
+        2
+      ],
+      [
+        "maximilian-entrup",
+        "Maximilian Entrup",
+        "ST",
+        29,
+        69,
+        72,
+        2.5
+      ],
+      [
+        "kevin-ehlers",
+        "Kevin Ehlers",
+        "CB",
+        25,
+        69,
+        74,
+        1.9
+      ],
+      [
+        "mehmet-can-aydn",
+        "Mehmet Can Aydın",
+        "RB",
+        24,
+        69,
+        71,
+        1.2
+      ],
+      [
+        "lino-tempelmann",
+        "Lino Tempelmann",
+        "CM",
+        27,
+        69,
+        73,
+        2.3
+      ],
+      [
+        "max-marie",
+        "Max Marie",
+        "CM",
+        21,
+        68,
+        75,
+        1.2
+      ],
+      [
+        "robin-heuer",
+        "Robin Heußer",
+        "CM",
+        28,
+        68,
+        69,
+        1.4
+      ],
+      [
+        "benjamin-uphoff",
+        "Benjamin Uphoff",
+        "GK",
+        33,
+        68,
+        68,
+        0.65
+      ],
+      [
+        "andi-hoti",
+        "Andi Hoti",
+        "CB",
+        23,
+        67,
+        75,
+        2.1
+      ],
+      [
+        "lukas-frenkert",
+        "Lukas Frenkert",
+        "CB",
+        26,
+        67,
+        72,
+        1.4
+      ],
+      [
+        "johan-arath-gomez-mendoza",
+        "Johan Arath Gómez Mendoza",
+        "RM",
+        25,
+        67,
+        73,
+        1.7
+      ],
+      [
+        "fabio-di-michele-sanchez",
+        "Fabio Di Michele Sanchez",
+        "LB",
+        23,
+        67,
+        75,
+        1.8
+      ],
+      [
+        "aaron-opoku-tiawiah",
+        "Aaron Opoku Tiawiah",
+        "RM",
+        27,
+        67,
+        68,
+        1.2
+      ],
+      [
+        "florian-flick",
+        "Florian Flick",
+        "CDM",
+        26,
+        67,
+        70,
+        1.1
+      ],
+      [
+        "frederik-jakel",
+        "Frederik Jäkel",
+        "CB",
+        25,
+        67,
+        74,
+        1.7
+      ],
+      [
+        "yann-sturm",
+        "Yann Sturm",
+        "LM",
+        21,
+        66,
+        75,
+        1.2
+      ],
+      [
+        "noah-katterbach",
+        "Noah Katterbach",
+        "LB",
+        25,
+        66,
+        75,
+        2.3
+      ],
+      [
+        "louis-breunig",
+        "Louis Breunig",
+        "CB",
+        22,
+        65,
+        73,
+        1.6
+      ],
+      [
+        "sidi-guessor-sane",
+        "Sidi Guéssor Sané",
+        "ST",
+        23,
+        64,
+        70,
+        0.75
+      ],
+      [
+        "damjan-kovacevic",
+        "Damjan Kovacevic",
+        "RB",
+        22,
+        64,
+        70,
+        0.47500000000000003
+      ],
+      [
+        "jovan-mijatovic",
+        "Jovan Mijatović",
+        "ST",
+        21,
+        64,
+        75,
+        0.6
+      ],
+      [
+        "samuele-di-benedetto",
+        "Samuele Di Benedetto",
+        "CM",
+        21,
+        64,
+        76,
+        0.775
+      ],
+      [
+        "sanoussy-ba",
+        "Sanoussy Ba",
+        "RB",
+        22,
+        64,
+        74,
+        1
+      ],
+      [
+        "lars-sidney-raebiger",
+        "Lars Sidney Raebiger",
+        "CM",
+        21,
+        62,
+        76,
+        0.9500000000000001
+      ],
+      [
+        "arlet-junior-ze",
+        "Arlet Junior Zé",
+        "LM",
+        20,
+        59,
+        77,
+        0.5750000000000001
+      ]
+    ]
+  },
+  {
+    "id": "de2-dynamo-dresden",
+    "name": "Dynamo Dresden",
+    "color": "#456afe",
+    "budget": 11,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "alexander-rossipal",
+        "Alexander Rossipal",
+        "LB",
+        30,
+        70,
+        70,
+        0.725
+      ],
+      [
+        "niklas-hauptmann",
+        "Niklas Hauptmann",
+        "CAM",
+        30,
+        70,
+        70,
+        1.6
+      ],
+      [
+        "vincent-vermeij",
+        "Vincent Vermeij",
+        "ST",
+        32,
+        70,
+        70,
+        1
+      ],
+      [
+        "thomas-leon-keller",
+        "Thomas Leon Keller",
+        "CB",
+        27,
+        69,
+        71,
+        1.3
+      ],
+      [
+        "nicolai-rapp",
+        "Nicolai Rapp",
+        "CB",
+        29,
+        69,
+        69,
+        1.2
+      ],
+      [
+        "robert-wagner",
+        "Robert Wagner",
+        "CDM",
+        23,
+        69,
+        78,
+        3.1
+      ],
+      [
+        "tan-kenneth-jerico-leka-schmidt",
+        "Tan-Kenneth Jerico Leka-Schmidt",
+        "CB",
+        24,
+        68,
+        76,
+        2.1
+      ],
+      [
+        "christoph-daferner",
+        "Christoph Daferner",
+        "ST",
+        28,
+        68,
+        70,
+        1.6
+      ],
+      [
+        "tim-stanislaw-schreiber",
+        "Tim Stanislaw Schreiber",
+        "GK",
+        24,
+        68,
+        75,
+        2.1
+      ],
+      [
+        "jonas-sterner",
+        "Jonas Sterner",
+        "RB",
+        24,
+        68,
+        75,
+        2.1
+      ],
+      [
+        "jakob-lemmer",
+        "Jakob Lemmer",
+        "RW",
+        26,
+        68,
+        71,
+        1.6
+      ],
+      [
+        "ben-bobzien",
+        "Ben Bobzien",
+        "LM",
+        23,
+        68,
+        75,
+        1.9
+      ],
+      [
+        "elias-bethke",
+        "Elias Bethke",
+        "GK",
+        23,
+        67,
+        79,
+        2.7
+      ],
+      [
+        "lukas-boeder",
+        "Lukas Boeder",
+        "CB",
+        29,
+        67,
+        68,
+        0.975
+      ],
+      [
+        "hannes-lennart-grill",
+        "Hannes Lennart Grill",
+        "GK",
+        27,
+        67,
+        70,
+        1
+      ],
+      [
+        "jonas-oehmichen",
+        "Jonas Oehmichen",
+        "LM",
+        22,
+        66,
+        74,
+        1.3
+      ],
+      [
+        "luca-valentin-herrmann",
+        "Luca Valentin Herrmann",
+        "CM",
+        27,
+        65,
+        68,
+        0.925
+      ],
+      [
+        "lars-bunning",
+        "Lars Bünning",
+        "CB",
+        28,
+        65,
+        69,
+        1.1
+      ],
+      [
+        "nils-gustav-georg-froling",
+        "Nils Gustav Georg Fröling",
+        "CAM",
+        26,
+        65,
+        70,
+        1
+      ],
+      [
+        "brooklyn-kevin-ezeh",
+        "Brooklyn Kevin Ezeh",
+        "LB",
+        25,
+        64,
+        72,
+        1.4
+      ],
+      [
+        "tobias-raschl",
+        "Tobias Raschl",
+        "CM",
+        26,
+        64,
+        71,
+        1.2
+      ],
+      [
+        "daniel-mesenholer",
+        "Daniel Mesenhöler",
+        "GK",
+        31,
+        62,
+        62,
+        0.275
+      ]
+    ]
+  },
+  {
+    "id": "de2-kaiserslautern",
+    "name": "Kaiserslautern",
+    "color": "#cf5af7",
+    "budget": 12,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "naatan-mikael-skytta",
+        "Naatan Mikael Skyttä",
+        "CAM",
+        24,
+        73,
+        79,
+        4.1
+      ],
+      [
+        "paul-joly",
+        "Paul Joly",
+        "RB",
+        26,
+        72,
+        76,
+        3
+      ],
+      [
+        "julian-krahl",
+        "Julian Krahl",
+        "GK",
+        26,
+        71,
+        75,
+        1.7
+      ],
+      [
+        "marlon-ritter",
+        "Marlon Ritter",
+        "CAM",
+        31,
+        71,
+        71,
+        1.8
+      ],
+      [
+        "mergim-berisha",
+        "Mërgim Berisha",
+        "ST",
+        28,
+        71,
+        75,
+        6
+      ],
+      [
+        "semih-sahin",
+        "Semih Şahin",
+        "CDM",
+        26,
+        71,
+        75,
+        2.4
+      ],
+      [
+        "mika-haas",
+        "Mika Haas",
+        "LB",
+        21,
+        70,
+        75,
+        0.55
+      ],
+      [
+        "ivan-prtajin",
+        "Ivan Prtajin",
+        "ST",
+        30,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "fabian-kunze",
+        "Fabian Kunze",
+        "CDM",
+        28,
+        70,
+        73,
+        1.8
+      ],
+      [
+        "jacob-vands-rasmussen",
+        "Jacob Vandsø Rasmussen",
+        "CB",
+        29,
+        70,
+        73,
+        1.9
+      ],
+      [
+        "jan-elvedi",
+        "Jan Elvedi",
+        "CB",
+        29,
+        69,
+        70,
+        1.3
+      ],
+      [
+        "maxwell-gyamfi",
+        "Maxwell Gyamfi",
+        "CB",
+        26,
+        69,
+        71,
+        1.1
+      ],
+      [
+        "simon-asta",
+        "Simon Asta",
+        "RM",
+        25,
+        68,
+        72,
+        1.9
+      ],
+      [
+        "erencan-yardmc",
+        "Erencan Yardımcı",
+        "ST",
+        24,
+        67,
+        76,
+        2.7
+      ],
+      [
+        "leon-reid-robinson",
+        "Leon Reid Robinson",
+        "CB",
+        25,
+        67,
+        70,
+        0.85
+      ],
+      [
+        "erik-wekesser",
+        "Erik Wekesser",
+        "LB",
+        29,
+        65,
+        66,
+        0.8250000000000001
+      ],
+      [
+        "alex-murphy",
+        "Alex Murphy",
+        "LB",
+        22,
+        65,
+        78,
+        1.4
+      ],
+      [
+        "kelven-olagie-frees",
+        "Kelven Olagie Frees",
+        "CB",
+        21,
+        63,
+        70,
+        0.5
+      ],
+      [
+        "enis-kamga",
+        "Enis Kamga",
+        "GK",
+        19,
+        62,
+        80,
+        0.5750000000000001
+      ],
+      [
+        "yannick-onohiol",
+        "Yannick Onohiol",
+        "GK",
+        22,
+        59,
+        64,
+        0.275
+      ],
+      [
+        "academy-cb-1",
+        "Kaiserslautern Academy CB 2",
+        "CB",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-cb-2",
+        "Kaiserslautern Academy CB 3",
+        "CB",
+        19,
+        61,
+        75,
+        0.95
+      ]
+    ]
+  },
+  {
+    "id": "de2-spvgg-greuther-furth",
+    "name": "SpVgg Greuther Fürth",
+    "color": "#4c620a",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "academy-gk-1",
+        "SpVgg Greuther Fürth Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "SpVgg Greuther Fürth Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "SpVgg Greuther Fürth Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "SpVgg Greuther Fürth Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "SpVgg Greuther Fürth Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "SpVgg Greuther Fürth Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "SpVgg Greuther Fürth Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "SpVgg Greuther Fürth Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "SpVgg Greuther Fürth Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "SpVgg Greuther Fürth Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "SpVgg Greuther Fürth Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "SpVgg Greuther Fürth Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-st-13",
+        "SpVgg Greuther Fürth Academy ST 13",
+        "ST",
+        18,
+        60,
+        77,
+        0.6
+      ],
+      [
+        "academy-lb-14",
+        "SpVgg Greuther Fürth Academy LB 14",
+        "LB",
+        18,
+        61,
+        78,
+        0.6
+      ],
+      [
+        "academy-rm-15",
+        "SpVgg Greuther Fürth Academy RM 15",
+        "RM",
+        18,
+        57,
+        79,
+        0.6
+      ],
+      [
+        "academy-cb-16",
+        "SpVgg Greuther Fürth Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "SpVgg Greuther Fürth Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "SpVgg Greuther Fürth Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "SpVgg Greuther Fürth Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "SpVgg Greuther Fürth Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "SpVgg Greuther Fürth Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "SpVgg Greuther Fürth Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  },
+  {
+    "id": "de2-arminia-bielefeld",
+    "name": "Arminia Bielefeld",
+    "color": "#d2de8a",
+    "budget": 10,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "thaddaus-monju-momuluh",
+        "Thaddäus-Monju Momuluh",
+        "RM",
+        24,
+        70,
+        74,
+        1.9
+      ],
+      [
+        "joel-grodowski",
+        "Joel Grodowski",
+        "ST",
+        28,
+        70,
+        70,
+        1.4
+      ],
+      [
+        "tim-henry-handwerker",
+        "Tim-Henry Handwerker",
+        "LB",
+        28,
+        70,
+        70,
+        1.3
+      ],
+      [
+        "maximilian-bauer",
+        "Maximilian Bauer",
+        "CB",
+        26,
+        69,
+        75,
+        2.3
+      ],
+      [
+        "henri-koudossou",
+        "Henri Koudossou",
+        "RB",
+        27,
+        69,
+        72,
+        1.7
+      ],
+      [
+        "stefano-russo",
+        "Stefano Russo",
+        "CDM",
+        26,
+        69,
+        74,
+        1.7
+      ],
+      [
+        "jonas-thomas-kersken",
+        "Jonas Thomas Kersken",
+        "GK",
+        26,
+        68,
+        72,
+        1.2
+      ],
+      [
+        "marvin-mehlem",
+        "Marvin Mehlem",
+        "CM",
+        29,
+        68,
+        72,
+        2.5
+      ],
+      [
+        "marius-worl",
+        "Marius Wörl",
+        "CM",
+        22,
+        68,
+        79,
+        3.1
+      ],
+      [
+        "maximilian-groer",
+        "Maximilian Großer",
+        "CB",
+        25,
+        68,
+        75,
+        1.8
+      ],
+      [
+        "jannik-rochelt",
+        "Jannik Rochelt",
+        "LM",
+        27,
+        67,
+        69,
+        1.4
+      ],
+      [
+        "joel-rasmus-felix",
+        "Joel Rasmus Felix",
+        "CB",
+        28,
+        66,
+        67,
+        0.75
+      ],
+      [
+        "leon-schneider",
+        "Leon Schneider",
+        "CB",
+        26,
+        66,
+        72,
+        1.2
+      ],
+      [
+        "benjamin-bediako-boakye",
+        "Benjamin Bediako Boakye",
+        "RM",
+        21,
+        66,
+        76,
+        1.2
+      ],
+      [
+        "roberts-uldrikis",
+        "Roberts Uldriķis",
+        "ST",
+        28,
+        65,
+        65,
+        0.675
+      ],
+      [
+        "felix-hagmann",
+        "Felix Hagmann",
+        "RB",
+        22,
+        65,
+        72,
+        1.3
+      ],
+      [
+        "isaiah-ahmad-young",
+        "Isaiah Ahmad Young",
+        "RW",
+        28,
+        65,
+        66,
+        0.9
+      ],
+      [
+        "arne-sicker",
+        "Arne Sicker",
+        "LB",
+        29,
+        65,
+        65,
+        0.65
+      ],
+      [
+        "lukas-kunze",
+        "Lukas Kunze",
+        "CM",
+        28,
+        64,
+        66,
+        0.8250000000000001
+      ],
+      [
+        "sam-francis-schreck",
+        "Sam Francis Schreck",
+        "CM",
+        27,
+        64,
+        69,
+        1.1
+      ],
+      [
+        "jeredy-harry-dries-hilterman",
+        "Jeredy Harry Dries Hilterman",
+        "ST",
+        28,
+        64,
+        66,
+        0.8250000000000001
+      ],
+      [
+        "leo-friedrich-oppermann",
+        "Leo Friedrich Oppermann",
+        "GK",
+        25,
+        61,
+        68,
+        0.47500000000000003
+      ],
+      [
+        "daniel-richter",
+        "Daniel Richter",
+        "LW",
+        18,
+        59,
+        78,
+        0.55
+      ],
+      [
+        "philip-hildesheim",
+        "Philip Hildesheim",
+        "GK",
+        21,
+        58,
+        71,
+        0.425
+      ]
+    ]
+  },
+  {
+    "id": "de2-preussen-munster",
+    "name": "Preußen Münster",
+    "color": "#506072",
+    "budget": 6,
+    "preferredFormation": "4-2-3-1",
+    "players": [
+      [
+        "academy-gk-1",
+        "Preußen Münster Academy GK 2",
+        "GK",
+        18,
+        60,
+        74,
+        0.8
+      ],
+      [
+        "academy-gk-2",
+        "Preußen Münster Academy GK 3",
+        "GK",
+        19,
+        61,
+        75,
+        0.95
+      ],
+      [
+        "academy-cb-3",
+        "Preußen Münster Academy CB 4",
+        "CB",
+        18,
+        62,
+        76,
+        1.1
+      ],
+      [
+        "academy-cb-4",
+        "Preußen Münster Academy CB 5",
+        "CB",
+        19,
+        58,
+        77,
+        0.5
+      ],
+      [
+        "academy-lb-5",
+        "Preußen Münster Academy LB 6",
+        "LB",
+        18,
+        59,
+        78,
+        0.65
+      ],
+      [
+        "academy-rb-6",
+        "Preußen Münster Academy RB 7",
+        "RB",
+        19,
+        60,
+        79,
+        0.8
+      ],
+      [
+        "academy-cdm-7",
+        "Preußen Münster Academy CDM 8",
+        "CDM",
+        18,
+        61,
+        72,
+        0.95
+      ],
+      [
+        "academy-cm-8",
+        "Preußen Münster Academy CM 9",
+        "CM",
+        19,
+        62,
+        73,
+        1.1
+      ],
+      [
+        "academy-cam-9",
+        "Preußen Münster Academy CAM 10",
+        "CAM",
+        18,
+        58,
+        74,
+        0.5
+      ],
+      [
+        "academy-lw-10",
+        "Preußen Münster Academy LW 11",
+        "LW",
+        19,
+        59,
+        75,
+        0.65
+      ],
+      [
+        "academy-rw-11",
+        "Preußen Münster Academy RW 12",
+        "RW",
+        18,
+        60,
+        76,
+        0.8
+      ],
+      [
+        "academy-st-12",
+        "Preußen Münster Academy ST 13",
+        "ST",
+        19,
+        61,
+        77,
+        0.95
+      ],
+      [
+        "academy-st-13",
+        "Preußen Münster Academy ST 13",
+        "ST",
+        18,
+        60,
+        77,
+        0.6
+      ],
+      [
+        "academy-lb-14",
+        "Preußen Münster Academy LB 14",
+        "LB",
+        18,
+        61,
+        78,
+        0.6
+      ],
+      [
+        "academy-rm-15",
+        "Preußen Münster Academy RM 15",
+        "RM",
+        18,
+        57,
+        79,
+        0.6
+      ],
+      [
+        "academy-cb-16",
+        "Preußen Münster Academy CB 16",
+        "CB",
+        18,
+        58,
+        72,
+        0.6
+      ],
+      [
+        "academy-cm-17",
+        "Preußen Münster Academy CM 17",
+        "CM",
+        18,
+        59,
+        73,
+        0.6
+      ],
+      [
+        "academy-st-18",
+        "Preußen Münster Academy ST 18",
+        "ST",
+        18,
+        60,
+        74,
+        0.6
+      ],
+      [
+        "academy-lb-19",
+        "Preußen Münster Academy LB 19",
+        "LB",
+        18,
+        61,
+        75,
+        0.6
+      ],
+      [
+        "academy-rm-20",
+        "Preußen Münster Academy RM 20",
+        "RM",
+        18,
+        57,
+        76,
+        0.6
+      ],
+      [
+        "academy-cb-21",
+        "Preußen Münster Academy CB 21",
+        "CB",
+        18,
+        58,
+        77,
+        0.6
+      ],
+      [
+        "academy-cm-22",
+        "Preußen Münster Academy CM 22",
+        "CM",
+        18,
+        59,
+        78,
+        0.6
+      ]
+    ]
+  }
+];
+
+const NUMBER_BY_ROLE={GK:[1,13,25],RB:[2,22],LB:[3,23],CB:[4,5,6,15],CDM:[6,16],CM:[8,14,18],CAM:[10,20],RM:[7,19],RW:[7,19],LM:[11,17],LW:[11,17],ST:[9,10,14]};
+function stablePlayerId(clubId,slug){return clubId+":"+slug;}
+function squadNumbers(players){const used=new Set();return players.map(player=>{const preferred=NUMBER_BY_ROLE[player.role]||[];const number=preferred.find(value=>!used.has(value))||Array.from({length:99},(_,index)=>index+1).find(value=>!used.has(value));used.add(number);return number;});}
+function hydrate(raw){const leagueAvg=Math.round(raw.flatMap(club=>club.players).reduce((total,player)=>total+player[4],0)/raw.flatMap(club=>club.players).length);return raw.map(club=>{const players=club.players.map(args=>P(...args)),numbers=squadNumbers(players);return {...club,leagueAvg,players:players.map((player,index)=>({...player,id:stablePlayerId(club.id,player.slug),club:club.id,number:numbers[index],loan:false,condition:100,energy:100,appearances:0}))};});}
+export function buildClubs(){return hydrate(RAW_PLCLUBS);} export function buildChampionshipClubs(){return hydrate(RAW_CHAMPIONSHIPCLUBS);} export function buildLaLigaClubs(){return hydrate(RAW_LALIGACLUBS);} export function buildSerieAClubs(){return hydrate(RAW_SERIEACLUBS);} export function buildBundesligaClubs(){return hydrate(RAW_BUNDESLIGACLUBS);} export function buildLigue1Clubs(){return hydrate(RAW_LIGUE1CLUBS);} export function buildLaLiga2Clubs(){return hydrate(RAW_LALIGA2CLUBS);} export function buildSerieBClubs(){return hydrate(RAW_SERIEBCLUBS);} export function buildBundes2Clubs(){return hydrate(RAW_BUNDES2CLUBS);} export function buildLigue2Clubs(){return hydrate(RAW_LIGUE2CLUBS);}

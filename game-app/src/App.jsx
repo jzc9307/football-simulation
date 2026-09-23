@@ -1,4 +1,4 @@
-import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, applyUpdates, appendClubForm, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, pendingCupSlot, uclZoneLabel, simulateUclRound, cleanLineupOfSuspended, buildLiveMatchContext, freshState, applyPerformanceUpdates, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES } from "./game/engine.js";
+import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, applyUpdates, appendClubForm, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, pendingCupSlot, uclZoneLabel, simulateUclRound, cleanLineupOfSuspended, buildLiveMatchContext, freshState, applyPerformanceUpdates, applyInjuries, unavailablePlayerIds, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES } from "./game/engine.js";
 import { selectUclField } from "./game/uclSelection.js";
 import { standingsZone, standingsLegend } from "./game/standingsZones.js";
 import { startUclBracket, bracketCurrentTie } from "./game/uclBracket.js";
@@ -128,7 +128,7 @@ export default function App(){
 
   function pickLeague(lg){
     const map = { PL: s=>s.plClubs, LALIGA: s=>s.laligaClubs, SERIEA: s=>s.serieaClubs, BUNDES: s=>s.bundesligaClubs, LIGUE1: s=>s.ligue1Clubs };
-    setState(s => ({ ...s, league: lg, clubs: (map[lg]||map.PL)(s), stage: "select" }));
+    setState(s => ({ ...s, league: lg, division:1, clubs: (map[lg]||map.PL)(s), stage: "select" }));
   }
   function selectClub(clubId){
     const club = state.clubs.find(c=>c.id===clubId);
@@ -138,7 +138,7 @@ export default function App(){
   function pickMode(mode){ setState(s => ({ ...s, simMode: mode, stage: "squad" })); }
 
   function setFormation(f){
-    setState(s => { const club = s.clubs.find(c=>c.id===s.myClubId); return { ...s, formation:f, lineup: autoLineup(FORMATIONS[f], club.players.filter(p=>!(s.suspensions?.[s.stage==="ucl"?"ucl":"domestic"]||[]).includes(p.id))) }; });
+    setState(s => { const club = s.clubs.find(c=>c.id===s.myClubId),competition=s.stage==="ucl"?"ucl":"domestic"; return { ...s, formation:f, lineup: autoLineup(FORMATIONS[f], club.players.filter(p=>!unavailablePlayerIds(s,competition).includes(p.id))) }; });
   }
   function setTacticalStyle(key){ setState(s => ({ ...s, tacticalStyle: key })); }
   function setDefensiveLine(val){ setState(s => ({ ...s, defensiveLine: val })); }
@@ -220,8 +220,8 @@ export default function App(){
       const oppClub = u.clubs.find(c=>c.id===userResult.opponentId);
       const liveContext = buildLiveMatchContext(s, userResult, oppClub);
       const newUclSuspended = userResult.redCard ? [userResult.redCard.id] : [];
-      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newUclSuspended);
-      let next=applyPerformanceUpdates({...s,ucl:{...u,tableRaw,form:appendClubForm(u.form,updates)}},performanceUpdates);
+      let next=applyInjuries(applyPerformanceUpdates({...s,ucl:{...u,tableRaw,form:appendClubForm(u.form,updates)}},performanceUpdates),userResult.injuries);
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newUclSuspended,...unavailablePlayerIds(next,"ucl")]);
       return { ...next, ucl: { ...next.ucl, lastMatch: userResult, liveContext, stage: "match-live",
         campaignResults: [...u.campaignResults, userResult], campaignRecord: record },
         lineup: cleanedLineup,
@@ -271,7 +271,7 @@ export default function App(){
   const uclActions = { enterUcl, uclGoToPrep, uclPlayLeagueMatch, uclFinishLiveMatch, uclContinueAfterMatch, uclContinueAfterPhaseSummary,
     uclPlayKnockout, uclContinueAfterKnockout, uclBackToSeason };
 
-  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: ()=>setCupsOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [] };
+  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: ()=>setCupsOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
@@ -332,11 +332,12 @@ export default function App(){
           <div style={{ fontSize:32, fontWeight:800 }}>{r.homeA?r.myGoals:r.oppGoals} - {r.homeA?r.oppGoals:r.myGoals}</div>
           <div style={{ fontWeight:700, fontSize:15 }}>{r.homeA ? r.opponent : myClub.name}</div>
         </div>
-        {r.wentToPens && <div style={{ fontSize:12, color:"#e8b84b", marginBottom:6 }}>Decided on penalties — {r.wonPens ? "you won" : "you lost"} the shootout</div>}
+        {r.wentToPens && <div style={{ fontSize:12, color:"#e8b84b", marginBottom:6 }}>Decided on penalties ({r.shootout?.mine}–{r.shootout?.opp}) — {r.wonPens ? "you won" : "you lost"} the shootout</div>}
         <ResultBadge result={r.won ? "W" : "L"} />
         {r.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {r.scorerStr}</div>}
         <MatchAward motm={r.manOfTheMatch}/>
         {r.redCard && <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {r.redCard.name} sent off — suspended for your next domestic match</div>}
+        {r.injuries?.map(injury=><div key={injury.playerId} style={{fontSize:12,color:"#e8c46b",marginTop:6}}>🩹 {injury.name}: {injury.severity} — unavailable for {injury.matches} match{injury.matches===1?"":"es"}</div>)}
         <div style={{ marginTop:10, fontSize:13, fontWeight:700, color: r.won ? "#7fd88f" : "#e08a8a" }}>
           {r.won ? (r.round==="Final" ? "🏆 Champions!" : "Through to the next round") : (r.round==="Final" ? "Runners-up" : "Knocked out")}
         </div>
@@ -361,6 +362,7 @@ export default function App(){
         {r.scorerStr && <div style={{ fontSize:12, color:"#9ab89a", marginTop:10 }}>⚽ {r.scorerStr}</div>}
         <MatchAward motm={r.manOfTheMatch}/>
         {r.redCard && <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {r.redCard.name} sent off — suspended for your next domestic match</div>}
+        {r.injuries?.map(injury=><div key={injury.playerId} style={{fontSize:12,color:"#e8c46b",marginTop:6}}>🩹 {injury.name}: {injury.severity} — unavailable for {injury.matches} match{injury.matches===1?"":"es"}</div>)}
         <div style={{ marginTop:26 }}>
           <button onClick={nextMatch} style={primaryBtnStyle}>{isLast ? (state.half===1?"View Half-Season Table →":"View Final Table →") : "Next Fixture →"}</button>
         </div>
@@ -370,6 +372,7 @@ export default function App(){
   else if (state.stage === "half-results") stageEl = <ResultsScreen title="First Half of the Season" results={state.results1} table={state.table1} clubs={state.clubs} myClubId={state.myClubId} onContinue={goToMidWindow} continueLabel="Go to Transfer Window →" cupStatus={state.cupStatus} league={state.league} />;
   else if (state.stage === "full-results") stageEl = <ResultsScreen title="Final Season Results" results={state.results2} table={state.tableFinal} clubs={state.clubs} myClubId={state.myClubId} onContinue={finalizeSeason} continueLabel="Finalise Season →" projectedTable={state.table1} cupStatus={state.cupStatus} league={state.league} />;
   else if (state.stage === "summary") stageEl = <SummaryScreen state={state} myClub={myClub} onNextSeason={nextSeason} onOpenCups={()=>setCupsOpen(true)} />;
+  else if (state.stage === "game-over") stageEl = <div style={{maxWidth:620,margin:"54px auto",padding:36,textAlign:"center",border:"1px solid #703b3e",borderRadius:18,background:"linear-gradient(145deg,#251416,#100b0c)"}}><div style={{fontSize:34}}>⌁</div><h1 style={{margin:"10px 0",fontSize:30}}>Managerial contract ended</h1><p style={{color:"#d6a1a4",lineHeight:1.6}}>{state.movement||"Relegation from the second division"}. The board has dismissed you, ending this career.</p><p style={{color:"#879589",fontSize:12}}>Your save remains available to export from this screen.</p></div>;
   else if (state.stage === "ucl" && state.ucl) stageEl = <UclPage state={state} myClub={myClub} squadCommonProps={squadCommonProps} actions={uclActions} />;
 
   return (
@@ -712,6 +715,12 @@ function EnergyBar({energy}){
     <span className="player-readiness-track"><i style={{width:`${remaining}%`}}/></span><b>{remaining}%</b>
   </div>;
 }
+function pitchPlayerName(name=""){
+  const parts=name.trim().split(/\s+/).filter(Boolean);
+  const familyParticle=parts.findIndex(part=>["da","de","del","di","dos","van","von"].includes(part.toLowerCase()));
+  const surname=familyParticle>1?parts[familyParticle-1]:parts.at(-1);
+  return parts.length>1 ? `${parts[0][0]}. ${surname}` : name;
+}
 function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverSlot }){
   const slots=FORMATIONS[formation];
   return <div className={`squad-pitch ${draggingPlayer?"is-dragging":""}`} data-bench="false" aria-label={`${formation} starting lineup`}>
@@ -727,7 +736,7 @@ function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverS
         {player?<><div className="pitch-player-card" onPointerDown={e=>onDragStart(e,player,{source:"slot",slotIndex:i})} title={`${player.name} · ${matchOvr(player)} match OVR (${player.ovr} base) · ${slot.role}`}>
           <div className="pitch-card-top"><span className="pitch-card-ovr"><span className="ovr-value">{matchOvr(player)}</span><FormTrend confidence={player.confidence}/></span><span className="pitch-card-role">{slot.role}</span></div>
           <div className="pitch-card-icon">{player.number}</div>
-          <strong>{player.name}</strong><div className="pitch-card-vitals"><FitnessGem condition={player.condition}/><EnergyBar energy={player.energy}/></div>
+          <strong>{pitchPlayerName(player.name)}</strong><div className="pitch-card-vitals"><FitnessGem condition={player.condition}/><EnergyBar energy={player.energy}/></div>
         </div></>:<div className="pitch-empty-card"><b>+</b><span>{slot.role}</span></div>}
       </div>;
     })}
@@ -846,7 +855,7 @@ function LeagueStandings({state}){
   return <CompetitionStandings table={table} myClubId={state.myClubId} brandId={brandId} title={isUcl?"Champions League league phase table":`${LEAGUE_NAMES[state.league]} table`} zone={isUcl}/>;
 }
 
-function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds }){
+function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
   const suspendedSet = new Set(suspendedIds || []);
   const usedIds = new Set(Object.values(state.lineup).filter(Boolean));
@@ -900,15 +909,15 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
           <div className="squad-list-heading"><div><span>FIRST TEAM</span><strong>Squad <b>{myClub.players.length}</b></strong></div><small>OVR includes confidence · energy bar and fitness gem</small></div>
           <div className="squad-player-list" data-bench="true">
             {sorted.map(p => {
-              const suspended = suspendedSet.has(p.id);
+              const suspended = suspendedSet.has(p.id), injury=injuries[p.id], unavailable=suspended||injury;
               let outboundLoan={available:false,reason:"Unavailable"};
               try{outboundLoan=loanTerms(state,myClub.id,p.id);}catch{/* transfer state can change between renders */}
               return (
-              <div key={p.id} className={`squad-player-row ${usedIds.has(p.id)?"is-starting":""} ${suspended?"is-suspended":""}`} style={{"--role-color":GROUP_COLOR[p.group]}}>
-                <div className="squad-drag-area" onPointerDown={suspended?undefined:(e)=>onDragStart(e, p, { source:"squad" })}>
+              <div key={p.id} className={`squad-player-row ${usedIds.has(p.id)?"is-starting":""} ${unavailable?"is-suspended":""}`} style={{"--role-color":GROUP_COLOR[p.group]}}>
+                <div className="squad-drag-area" onPointerDown={unavailable?undefined:(e)=>onDragStart(e, p, { source:"squad" })}>
                   <div className={`squad-ovr ${matchOvr(p)>=88?"elite":matchOvr(p)>=84?"high":""}`} title={`${matchOvr(p)} match OVR · ${p.ovr} base · ${p.confidence>0?"+":""}${p.confidence||0} confidence`}><strong>{matchOvr(p)}</strong><FormTrend confidence={p.confidence}/><small>OVR</small></div>
                   <div className="squad-player-copy">
-                    <div className="squad-player-name"><strong>{p.name}</strong>{p.loan&&<span className="squad-loan-tag">LOAN</span>}{usedIds.has(p.id)&&!suspended&&<span className="squad-starting-tag">STARTING</span>}{suspended&&<span className="squad-suspended-tag">SUSPENDED</span>}</div>
+                    <div className="squad-player-name"><strong>{p.name}</strong>{p.loan&&<span className="squad-loan-tag">LOAN</span>}{usedIds.has(p.id)&&!unavailable&&<span className="squad-starting-tag">STARTING</span>}{suspended&&<span className="squad-suspended-tag">SUSPENDED</span>}{injury&&<span className="squad-suspended-tag">INJURED · {injury.matches} MATCH{injury.matches===1?"":"ES"}</span>}</div>
                     <div className="squad-player-facts"><b>{p.role}</b><span>Age {p.age}</span><span>{fmtM(p.value)}</span>{p.confidence?<span className={p.confidence>0?"form-up":"form-down"}>{p.confidence>0?"+":""}{p.confidence} confidence</span>:null}</div>
                     <div className="squad-player-vitals"><FitnessGem condition={p.condition}/><EnergyBar energy={p.energy}/></div>
                     {(p.ratedMatches||0)>0&&<div className="squad-player-season"><span><b>{playerSeasonAverage(p).toFixed(2)}</b> AVG</span><span><b>{p.bestRating?.toFixed(1)}</b> BEST</span><span><b>{p.seasonGoals||0}</b> G</span><span><b>{p.seasonAssists||0}</b> A</span><span><b>{p.motm||0}</b> MOTM</span></div>}
@@ -1023,14 +1032,15 @@ function SummaryScreen({ state, myClub, onNextSeason, onOpenCups }){
   const byGroup = g => lineupPlayers.filter(p=>p.group===g);
   const groups = ["GK","DEF","MID","FWD"];
   const trend = finalRank<halfRank ? "OVERPERFORMED" : finalRank>halfRank ? "UNDERPERFORMED" : "ON TARGET";
-  const uclUnlocked = finalRank <= 4;
+  const divisionName=state.division===2?({PL:"Championship",LALIGA:"LaLiga Hypermotion",SERIEA:"Serie B",BUNDES:"2. Bundesliga",LIGUE1:"Ligue 2"}[state.league]||"Second Division"):LEAGUE_NAMES[state.league];
+  const uclUnlocked = state.division!==2 && finalRank <= 4;
 
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:24 }}>
         <Trophy size={36} color="#e8b84b" style={{marginBottom:8}}/>
         <h2 style={{ fontSize:22, marginBottom:2 }}>Season Complete</h2>
-        <p style={{ color:"#9ab89a", fontSize:13 }}>{myClub.name} · {seasonLabel(state)} {LEAGUE_NAMES[state.league]}</p>
+        <p style={{ color:"#9ab89a", fontSize:13 }}>{myClub.name} · {seasonLabel(state)} {divisionName}</p>
       </div>
 
       <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap", marginBottom:24 }}>
@@ -1050,6 +1060,8 @@ function SummaryScreen({ state, myClub, onNextSeason, onOpenCups }){
           <button onClick={onOpenCups} style={{ ...primaryBtnStyle, background:"#1c1a12", border:"1px solid #6b5a2d", color:"#e8d09a" }}>🏆 View Cup Competitions</button>
         </div>
       )}
+
+      {state.movement&&<div style={{textAlign:"center",color:state.division===2?"#e8c46b":"#7fd88f",fontSize:13,fontWeight:700,marginBottom:16}}>↕ {state.movement}</div>}
 
       <div style={{ background:"#111a11", border:"1px solid #2a3a2a", borderRadius:12, padding:18, marginBottom:20 }}>
         <div style={{ display:"flex", flexWrap:"wrap", gap:16, justifyContent:"space-around", textAlign:"center" }}>

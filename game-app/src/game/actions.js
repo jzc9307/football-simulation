@@ -1,6 +1,6 @@
 import { completeUserTie, bracketCurrentTie } from "./uclBracket.js";
 import { FORMATIONS } from "./config.js";
-import { lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates, readinessLineup } from "./engine.js";
+import { lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates, readinessLineup, applyInjuries, unavailablePlayerIds } from "./engine.js";
 function requireLineup(s,competition="domestic"){const issue=lineupIssue(s,competition);if(issue)throw new Error(issue);}
 export function simulateHalf(s, half){
       requireLineup(s);
@@ -11,21 +11,21 @@ export function simulateHalf(s, half){
         let slot;
         while((slot=pendingCupSlot(cur.myClubId,half,idx,cur.cupStatus,cur.league))){
           const {updatedCs,matchResult}=simulateCupMatch(cur,slot.comp,slot.round);
-          cur=applyPerformanceUpdates({...cur,cupStatus:{...cur.cupStatus,[slot.comp]:updatedCs}},matchResult.performanceUpdates);
+          cur=applyInjuries(applyPerformanceUpdates({...cur,cupStatus:{...cur.cupStatus,[slot.comp]:updatedCs}},matchResult.performanceUpdates),matchResult.injuries);
           const suspended=matchResult.redCard?[matchResult.redCard.id]:[];
-          cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,suspended)};
+          cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,[...suspended,...unavailablePlayerIds(cur)])};
         }
       };
       rounds.forEach((round,idx)=>{
         playDueCups(idx);
         const club=cur.clubs.find(c=>c.id===cur.myClubId);
-        const eligible=club.players.filter(p=>!(cur.suspensions?.domestic||[]).includes(p.id));
+        const eligible=club.players.filter(p=>!unavailablePlayerIds(cur).includes(p.id));
         cur={...cur,lineup:readinessLineup((FORMATIONS[cur.formation]),eligible,preferredLineup)};
         const {updates,userResult,performanceUpdates}=simulateRound(cur,round,(half===1?0:cur.roundsHalf1.length)+idx+1);
         results.push(userResult);
-        cur=applyPerformanceUpdates({...cur,tableRaw:applyUpdates(cur.tableRaw,updates),clubForm:appendClubForm(cur.clubForm,updates)},performanceUpdates);
+        cur=applyInjuries(applyPerformanceUpdates({...cur,tableRaw:applyUpdates(cur.tableRaw,updates),clubForm:appendClubForm(cur.clubForm,updates)},performanceUpdates),userResult.injuries);
         const suspended=userResult.redCard?[userResult.redCard.id]:[];
-        cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,suspended)};
+        cur={...cur,suspensions:{...cur.suspensions,domestic:suspended},lineup:cleanLineupOfSuspended(cur.formation,cur.clubs.find(c=>c.id===cur.myClubId).players,cur.lineup,[...suspended,...unavailablePlayerIds(cur)])};
       });
       playDueCups(rounds.length);
       const table=computeTableArray(cur.tableRaw,cur.clubs);
@@ -43,8 +43,8 @@ export function playLeagueRound(s){
       const oppClub = findClubAnywhere(s, userResult.opponentId);
       const liveContext = oppClub ? buildLiveMatchContext(s, userResult, oppClub, "domestic") : null;
       const newSuspended = userResult.redCard ? [userResult.redCard.id] : [];
-      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
-      let next=applyPerformanceUpdates({...s,tableRaw,clubForm:appendClubForm(s.clubForm,updates)},performanceUpdates);
+      let next=applyInjuries(applyPerformanceUpdates({...s,tableRaw,clubForm:appendClubForm(s.clubForm,updates)},performanceUpdates),userResult.injuries);
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newSuspended,...unavailablePlayerIds(next)]);
       return { ...next, lastResult: userResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "matchday-live" : "matchday-result",
         results1: s.half===1 ? [...s.results1, userResult] : s.results1,
         results2: s.half===2 ? [...s.results2, userResult] : s.results2,
@@ -57,8 +57,8 @@ export function playDomesticCup(s, comp, round){
       const oppClub = findClubAnywhere(s, matchResult.opponentId);
       const liveContext = oppClub ? buildLiveMatchContext(s, { ...matchResult, isHome: matchResult.homeA }, oppClub, "domestic") : null;
       const newSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
-      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newSuspended);
-      let next=applyPerformanceUpdates({...s,cupStatus:{...s.cupStatus,[comp]:updatedCs}},matchResult.performanceUpdates);
+      let next=applyInjuries(applyPerformanceUpdates({...s,cupStatus:{...s.cupStatus,[comp]:updatedCs}},matchResult.performanceUpdates),matchResult.injuries);
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newSuspended,...unavailablePlayerIds(next)]);
       return { ...next, lastCupResult: matchResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "cup-live" : "cup-result",
         suspensions: { ...s.suspensions, domestic: newSuspended } };
     }
@@ -91,9 +91,9 @@ export function playEuropeanKnockout(s){
       const liveContext = buildLiveMatchContext(s, result, opp);
       const aggregate = isFinal ? u.aggregate : { mine:(u.aggregate?.mine||0)+result.myGoals, opp:(u.aggregate?.opp||0)+result.oppGoals };
       const newUclSuspended = result.redCard ? [result.redCard.id] : [];
-      const cleanedLineup = cleanLineupOfSuspended(s.formation, s.clubs.find(c=>c.id===s.myClubId).players, s.lineup, newUclSuspended);
       const formUpdates=[{clubId:s.myClubId,gf:result.myGoals,ga:result.oppGoals},{clubId:opp.id,gf:result.oppGoals,ga:result.myGoals}];
-      let next=applyPerformanceUpdates({...s,ucl:{...u,form:appendClubForm(u.form,formUpdates)}},result.performanceUpdates);
+      let next=applyInjuries(applyPerformanceUpdates({...s,ucl:{...u,form:appendClubForm(u.form,formUpdates)}},result.performanceUpdates),result.injuries);
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newUclSuspended,...unavailablePlayerIds(next,"ucl")]);
       return { ...next, ucl: { ...next.ucl, lastMatch: result, liveContext, aggregate,
           firstLegHomeA: (!isFinal && leg===1) ? isHome : u.firstLegHomeA,
           stage: "knockout-live",

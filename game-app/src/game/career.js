@@ -1,8 +1,15 @@
 import { autoLineup, freshState, topXI, clamp } from './engine.js';
-import { FORMATIONS } from './config.js';
+import { FORMATIONS, ROLE_GROUP } from './config.js';
 
-const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs'];
+const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
+const DIVISIONS={
+  PL:{top:'plClubs',second:'championshipClubs',name:'Premier League',secondName:'Championship'},
+  LALIGA:{top:'laligaClubs',second:'laliga2Clubs',name:'LaLiga',secondName:'LaLiga Hypermotion'},
+  SERIEA:{top:'serieaClubs',second:'serieBClubs',name:'Serie A',secondName:'Serie B'},
+  BUNDES:{top:'bundesligaClubs',second:'bundes2Clubs',name:'Bundesliga',secondName:'2. Bundesliga'},
+  LIGUE1:{top:'ligue1Clubs',second:'ligue2Clubs',name:'Ligue 1',secondName:'Ligue 2'},
+};
 export function allClubs(s){
   const map=new Map(POOLS.flatMap(k=>s[k]||[]).map(c=>[c.id,c]));
   s.clubs.forEach(c=>map.set(c.id,c));
@@ -13,7 +20,7 @@ function commitClubs(s,clubs){
   return {...s,...Object.fromEntries(POOLS.map(k=>[k,(s[k]||[]).map(c=>byId.get(c.id)||c)])),
     clubs:s.clubs.map(c=>byId.get(c.id)||c)};
 }
-export function marketOpen(s){return s.stage==='squad'||s.stage==='squad2';}
+export function marketOpen(s){retaurn s.stage==='squad'||s.stage==='squad2';}
 export function projectedPotential(p){
   if(Number.isFinite(p.potential))return clamp(p.potential,p.ovr,96);
   const growth=p.age<=18?7:p.age<=20?5:p.age<=22?4:p.age<=24?2:p.age===25?1:0;
@@ -33,6 +40,65 @@ function stableFraction(value){
   for(const char of value){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}
   return (hash>>>0)/4294967295;
 }
+function seasonTable(clubs){
+  const games=2*(clubs.length-1),strength=club=>topXI(club.players,club.preferredFormation).reduce((total,player)=>total+player.ovr,0)/11;
+  const average=clubs.reduce((total,club)=>total+strength(club),0)/clubs.length;
+  return clubs.map(club=>{
+    const edge=(strength(club)-average)*1.65+(Math.random()-.5)*15,points=clamp(Math.round(games*(1.28+edge*.045)),Math.round(games*.38),games*3-1);
+    const gf=Math.max(10,Math.round(games*(1.18+edge*.016))),ga=Math.max(8,Math.round(games*(1.24-edge*.015)));
+    return {id:club.id,club,played:games,pts:points,gf,ga,w:Math.min(games,Math.round(points/3)),d:0,l:0};
+  }).sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf||a.club.name.localeCompare(b.club.name)).map((row,index)=>({...row,rank:index+1}));
+}
+function retirementChance(age){return age===34?.12:age===35?.22:age===36?.38:age===37?.58:age===38?.76:age>=39?1:0;}
+function developmentDelta(player,season){
+  const age=player.age+1,potential=projectedPotential(player),gap=Math.max(0,potential-player.ovr),apps=player.appearances||0;
+  const roll=stableFraction(`${season}:${player.id}:growth`);
+  if(age<=19&&gap>0&&apps>=5&&roll<Math.min(.92,.50+gap*.04))return gap>=8&&roll<.16?2:1;
+  if(age<=21&&gap>0&&apps>=8&&roll<Math.min(.78,.32+gap*.035))return 1;
+  if(age<=23&&gap>0&&apps>=10&&roll<Math.min(.62,.20+gap*.035))return 1;
+  // A regularly used player under 24 always receives at least one point when
+  // there is room below their supplied Career Mode potential.
+  if(player.age<24&&gap>0&&apps>=10)return 1;
+  if(age<=25&&gap>0&&apps>=12)return roll<Math.min(.30,.08+gap*.025)?1:0;
+  if(age===30)return roll<.10?-1:0;
+  if(age===31)return roll<.24?-1:0;
+  if(age===32)return roll<.42?-1:0;
+  if(age===33)return roll<.60?-1:0;
+  return age>=34?(roll<.78?-1:0):0;
+}
+const YOUTH_FIRST=['Aiden','Mateo','Noah','Leo','Elias','Luca','Jayden','Milan','Theo','Rayan','Iker','Hugo'];
+const YOUTH_LAST=['Silva','Khan','Bennett','Moretti','Diallo','Kovac','Santos','Meyer','Rossi','Okafor','Garcia','Mendes'];
+function youthPlayer(club,season,index,role){
+  const seed=stableFraction(`${club.id}:${season}:${index}`),name=`${YOUTH_FIRST[Math.floor(seed*YOUTH_FIRST.length)]} ${YOUTH_LAST[Math.floor(seed*997)%YOUTH_LAST.length]}`;
+  const potential=72+Math.floor(seed*18),ovr=Math.max(53,Math.min(potential-4,58+Math.floor(seed*13)));
+  return {id:`${club.id}:youth-${season}-${index}`,slug:`youth-${season}-${index}`,name,role,group:ROLE_GROUP[role],age:16+Math.floor(seed*4),ovr,potential,value:+Math.max(.35,(potential-65)*.22).toFixed(1),stamina:72+Math.floor(seed*16),club:club.id,number:numberFor(club.players),loan:false,condition:100,energy:100,appearances:0};
+}
+function roomForYouth(players,count){
+  const output=[...players];
+  while(output.length+count>30){
+    const removable=output.filter(player=>player.role!=="GK"||output.filter(candidate=>candidate.role==="GK").length>2).sort((a,b)=>a.ovr-b.ovr||b.age-a.age)[0];
+    if(!removable)break;output.splice(output.findIndex(player=>player.id===removable.id),1);
+  }
+  return output;
+}
+function renewClub(club,season,development,retirements){
+  const remaining=club.players.filter(player=>{
+    const retired=player.age>=34&&stableFraction(`${season}:${player.id}:retire`)<retirementChance(player.age);
+    if(retired){retirements.push({club:club.name,name:player.name,age:player.age});return false;}return true;
+  }).map(player=>{
+    const delta=developmentDelta(player,season),ovr=clamp(player.ovr+delta,45,Math.max(player.ovr,potentialCap(player)));
+    if(club.id===development.clubId&&delta)development.rows.push({id:player.id,name:player.name,from:player.ovr,to:ovr,delta});
+    return {...player,age:player.age+1,ovr,value:Math.max(1,Math.round(player.value*(delta>0?1.10:delta<0?.87:.98))),condition:100,energy:100,appearances:0,confidence:0,seasonGoals:0,seasonAssists:0,seasonCleanSheets:0,seasonYellowCards:0,seasonRedCards:0,ratingTotal:0,ratedMatches:0,bestRating:0,motm:0,seasonMinutes:0,lastRating:null,lastConfidenceChange:0,competitionStats:{}};
+  });
+  const intake=2+(stableFraction(`${club.id}:${season}:intake`)<.35?1:0),players=roomForYouth(remaining,intake),roles=["GK","CB","LB","RB","CDM","CM","CAM","LW","RW","ST"];
+  for(let index=0;index<intake;index++){
+    const needsGk=players.filter(player=>player.role==="GK").length<2;
+    const role=needsGk?"GK":roles[Math.floor(stableFraction(`${club.id}:${season}:role:${index}`)*roles.length)];
+    const youth=youthPlayer({...club,players},season,index,role);players.push(youth);
+  }
+  return {...club,players};
+}
+function potentialCap(player){return Number.isFinite(player.potential)?player.potential:95;}
 export function transferTerms(s,sellerId,playerId){
   const clubs=allClubs(s),seller=clubs.find(c=>c.id===sellerId),player=seller?.players.find(p=>p.id===playerId);
   if(!seller||!player)throw new Error('This player is no longer available.');
@@ -137,26 +203,38 @@ export function startNextSeason(s){
     borrower.players=borrower.players.filter(p=>p.id!==player.id);
     owner.players.push({...player,club:owner.id,loan:false,number:numberFor(owner.players)});
   }
-  const development=[];
-  clubs=clubs.map(c=>({...c,players:c.players.map(p=>{
-    const delta=p.age<24&&p.appearances>=10?1:p.age>=32?-1:0;
-    if(c.id===s.myClubId&&delta)development.push({
-      id:p.id,name:p.name,from:p.ovr,to:clamp(p.ovr+delta,45,95),delta
-    });
-    return {...p,age:p.age+1,ovr:clamp(p.ovr+delta,45,95),value:Math.max(1,Math.round(p.value*(delta>0?1.08:delta<0?0.9:1))),condition:100,energy:100,appearances:0,
-      confidence:0,seasonGoals:0,seasonAssists:0,seasonCleanSheets:0,seasonYellowCards:0,seasonRedCards:0,ratingTotal:0,ratedMatches:0,bestRating:0,motm:0,seasonMinutes:0,lastRating:null,lastConfidenceChange:0,competitionStats:{}};
-  })}));
   const rank=s.tableFinal.findIndex(r=>r.id===s.myClubId)+1;
-  const grant=10+(s.clubs.length-rank+1)*2;
-  const me=clubs.find(c=>c.id===s.myClubId);
-  me.budget=s.budget+grant;
-  const next=commitClubs(s,clubs),fresh=freshState();
-  return {...next,season:s.season+1,stage:'squad',budget:me.budget,loans:[],
+  const retirements=[],development={clubId:s.myClubId,rows:[]};
+  clubs=clubs.map(club=>renewClub(club,s.season,development,retirements));
+  const byId=new Map(clubs.map(club=>[club.id,club]));
+  const pools=Object.fromEntries(POOLS.map(key=>[key,(s[key]||[]).map(club=>byId.get(club.id)||club)]));
+  const previousTier=s.division||1;
+  let nextTier=previousTier,gameOver=false,movement=null;
+  for(const [league,division] of Object.entries(DIVISIONS)){
+    const top=pools[division.top],second=pools[division.second];
+    const topTable=league===s.league&&previousTier===1?s.tableFinal:seasonTable(top);
+    const secondTable=league===s.league&&previousTier===2?s.tableFinal:seasonTable(second);
+    const relegated=topTable.slice(-3).map(row=>row.id),promoted=secondTable.slice(0,3).map(row=>row.id);
+    if(league===s.league){
+      if(previousTier===1&&relegated.includes(s.myClubId)){nextTier=2;movement=`Relegated to ${division.secondName}`;}
+      if(previousTier===2&&promoted.includes(s.myClubId)){nextTier=1;movement=`Promoted to ${division.name}`;}
+      if(previousTier===2&&secondTable.slice(-3).some(row=>row.id===s.myClubId)){gameOver=true;movement=`Relegated from ${division.secondName}`;}
+    }
+    pools[division.top]=[...top.filter(club=>!relegated.includes(club.id)),...second.filter(club=>promoted.includes(club.id))];
+    pools[division.second]=[...second.filter(club=>!promoted.includes(club.id)),...top.filter(club=>relegated.includes(club.id))];
+  }
+  const activePool=previousTier===2&&gameOver?DIVISIONS[s.league].second:(nextTier===1?DIVISIONS[s.league].top:DIVISIONS[s.league].second);
+  const activeClubs=pools[activePool],me=activeClubs.find(club=>club.id===s.myClubId)||byId.get(s.myClubId);
+  const grant=(nextTier===1?10:6)+(activeClubs.length-rank+1)*2;
+  me.budget=(me.budget||s.budget)+grant;
+  const fresh=freshState();
+  const next={...s,...pools,clubs:activeClubs};
+  return {...next,season:s.season+1,stage:gameOver?'game-over':'squad',division:nextTier,budget:me.budget,loans:[],
     half:1,roundIndex:0,roundsHalf1:null,roundsHalf2:null,tableRaw:null,table1:null,tableFinal:null,
     results1:[],results2:[],clubForm:{},lastResult:null,lastCupResult:null,lastLiveContext:null,
     cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,suspensions:fresh.suspensions,
-    lineup:autoLineup(FORMATIONS[s.formation],me.players),development,
-    history:[...s.history,{season:s.season,rank,club:me.name,ucl:s.cups.ucl?.outcome||null}],
+    injuries:{},lineup:autoLineup(FORMATIONS[s.formation],me.players),development:development.rows,retirements,movement,
+    history:[...s.history,{season:s.season,rank,club:me.name,division:previousTier,ucl:s.cups.ucl?.outcome||null,movement}],
     finances:[...s.finances,{season:s.season+1,type:'Season funding',amount:grant}].slice(-100),
-    [LEAGUE_POOL[s.league]]:next.clubs};
+    [LEAGUE_POOL[s.league]]:pools[DIVISIONS[s.league].top]};
 }

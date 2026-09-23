@@ -3,9 +3,9 @@ import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
-const SAVE_VERSION=4;
-const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl']);
-const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs'];
+const SAVE_VERSION=5;
+const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
+const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
@@ -29,6 +29,7 @@ function restoreCompactState(input, defaults){
   const baseByPlayer=basePlayers(defaults);
   const restored={...input};
   for(const key of POOL_KEYS.filter(key=>key!=='clubs')){
+    if(!Array.isArray(input[key]))continue;
     const baseClubs=new Map((defaults[key]||[]).map(club=>[club.id,club]));
     restored[key]=(input[key]||[]).map(patch=>{
       const base=baseClubs.get(patch.id);
@@ -48,13 +49,13 @@ function restoreCompactState(input, defaults){
 export function validateSave(raw){
   const input=raw?.version&&raw?.state?raw.state:raw;
   requireValid(input&&typeof input==='object'&&!Array.isArray(input),'invalid format.');
-  requireValid(!raw.version||[1,2,3,SAVE_VERSION].includes(raw.version),'unsupported save version.');
+  requireValid(!raw.version||[1,2,3,4,SAVE_VERSION].includes(raw.version),'unsupported save version.');
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
   const defaults=freshState(), restored=restoreCompactState(input,defaults);let s={...defaults,...restored};
   if(!Array.isArray(restored.clubs))s.clubs=restored.league? s[LEAGUE_POOL[restored.league]] : defaults.clubs;
-  const allPools=[s.clubs,s.plClubs,s.laligaClubs,s.serieaClubs,s.bundesligaClubs,s.ligue1Clubs,s.championshipClubs].filter(Array.isArray);
+  const allPools=POOL_KEYS.map(key=>s[key]).filter(Array.isArray);
   const byId=new Map(allPools.flat().map(club=>[club.id,club]));
   if(Array.isArray(s.ucl?.clubIds)&&!Array.isArray(s.ucl.clubs)){
     requireValid(s.ucl.clubIds.every(id=>byId.has(id)),"invalid European club list.");
@@ -68,7 +69,7 @@ export function validateSave(raw){
   requireValid(STYLES[s.tacticalStyle]&&Number.isFinite(s.defensiveLine)&&s.defensiveLine>=0&&s.defensiveLine<=100&&Number.isFinite(s.defensiveAggression)&&s.defensiveAggression>=0&&s.defensiveAggression<=100,'invalid tactics.');
   requireValid(s.halftimeStyle==='keep'||STYLES[s.halftimeStyle],'invalid halftime plan.');
   const playerIds=new Set();
-  for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
+  for(const key of POOL_KEYS){
     requireValid(Array.isArray(s[key])&&s[key].length>0,`missing ${key}.`);
     const clubIds=new Set();
     for(const c of s[key]){
@@ -88,12 +89,15 @@ export function validateSave(raw){
   }
   requireValid(s.lineup&&typeof s.lineup==='object'&&!Array.isArray(s.lineup),'invalid lineup.');
   requireValid(['PL','LALIGA','SERIEA','BUNDES','LIGUE1',null].includes(s.league),'invalid league.');
+  s.division=s.division===2?2:1;
   if(s.myClubId)requireValid(s.clubs.some(c=>c.id===s.myClubId),'your club is missing.');
   if(!['league-select','select'].includes(s.stage))requireValid(!!s.myClubId,'no selected club.');
   requireValid(Number.isInteger(s.season)&&s.season>=1,'invalid season.');
   for(const key of ['history','loans','finances','results1','results2'])requireValid(Array.isArray(s[key]),`invalid ${key}.`);
   s.suspensions={...defaults.suspensions,...s.suspensions};
   requireValid(Array.isArray(s.suspensions.domestic)&&Array.isArray(s.suspensions.ucl),'invalid suspensions.');
+  s.injuries=s.injuries&&typeof s.injuries==='object'&&!Array.isArray(s.injuries)?s.injuries:{};
+  for(const injury of Object.values(s.injuries))requireValid(injury&&typeof injury.name==='string'&&Number.isInteger(injury.matches)&&injury.matches>0,'invalid injury.');
   s.cupStatus={...defaults.cupStatus,...s.cupStatus};
   for(const c of Object.values(s.cupStatus))requireValid(c&&Array.isArray(c.playedRounds)&&Array.isArray(c.results)&&Array.isArray(c.faced)&&c.record,'invalid cup progress.');
   requireValid(s.cups&&typeof s.cups==='object','invalid cup records.');
@@ -134,11 +138,11 @@ export function validateSave(raw){
   // 30% condition. Version 2 uses next-fixture readiness, whose valid floor is
   // 82%, so repair older saves as they are loaded.
   if(!raw.version||raw.version===1){
-    for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
+    for(const key of POOL_KEYS){
       s[key]=s[key].map(c=>({...c,players:c.players.map(p=>({...p,condition:clamp(p.condition??100,82,100)}))}));
     }
   }
-  for(const key of ['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs']){
+  for(const key of POOL_KEYS){
     s[key]=s[key].map(c=>({...c,players:c.players.map(p=>({...p,
       energy:clamp(p.energy??100,0,100),stamina:p.stamina??80,
       confidence:clamp(p.confidence||0,-2,2),seasonGoals:p.seasonGoals||0,seasonAssists:p.seasonAssists||0,
