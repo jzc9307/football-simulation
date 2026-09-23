@@ -4,8 +4,8 @@ const NAMES={playoff:'Playoff',round16:'Round of 16',quarter:'Quarter-Final',sem
 function aiTie(aId,bId,round,clubs){
   const a=clubs.find(c=>c.id===aId),b=clubs.find(c=>c.id===bId);
   if(!a||!b)throw new Error('Missing Champions League club in bracket');
-  const play=(home,away)=>simMatchSmart(topXI(home.players,home.preferredFormation),topXI(away.players,away.preferredFormation),true,aiTactics(home),aiTactics(away));
-  const first=play(a,b);
+  const play=(home,away,neutralVenue=false)=>simMatchSmart(topXI(home.players,home.preferredFormation),topXI(away.players,away.preferredFormation),neutralVenue?null:true,aiTactics(home),aiTactics(away));
+  const first=play(a,b,round==='final');
   const second=round==='final'?null:play(b,a);
   const aGoals=first.goalsA+(second?.goalsB||0),bGoals=first.goalsB+(second?.goalsA||0);
   const pens=aGoals===bGoals;

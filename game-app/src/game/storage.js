@@ -3,17 +3,57 @@ import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
-const SAVE_VERSION=3;
+const SAVE_VERSION=4;
 const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl']);
+const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs'];
+const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
+function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+function basePlayers(defaults){return new Map(POOL_KEYS.filter(key=>key!=='clubs').flatMap(key=>(defaults[key]||[]).flatMap(club=>club.players)).map(player=>[player.id,player]));}
+function compactPlayer(player, base){
+  if(!base)return {...player};
+  const patch={id:player.id};
+  for(const [key,value] of Object.entries(player))if(key!=='id'&&key!=='club'&&!same(value,base[key]))patch[key]=value;
+  return patch;
+}
+function compactPool(clubs, defaults, players){
+  const baseClubs=new Map((defaults||[]).map(club=>[club.id,club]));
+  return clubs.map(club=>{
+    const base=baseClubs.get(club.id), patch={id:club.id,players:club.players.map(player=>compactPlayer(player,players.get(player.id)))};
+    for(const [key,value] of Object.entries(club))if(!['id','players'].includes(key)&&(!base||!same(value,base[key])))patch[key]=value;
+    return patch;
+  });
+}
+function restoreCompactState(input, defaults){
+  if(!input?.rosterPatches)return input;
+  const baseByPlayer=basePlayers(defaults);
+  const restored={...input};
+  for(const key of POOL_KEYS.filter(key=>key!=='clubs')){
+    const baseClubs=new Map((defaults[key]||[]).map(club=>[club.id,club]));
+    restored[key]=(input[key]||[]).map(patch=>{
+      const base=baseClubs.get(patch.id);
+      requireValid(!!base,`unknown club ${patch.id}.`);
+      const {players,...clubPatch}=patch;
+      requireValid(Array.isArray(players),`invalid compact roster for ${patch.id}.`);
+      return {...base,...clubPatch,players:players.map(playerPatch=>{
+        const basePlayer=baseByPlayer.get(playerPatch.id);
+        requireValid(!!basePlayer,`unknown player ${playerPatch.id}.`);
+        return {...basePlayer,...playerPatch,club:patch.id};
+      })};
+    });
+  }
+  delete restored.rosterPatches;
+  return restored;
+}
 export function validateSave(raw){
   const input=raw?.version&&raw?.state?raw.state:raw;
   requireValid(input&&typeof input==='object'&&!Array.isArray(input),'invalid format.');
-  requireValid(!raw.version||[1,2,SAVE_VERSION].includes(raw.version),'unsupported save version.');
+  requireValid(!raw.version||[1,2,3,SAVE_VERSION].includes(raw.version),'unsupported save version.');
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
-  const defaults=freshState();let s={...defaults,...input};
+  const defaults=freshState(), restored=restoreCompactState(input,defaults);let s={...defaults,...restored};
+  if(!Array.isArray(restored.clubs))s.clubs=restored.league? s[LEAGUE_POOL[restored.league]] : defaults.clubs;
   const allPools=[s.clubs,s.plClubs,s.laligaClubs,s.serieaClubs,s.bundesligaClubs,s.ligue1Clubs,s.championshipClubs].filter(Array.isArray);
   const byId=new Map(allPools.flat().map(club=>[club.id,club]));
   if(Array.isArray(s.ucl?.clubIds)&&!Array.isArray(s.ucl.clubs)){
@@ -39,6 +79,7 @@ export function validateSave(raw){
         requireValid(p.condition===undefined||(Number.isFinite(p.condition)&&p.condition>=0&&p.condition<=100),'invalid player condition.');
         requireValid(p.energy===undefined||(Number.isFinite(p.energy)&&p.energy>=0&&p.energy<=100),'invalid player energy.');
         requireValid(p.stamina===undefined||(Number.isFinite(p.stamina)&&p.stamina>=1&&p.stamina<=100),'invalid player stamina.');
+        requireValid(p.potential===undefined||(Number.isFinite(p.potential)&&p.potential>=p.ovr&&p.potential<=100),'invalid player potential.');
         requireValid(p.confidence===undefined||(Number.isFinite(p.confidence)&&p.confidence>=-2&&p.confidence<=2),'invalid player confidence.');
         ids.add(p.id);
         if(key==='clubs'){requireValid(!playerIds.has(p.id),'duplicate player.');playerIds.add(p.id);}
@@ -123,8 +164,10 @@ function compactResult(result){
 }
 function compactTable(table){return Array.isArray(table)?table.map(row=>{const copy={...row};delete copy.club;return copy;}):table;}
 function compactState(state){
-  const out={...state,table1:compactTable(state.table1),tableFinal:compactTable(state.tableFinal),
+  const defaults=freshState(), players=basePlayers(defaults);
+  const out={...state,rosterPatches:true,clubs:undefined,table1:compactTable(state.table1),tableFinal:compactTable(state.tableFinal),
     results1:state.results1.map(compactResult),results2:state.results2.map(compactResult)};
+  for(const key of POOL_KEYS.filter(key=>key!=='clubs'))out[key]=compactPool(state[key]||[],defaults[key],players);
   if(state.cupStatus)out.cupStatus=Object.fromEntries(Object.entries(state.cupStatus).map(([key,cup])=>[key,{...cup,results:cup.results.map(compactResult)}]));
   if(state.cups)out.cups=Object.fromEntries(Object.entries(state.cups).map(([key,cup])=>[key,cup?.results?{...cup,results:cup.results.map(compactResult)}:cup]));
   if(state.ucl)out.ucl={...state.ucl,clubIds:state.ucl.clubs.map(club=>club.id),clubs:undefined,

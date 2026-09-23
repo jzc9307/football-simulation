@@ -35,8 +35,14 @@ export default function App(){
 
   useEffect(() => {
     if (!loaded || !state || saveBlocked) return;
-    try{saveGame(window.localStorage,state);setSaveError("");}
-    catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);}
+    const persist=()=>{
+      try{saveGame(window.localStorage,state);setSaveError("");}
+      catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);}
+    };
+    // Avoid a synchronous localStorage write for every drag, lineup edit, or filter change.
+    const timer=window.setTimeout(persist,500);
+    window.addEventListener("pagehide",persist,{once:true});
+    return ()=>{window.clearTimeout(timer);window.removeEventListener("pagehide",persist);};
   }, [state,loaded,saveBlocked]);
 
   const flashToast=useCallback(msg=>{setToast(msg);},[]);

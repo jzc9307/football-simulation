@@ -114,8 +114,8 @@ export function transfer(s,{type,playerId,sellerId,fee}){
       (!isLoan||s.loans.filter(l=>l.borrowerId===c.id).length<3)).sort((a,b)=>b.budget-a.budget)[0];
     if(!buyer)throw new Error('No club can currently afford this deal.');
   }
-  if(buyer.players.length>=30)throw new Error('Maximum squad size is 30 players.');
   if(isLoan&&s.loans.filter(l=>l.borrowerId===buyer.id).length>=3)throw new Error('A club can have at most three incoming loans.');
+  if(buyer.players.length>=30)throw new Error('Maximum squad size is 30 players.');
   if(!outgoing&&s.budget<price)throw new Error('Not enough budget for this deal.');
   const moved={...player,club:buyer.id,number:numberFor(buyer.players),loan:isLoan};
   const updated=clubs.map(c=>c.id===seller.id?{...c,budget:(c.budget||0)+price,players:c.players.filter(p=>p.id!==player.id)}:

@@ -5,6 +5,7 @@ export function slotAccepts(slotRole, player){
   if (player.role === slotRole) return true;
   return (ROLE_COMPAT[slotRole] || []).includes(player.role);
 }
+const WIDE_ROLES = new Set(["LW", "LM", "RW", "RM"]);
 // Tactics: each formation is reduced to zone counts (wide defenders, central defenders, central midfielders,
 // wide midfielders, wide attackers, central strikers) computed directly from its slot list. A team's tactical
 // edge comes from genuine mismatches — extra strikers against too few center-backs, spare width against a side
@@ -47,6 +48,16 @@ export function topXI(players, formation="4-4-2"){
   const lineup = readinessLineup(FORMATIONS[formation] || FORMATIONS["4-4-2"], players);
   return playersForLineup(players, lineup, formation);
 }
+// Preserve a club's preferred shape unless another legal system gains a meaningful XI-quality edge.
+export function bestFormation(players, preferred="4-4-2"){
+  const score = formation => topXI(players, formation).reduce((total, player) => total + player.ovr, 0);
+  let best = preferred, top = score(preferred);
+  for (const formation of Object.keys(FORMATIONS)){
+    const candidate = score(formation);
+    if (candidate > top + 6){ best = formation; top = candidate; }
+  }
+  return best;
+}
 // Use rested depth for AI teams and fast-forwarded seasons, without weakening the preferred XI when fresh.
 export function readinessLineup(slots, players, preferred={}){
   const score=p=>matchOvr(p) + ((p.energy??100)-100)*0.48 + ((p.condition??100)-100)*0.18;
@@ -67,7 +78,8 @@ export function playersForLineup(players, lineup, formation){
   return (FORMATIONS[formation] || FORMATIONS["4-4-2"]).flatMap((slot, i) => {
     const p = players.find(p => p.id === lineup[i]);
     if (!p) return [];
-    const fit = p.role === slot.role ? 1 : slotAccepts(slot.role,p) ? 0.96 : 0.78;
+    const sameWing = WIDE_ROLES.has(p.role) && WIDE_ROLES.has(slot.role) && p.role[0] === slot.role[0];
+    const fit = (p.role === slot.role || sameWing) ? 1 : slotAccepts(slot.role,p) ? 0.96 : 0.78;
     return [{...p, assignedRole:slot.role, group:ROLE_GROUP[slot.role], ovr:p.ovr*fit}];
   });
 }
@@ -123,10 +135,11 @@ export const CLUB_TACTIC_PROFILES = {
 function identityIndex(id="club"){
   let hash=2166136261;for(const char of id){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return hash>>>0;
 }
-export function inferStyle(players, formation, clubId=""){
+export function inferStyle(players, formation, clubId="", leagueAvg=null){
   if(CLUB_TACTIC_PROFILES[clubId])return CLUB_TACTIC_PROFILES[clubId].style;
   const shape = formationShape(formation);
-  const avgOvr = avg(players, 70);
+  // Relative strength prevents every lower-rated league from defaulting to a deep block.
+  const avgOvr = 76 + (avg(players, 70) - (leagueAvg ?? 76));
   if (shape.defCentral >= 4) return avgOvr >= 78 ? "counter" : "bus";
   if (shape.defCentral === 3) return avgOvr >= 80 ? "counter" : "bus";
   if (shape.attWide === 0 && shape.midWide === 0 && shape.attCentral >= 2) return avgOvr >= 80 ? "tiki" : "direct";
@@ -155,8 +168,8 @@ export function myTactics(s){
     bench:club.players.filter(p=>!Object.values(s.lineup).includes(p.id) && !suspended.has(p.id)) };
 }
 export function aiTactics(club){
-  const formation = club.preferredFormation || "4-4-2";
-  const style=inferStyle(club.players,formation,club.id),profile=CLUB_TACTIC_PROFILES[club.id];
+  const formation = bestFormation(club.players, club.preferredFormation || "4-4-2");
+  const style=inferStyle(club.players,formation,club.id,club.leagueAvg),profile=CLUB_TACTIC_PROFILES[club.id];
   const defaults={tiki:[66,true,42],gegen:[72,true,68],bus:[30,false,35],counter:[42,false,50],direct:[50,false,56]};
   const [line,trap,aggression]=defaults[style]||[50,false,50];
   return { formation, style, line:profile?.line??line, trap:profile?.trap??trap, aggression:profile?.aggression??aggression, autoSubs:true, bench:club.players };
@@ -210,9 +223,10 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
       const style=STYLES[tac.style]||STYLES.balanced,oppStyle=STYLES[opp.style]||STYLES.balanced;
       const line=lineModifier(tac.line,tac.trap,ratings[side].defense,ratings[other].attack);
       const oppLine=lineModifier(opp.line,opp.trap,ratings[other].defense,ratings[side].attack);
-      const ratio=ratings[side].attack*(1+style.attack+line.attackAdj+styleMatchupBonus(tac.style,opp.style)) /
+      const rawRatio=ratings[side].attack*(1+style.attack+line.attackAdj+styleMatchupBonus(tac.style,opp.style)) /
         (ratings[other].defense*(1+oppStyle.defense+oppLine.defenseAdj+((opp.aggression??50)-50)*0.00025));
-      const advantage=((side===0)===homeA)?1.12:0.92;
+      const ratio=rawRatio**2;
+      const advantage=homeA==null ? 1 : ((side===0)===homeA ? 1.12 : 0.92);
       const passes=Math.round(3+rng()*3+(tac.style==="tiki"?2:0));
       totals.passes[side]+=passes;totals.accPasses[side]+=Math.round(passes*(0.72+rng()*0.18));
       possession[side]+=passes*(ratings[side].attack/80);
@@ -232,7 +246,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         restart=inBox?"penalty":dangerous?"freekick":null;
         events.push({minute,side:other,type:"foul",playerId:tackler.id,restart,
           text:inBox?`${tackler.name} fouls in the box — penalty!`:dangerous?`${tackler.name} fouls near the area — free kick`:`Foul by ${tackler.name}`});
-        const bookChance=(0.055+aggression*0.001)*(yellowCards[other].has(tackler.id)?0.35:1);
+        const bookChance=(0.11+aggression*0.001)*(yellowCards[other].has(tackler.id)?0.35:1);
         const log=playerLogs[other].get(tackler.id);
         if(rng()<bookChance){
           if(yellowCards[other].has(tackler.id)){
@@ -259,6 +273,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         }
       }
       if(rng()<0.02) totals.offsides[side]++;
+      if(rng()<0.03*Math.sqrt(ratio)) totals.corners[side]++;
       if(active[side].length && (restart==="penalty" || rng()<clamp(0.145*ratio*advantage*(1+tacticalModifier(tac.formation,opp.formation)),0.025,0.36))){
         const pool=active[side].filter(p=>p.group!=="GK");
         if(!pool.length) continue;
@@ -266,7 +281,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         let pick=rng()*weights.reduce((a,b)=>a+b,0),shooter=pool.at(-1);
         for(let i=0;i<pool.length;i++){pick-=weights[i];if(pick<=0){shooter=pool[i];break;}}
         const method=restart||((rng()<0.15)?"corner":"goal");
-        const xg=method==="penalty"?0.76:method==="freekick"?clamp(0.075*ratio,0.03,0.18):clamp(0.10*ratio*(0.55+rng()),0.02,0.48);
+        const xg=method==="penalty"?0.76:method==="freekick"?clamp(0.075*ratio,0.03,0.18):clamp((0.025+0.28*Math.pow(rng(),2.6))*ratio,0.02,0.75);
         const scored=rng()<xg;
         const shotLog=playerLogs[side].get(shooter.id);if(shotLog){shotLog.shots++;shotLog.xg+=xg;}
         totals.shots[side]++;totals.xg[side]+=xg;totals.touches[side]+=2;
@@ -411,35 +426,12 @@ export function resolveTie(myGoals,oppGoals,prior={mine:0,opp:0},deciding=true,r
   const wonPens=wentToPens?rng()<0.5:null;
   return {aggregate,wentToPens,wonPens,won:deciding?(aggregate.mine>aggregate.opp || (wentToPens&&wonPens)):null};
 }
-export function weightedScorer(players){
-  const pool = players.length ? players : [{name:"Unknown"}];
-  const weights = pool.map(p => p.group==="FWD"?4 : p.group==="MID"?2.2 : p.group==="DEF"?0.5 : 0.1);
-  const total = weights.reduce((a,b)=>a+b,0);
-  let r = Math.random()*total;
-  for(let i=0;i<pool.length;i++){ r -= weights[i]; if(r<=0) return pool[i].name; }
-  return pool[pool.length-1].name;
-}
-// Minute-stamped goals: "Wirtz '32, '90+5" instead of "Wirtz x2".
-export function pickUniqueMinute(used){
-  let m;
-  do { m = 1 + Math.floor(Math.random()*95); } while (used.has(m));
-  used.add(m);
-  return m;
-}
-export function formatMinute(m){ return m<=90 ? `'${m}` : `'90+${m-90}`; }
-export function buildGoalList(goalCount, players, usedMinutes){
-  const used = usedMinutes || new Set();
-  const list = [];
-  for (let i=0;i<goalCount;i++) list.push({ name: weightedScorer(players), minute: pickUniqueMinute(used) });
-  return list.sort((a,b)=>a.minute-b.minute);
-}
 export function formatScorers(goalList){
   if (!goalList || !goalList.length) return "";
   const byName = {};
   goalList.forEach(g => { (byName[g.name] = byName[g.name]||[]).push(g.minute); });
-  return Object.entries(byName).map(([name,mins]) => `${name} ${mins.sort((a,b)=>a-b).map(formatMinute).join(", ")}`).join(", ");
+  return Object.entries(byName).map(([name,mins]) => `${name} ${mins.sort((a,b)=>a-b).map(m=>m<=90?`'${m}`:`'90+${m-90}`).join(", ")}`).join(", ");
 }
-// ~7% chance one of the lineup's outfield players is sent off. Independent of the fixed score outcome.
 export function roundRobin(teamIds){
   const ids = [...teamIds];
   if (ids.length % 2 !== 0) ids.push(null);
@@ -621,9 +613,10 @@ export function simulateCupMatch(s, comp, round){
   const oppPlayers = topXI(opp.players,opp.preferredFormation);
   const oppTactics = aiTactics(opp);
   const myTac = myTactics(s);
+  const neutralVenue = round === "Final";
   const homeA = Math.random() < 0.5;
   const simulation = simMatchSmart(
-    homeA?lineupPlayers:oppPlayers, homeA?oppPlayers:lineupPlayers, true,
+    homeA?lineupPlayers:oppPlayers, homeA?oppPlayers:lineupPlayers, neutralVenue ? null : true,
     homeA?myTac:oppTactics, homeA?oppTactics:myTac
   );
   const performanceUpdates=performanceUpdatesForMatch(simulation,homeA?s.myClubId:opp.id,homeA?opp.id:s.myClubId,comp);
@@ -633,7 +626,7 @@ export function simulateCupMatch(s, comp, round){
   if (myGoals === oppGoals){ wentToPens = true; wonPens = Math.random() < 0.5; }
   const won = myGoals > oppGoals || (wentToPens && wonPens);
   const {goalList,scorerStr,redCard}=matchFields(simulation,homeA);
-  const matchResult = { ...matchFields(simulation,homeA), performanceUpdates, comp, round, opponent:opp.name, opponentColor:opp.color, opponentId:opp.id, homeA, myGoals, oppGoals, wentToPens, wonPens, won, scorerStr, goalList, redCard };
+  const matchResult = { ...matchFields(simulation,homeA), performanceUpdates, comp, round, opponent:opp.name, opponentColor:opp.color, opponentId:opp.id, homeA, neutralVenue, myGoals, oppGoals, wentToPens, wonPens, won, scorerStr, goalList, redCard };
   const record = { ...cs.record };
   record.gf += myGoals; record.ga += oppGoals;
   if (myGoals > oppGoals) record.w++; else if (myGoals < oppGoals) record.l++; else record.d++;
@@ -685,12 +678,13 @@ export function simulateUclRound(s, uclClubs, round){
 }
 export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, allowPens=true, prior={mine:0,opp:0}){
   const lineupPlayers = getMatchPlayers(s, "ucl");
-  const isHome = forcedIsHome!==undefined ? forcedIsHome : Math.random() < 0.5;
+  const neutralVenue = forcedIsHome === null;
+  const isHome = neutralVenue ? Math.random() < 0.5 : forcedIsHome!==undefined ? forcedIsHome : Math.random() < 0.5;
   const oppPlayers = topXI(opponent.players,opponent.preferredFormation);
   const oppTactics = aiTactics(opponent);
   const myTac = myTactics(s);
   const simulation = simMatchSmart(
-    isHome?lineupPlayers:oppPlayers, isHome?oppPlayers:lineupPlayers, true,
+    isHome?lineupPlayers:oppPlayers, isHome?oppPlayers:lineupPlayers, neutralVenue ? null : true,
     isHome?myTac:oppTactics, isHome?oppTactics:myTac
   );
   const performanceUpdates=performanceUpdatesForMatch(simulation,isHome?s.myClubId:opponent.id,isHome?opponent.id:s.myClubId,"ucl");
@@ -699,7 +693,7 @@ export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, al
   const {wentToPens,wonPens,won}=resolveTie(myGoals,oppGoals,prior,allowPens);
   const {goalList,scorerStr,redCard}=matchFields(simulation,isHome);
   return { ...matchFields(simulation,isHome), performanceUpdates, stage:stageLabel, opponent:opponent.name, opponentColor:opponent.color, opponentId:opponent.id,
-    isHome, myGoals, oppGoals, scorerStr, goalList, redCard, wentToPens, wonPens, won, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
+    isHome, neutralVenue, myGoals, oppGoals, scorerStr, goalList, redCard, wentToPens, wonPens, won, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
 }
 export function pickKnockoutOpponent(u, myClubId){
   const faced = u.knockoutFaced || [];

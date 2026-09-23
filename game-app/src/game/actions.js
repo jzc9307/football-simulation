@@ -80,7 +80,8 @@ export function playEuropeanKnockout(s){
       const isFinal = roundName === "Final";
       const leg = u.leg || 1;
       let isHome;
-      if (isFinal || leg===1) isHome = s.myClubId.localeCompare(opp.id)<0;
+      if (isFinal) isHome = null;
+      else if (leg===1) isHome = Math.random() < 0.5;
       else isHome = !u.firstLegHomeA;
       const allowPens = isFinal || leg===2;
       const result = simulateUclSingleMatch(s, opp, isFinal ? "Final" : `${roundName} — Leg ${leg}`, isHome, allowPens, !isFinal && leg===2 ? u.aggregate : {mine:0,opp:0});
