@@ -80,6 +80,7 @@ flowchart LR
 | 🩹 **Fitness system** | Live condition loss, automatic substitutions, suspensions |
 | ⏱️ **Flexible pacing** | Match-by-match simulation or instant half-season sim |
 | 📊 **Live match centre** | Club-colour themed momentum, possession, shot map, ratings |
+| 🗂️ **FC 27 rosters** | Current EA FC 27 ratings, positions, ages and stamina for every included club |
 | 💾 **Persistence** | Local autosave, JSON export/import, save migration |
 
 ---
@@ -445,6 +446,10 @@ Each Round of 16 slot then meets the winner of the matching playoff tie. From th
 
 Loaned players return to their owner at season end and can't be re-sold or re-loaned. Shirt numbers use the lowest number free from 1–99. Market opens preseason and at the midpoint window.
 
+### FC 27 Roster Data
+
+All five playable leagues and the Championship sides used in the FA Cup, Carabao Cup and transfer market are refreshed from the official EA SPORTS FC 27 Ratings database (retrieved 23 September 2026). Player names, positions, ages, overall ratings and stamina are current to that snapshot. Squads use every available source player up to the game's 30-player squad limit; player values are game-side estimates derived from rating and age.
+
 ### Player Development *(end of season)*
 
 - Everyone ages +1
@@ -494,3 +499,4 @@ Add your license here.
 Made with ⚽ and a lot of xG math.
 
 </div>
+
