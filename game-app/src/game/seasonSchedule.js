@@ -61,7 +61,28 @@ export function requireScheduledFixture(state,competition){
  const next=nextFixture(state);if(!next||next.competition!==competition)throw new Error("Play the next scheduled fixture first.");return next;
 }
 export function resolveCalendarConflicts(schedule){
- const events=schedule.map(e=>({...e})),protectedEvents=events.filter(e=>e.kind!=="league"&&!["cancelled","bye"].includes(e.status));
+ const events=schedule.map(e=>({...e}));
+ // Europe keeps its match windows. Move domestic cup rounds as a unit before
+ // fitting league rounds around them, including clashes involving opponents.
+ const protectedEvents=events.filter(e=>e.kind==="europe"&&e.status!=="cancelled");
+ const cupRounds=new Map();
+ for(const e of events.filter(e=>e.kind==="cup"&&!["cancelled","bye"].includes(e.status))){
+  const key=`${e.competition}:${e.roundIndex}`;
+  if(!cupRounds.has(key))cupRounds.set(key,[]);
+  cupRounds.get(key).push(e);
+ }
+ for(const group of [...cupRounds.values()].sort((a,b)=>a[0].date.localeCompare(b[0].date))){
+  const ids=new Set(group.flatMap(e=>[e.homeId,e.awayId]).filter(Boolean));
+  let date=group[0].date;
+  if(!group.some(e=>e.status==="completed")){
+   for(let guard=0;guard<370;guard++){
+    if(!protectedEvents.some(e=>Math.abs(dateValue(e.date)-dateValue(date))<3*DAY&&(!e.homeId||!e.awayId||group.some(t=>!t.homeId||!t.awayId)||ids.has(e.homeId)||ids.has(e.awayId))))break;
+    date=addDays(date,1);
+   }
+   for(const e of group)if(e.date!==date){e.originalDate=e.originalDate||e.date;e.date=date;e.rescheduled=true;}
+  }
+  protectedEvents.push(...group);
+ }
  const groups=new Map();for(const e of events.filter(e=>e.kind==="league")){if(!groups.has(e.round))groups.set(e.round,[]);groups.get(e.round).push(e);}
  let previous=null;
  for(const round of [...groups.keys()].sort((a,b)=>a-b)){
@@ -109,6 +130,7 @@ export function rescheduleConflict(state,eventId){
  return updated.date===target.date?state:addMail({...state,seasonSchedule},{type:"fixture",subject:"Fixture rearranged",body:`Your league match has moved to ${updated.date} to protect recovery time for both clubs.`,competition:target.competition});
 }
 export function syncKnockoutSchedule(state){
+ if(state.ucl?.knockoutBracket?.calendarDriven)return state;
  const u=state.ucl;if(!u?.knockoutRounds?.length||u.stage==="final")return state;
  const name=u.knockoutRounds[u.knockoutRoundIndex],leg=u.leg||1,id=`ucl-ko:${name}:${leg}`;
  if(state.seasonSchedule.some(e=>e.id===id))return state;

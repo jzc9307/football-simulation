@@ -477,7 +477,7 @@ export function applyPerformanceUpdates(s,updates=[],recoverUnplayed=true){
         confidence:clamp(faded+r.confidenceDelta,-2,2)};
     })};
   };
-  const poolKeys=["clubs","plClubs","laligaClubs","serieaClubs","bundesligaClubs","ligue1Clubs","championshipClubs","laliga2Clubs","serieBClubs","bundes2Clubs","ligue2Clubs"];
+  const poolKeys=["clubs","plClubs","laligaClubs","serieaClubs","bundesligaClubs","ligue1Clubs","championshipClubs","laliga2Clubs","serieBClubs","bundes2Clubs","ligue2Clubs","europeanGuestClubs"];
   const next={...s};
   for(const key of poolKeys)if(Array.isArray(s[key]))next[key]=s[key].map(updateClub);
   if(s.ucl?.clubs)next.ucl={...s.ucl,clubs:s.ucl.clubs.map(updateClub)};
@@ -786,7 +786,8 @@ export function simulateUclRound(s, uclClubs, round){
 export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, allowPens=true, prior={mine:0,opp:0}){
   const lineupPlayers = getMatchPlayers(s, "ucl");
   const neutralVenue = forcedIsHome === null;
-  const isHome = neutralVenue ? Math.random() < 0.5 : forcedIsHome!==undefined ? forcedIsHome : Math.random() < 0.5;
+  const scheduled=s.seasonSchedule?.find(e=>e.id===s.activeFixtureId);
+  const isHome = neutralVenue ? (scheduled?scheduled.homeId===s.myClubId:Math.random()<0.5) : forcedIsHome!==undefined ? forcedIsHome : Math.random() < 0.5;
   const oppPlayers = topXI(opponent.players,opponent.preferredFormation);
   const oppTactics = aiTactics(opponent);
   const myTac = myTactics(s);

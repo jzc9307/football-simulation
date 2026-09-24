@@ -38,7 +38,7 @@ function restoreCompactState(input, defaults){
       requireValid(Array.isArray(players),`invalid compact roster for ${patch.id}.`);
       return {...base,...clubPatch,players:players.map(playerPatch=>{
         const basePlayer=baseByPlayer.get(playerPatch.id);
-        requireValid(!!basePlayer,`unknown player ${playerPatch.id}.`);
+        requireValid(!!basePlayer||typeof playerPatch.name==="string",`unknown player ${playerPatch.id}.`);
         return {...basePlayer,...playerPatch,club:patch.id};
       })};
     });

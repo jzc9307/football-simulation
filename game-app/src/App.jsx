@@ -1,8 +1,9 @@
 import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, uclZoneLabel, freshState, unavailablePlayerIds, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES, findClubAnywhere } from "./game/engine.js";
-import { createUclCampaign, uclQualified } from "./game/uclSelection.js";
+import { createUclCampaign } from "./game/uclSelection.js";
 import { attachSeasonSchedule, markMailRead, nextFixture, syncKnockoutSchedule } from "./game/seasonSchedule.js";
 import { prepareNextFixture, migrateSeason, simulateScheduledHalf } from "./game/seasonFlow.js";
-import { FixturesPanel, CupWorkspace, CalendarPanel, CupDetail, CalendarHub, formatDate } from "./components/CompetitionCentre.jsx";
+import { FixturesPanel, CupWorkspace, CalendarPanel, CupDetail, CalendarHub } from "./components/CompetitionCentre.jsx";
+import { formatDate } from "./components/calendarFormat.js";
 import { standingsZone, standingsLegend } from "./game/standingsZones.js";
 import { playEuropeanLeague, advanceEuropeanLeague, startEuropeanKnockout, playLeagueRound, playDomesticCup, playEuropeanKnockout, advanceEuropeanKnockout } from "./game/actions.js";
 import { ROLE_GROUP, GROUP_COLOR, FORMATIONS } from "./game/config.js";
@@ -139,7 +140,7 @@ export default function App(){
     const identity=aiTactics(club);
     setState(s => {
       const selected={...s,myClubId:clubId,budget:club.budget,formation:club.preferredFormation||s.formation,lineup:autoLineup(FORMATIONS[club.preferredFormation||s.formation],club.players),tacticalStyle:identity.style,defensiveLine:identity.line,defensiveAggression:identity.aggression,offsideTrap:identity.trap,stage:"mode"};
-      const withEurope=!selected.ucl&&uclQualified(selected)?{...selected,ucl:createUclCampaign(selected,roundRobin,initTable)}:selected;
+      const withEurope=!selected.ucl?{...selected,ucl:createUclCampaign(selected,roundRobin,initTable)}:selected;
       return attachSeasonSchedule(ensureFixtures(withEurope));
     });
   }
@@ -167,7 +168,7 @@ export default function App(){
     try{setState(transform(state));}catch(error){flashToast(error.message);}
   }
 
-  function nextSeason(){commitGame(s=>{const next=startNextSeason(s);return next.stage==="game-over"?next:ensureFixtures({...next,scheduleMigrationDone:true,ucl:uclQualified(next)?createUclCampaign(next,roundRobin,initTable):null});});}
+  function nextSeason(){commitGame(s=>{const next=startNextSeason(s);return next.stage==="game-over"?next:ensureFixtures({...next,scheduleMigrationDone:true,ucl:createUclCampaign(next,roundRobin,initTable)});});}
   function downloadSave(){
     const url=URL.createObjectURL(new Blob([exportGame(state)],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download="football-manager-save.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

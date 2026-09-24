@@ -5,6 +5,7 @@ import { competitionTheme, competitionBrand } from "./competitionBrand.js";
 import { CUP_KEYS, cupCompetitions, isMyFixture, nextFixture, seasonStart, addDays, dateValue, leagueCompetition } from "../game/seasonSchedule.js";
 import { findClubAnywhere } from "../game/engine.js";
 import "./CompetitionCentre.css";
+import { formatDate } from "./calendarFormat.js";
 
 const LOGOS=import.meta.glob("../assets/club-logos/*.png",{eager:true,query:"?url",import:"default"});
 function club(state,id){return id?(findClubAnywhere(state,id)||{id,name:"Club unavailable"}):{name:"Winner to be confirmed"};}
@@ -12,13 +13,10 @@ function Crest({team,large=false,watermark=false}){
  const name=team?.name||"To be confirmed",logo=LOGOS[`../assets/club-logos/${team?.id}.png`];
  return <span className={`cc-crest ${large?"is-large":""} ${watermark?"is-watermark":""}`} style={{"--club-color":team?.color||"#667b92"}}>{logo?<img src={logo} alt={watermark?"":name}/>:<b>{team?.id?name.split(" ").map(s=>s[0]).slice(0,2).join(""):"?"}</b>}</span>;
 }
-export function formatDate(date,options={day:"numeric",month:"short",weekday:"short"}){
- return Number.isFinite(dateValue(date))?new Intl.DateTimeFormat("en-GB",{...options,timeZone:"UTC"}).format(new Date(dateValue(date))):"Date to be confirmed";
-}
 function roundName(event){return typeof event.round==="number"?`${event.kind==="europe"?"Matchday":"Matchweek"} ${event.round}`:`${event.round||"Draw pending"}${event.leg?` · Leg ${event.leg}`:""}`;}
 function score(event){const r=event.result;return r&&Number.isFinite(r.homeGoals??r.myGoals)?`${r.homeGoals??r.myGoals} – ${r.awayGoals??r.oppGoals}`:event.status==="completed"?"FT":null;}
 function future(state,id){return state.seasonSchedule?.filter(e=>e.competition===id&&isMyFixture(state,e)&&["scheduled","pending-draw"].includes(e.status)).sort((a,b)=>a.date.localeCompare(b.date))[0];}
-function cupState(state,id){return id==="UCL"?{outcome:state.ucl?.outcome||(!state.ucl?"NOT QUALIFIED":null),record:state.ucl?.campaignRecord}:state.cupStatus?.[CUP_KEYS[id]]||{};}
+function cupState(state,id){return id==="UCL"?{outcome:state.ucl?.outcome||(!state.ucl?.clubs.some(c=>c.id===state.myClubId)?"NOT QUALIFIED":null),record:state.ucl?.campaignRecord}:state.cupStatus?.[CUP_KEYS[id]]||{};}
 function FixtureLine({state,event}){
  const a=club(state,event.homeId),b=club(state,event.awayId);
  return <div className={`cc-fixture ${isMyFixture(state,event)?"is-own":""}`}><div className="cc-fixture-team home"><span>{a.name}</span><Crest team={a}/></div><div className="cc-score"><b>{score(event)|| (event.status==="bye"?"BYE":event.homeId&&event.awayId?"vs":"TBC")}</b><small>{event.result?.notes||formatDate(event.date,{day:"numeric",month:"short"})}</small></div><div className="cc-fixture-team"><Crest team={b}/><span>{b.name}</span></div></div>;
@@ -85,4 +83,3 @@ export function CupDetail({state,competition,onClose,renderStandings,renderBrack
  </div></section></div>;
 }
 export function CalendarHub({state,onClose}){return <div className="cc-modal-overlay" onClick={onClose}><section className="cc-modal" role="dialog" aria-modal="true" aria-label="Season calendar" onClick={e=>e.stopPropagation()}><div className="cc-calendar-close"><button className="cc-icon-button" onClick={onClose} aria-label="Close calendar"><X size={20}/></button></div><CalendarPanel state={state}/></section></div>;}
-
