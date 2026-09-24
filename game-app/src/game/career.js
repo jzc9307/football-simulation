@@ -232,6 +232,7 @@ export function startNextSeason(s){
   return {...next,season:s.season+1,stage:gameOver?'game-over':'squad',division:nextTier,budget:me.budget,loans:[],
     half:1,roundIndex:0,roundsHalf1:null,roundsHalf2:null,tableRaw:null,table1:null,tableFinal:null,
     results1:[],results2:[],clubForm:{},lastResult:null,lastCupResult:null,lastLiveContext:null,
+    scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:null,midSeasonDone:false,activeFixtureId:null,
     cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,suspensions:fresh.suspensions,
     injuries:{},lineup:autoLineup(FORMATIONS[s.formation],me.players),development:development.rows,retirements,movement,
     history:[...s.history,{season:s.season,rank,club:me.name,division:previousTier,ucl:s.cups.ucl?.outcome||null,movement}],

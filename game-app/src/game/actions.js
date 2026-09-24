@@ -1,7 +1,8 @@
-import { completeUserTie, bracketCurrentTie } from "./uclBracket.js";
+import { prepareNextFixture } from "./seasonFlow.js";
+import { completeUserTie, bracketCurrentTie, startUclBracket } from "./uclBracket.js";
 import { FORMATIONS } from "./config.js";
-import { addMail, recordScheduledResult } from "./seasonSchedule.js";
-import { lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates, readinessLineup, applyInjuries, unavailablePlayerIds } from "./engine.js";
+import { addMail, recordScheduledResult, requireScheduledFixture, leagueCompetition, syncKnockoutSchedule } from "./seasonSchedule.js";
+import { simulateUclRound, lineupIssue, applyUpdates, appendClubForm, computeTableArray, simulateRound, ensureFixtures, pendingCupSlot, simulateCupMatch, simulateUclSingleMatch, pickKnockoutOpponent, findClubAnywhere, cleanLineupOfSuspended, buildLiveMatchContext, applyPerformanceUpdates, readinessLineup, applyInjuries, unavailablePlayerIds } from "./engine.js";
 function requireLineup(s,competition="domestic"){const issue=lineupIssue(s,competition);if(issue)throw new Error(issue);}
 export function simulateHalf(s, half){
       requireLineup(s);
@@ -35,6 +36,8 @@ export function simulateHalf(s, half){
     }
 
 export function playLeagueRound(s){
+      const scheduled=requireScheduledFixture(s,leagueCompetition(s.league,s.division));
+      if(scheduled&&scheduled.id!==s.activeFixtureId)throw new Error("Continue to the next fixture before kickoff.");
       requireLineup(s);
       const rounds = s.half===1 ? s.roundsHalf1 : s.roundsHalf2;
       const round = rounds[s.roundIndex];
@@ -49,6 +52,10 @@ export function playLeagueRound(s){
       next=recordScheduledResult(next,{competition:s.league,homeId:userResult.isHome?s.myClubId:userResult.opponentId,awayId:userResult.isHome?userResult.opponentId:s.myClubId,myGoals:userResult.isHome?userResult.myGoals:userResult.oppGoals,oppGoals:userResult.isHome?userResult.oppGoals:userResult.myGoals,round:gw});
       const notifications=[...fixtures.filter(f=>f.homeId!==s.myClubId&&f.awayId!==s.myClubId).slice(0,1).map(()=>({type:"result",subject:`Matchweek ${gw} results are in`,body:"All league results and the updated table are available in Fixtures."})),...(userResult.injuries||[]).map(injury=>({type:"medical",subject:`Medical update: ${injury.name}`,body:`${injury.severity}; unavailable for ${injury.matches} match${injury.matches===1?"":"es"}.`})),...(userResult.redCard?[{type:"discipline",subject:`Suspension: ${userResult.redCard.name}`,body:"The player is suspended for the next domestic match."}]:[])];
       notifications.forEach(note=>{next=addMail(next,note);});
+      next={...next,seasonSchedule:next.seasonSchedule.map(event=>{
+        const result=fixtures.find(f=>event.kind==="league"&&f.round===event.round&&f.homeId===event.homeId&&f.awayId===event.awayId);
+        return result?{...event,status:"completed",result}:event;
+      }),currentDate:scheduled?.date||next.currentDate};
       return { ...next, fixtureResults:[...(next.fixtureResults||[]),...fixtures], lastResult: userResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "matchday-live" : "matchday-result",
         results1: s.half===1 ? [...s.results1, userResult] : s.results1,
         results2: s.half===2 ? [...s.results2, userResult] : s.results2,
@@ -56,6 +63,8 @@ export function playLeagueRound(s){
     }
 
 export function playDomesticCup(s, comp, round){
+      const scheduled=requireScheduledFixture(s,{fa:"FA",carabao:"CARABAO",copa:"COPA",coppa:"COPPA",dfb:"DFB",coupe:"COUPE"}[comp]);
+      if(scheduled&&(scheduled.round!==round||scheduled.id!==s.activeFixtureId))throw new Error("This cup fixture is not due yet.");
       requireLineup(s);
       const { updatedCs, matchResult } = simulateCupMatch(s, comp, round);
       const oppClub = findClubAnywhere(s, matchResult.opponentId);
@@ -64,7 +73,7 @@ export function playDomesticCup(s, comp, round){
       const newSuspended = matchResult.redCard ? [matchResult.redCard.id] : [];
       let next=applyInjuries(applyPerformanceUpdates({...s,cupStatus:{...s.cupStatus,[comp]:updatedCs}},matchResult.performanceUpdates),matchResult.injuries);
       const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newSuspended,...unavailablePlayerIds(next)]);
-      next=recordScheduledResult(next,{competition,homeId:matchResult.homeA?s.myClubId:matchResult.opponentId,awayId:matchResult.homeA?matchResult.opponentId:s.myClubId,myGoals:matchResult.homeA?matchResult.myGoals:matchResult.oppGoals,oppGoals:matchResult.homeA?matchResult.oppGoals:matchResult.myGoals,round});
+      next=recordScheduledResult(next,{competition,fixtureId:scheduled?.id,homeId:matchResult.homeA?s.myClubId:matchResult.opponentId,awayId:matchResult.homeA?matchResult.opponentId:s.myClubId,myGoals:matchResult.homeA?matchResult.myGoals:matchResult.oppGoals,oppGoals:matchResult.homeA?matchResult.oppGoals:matchResult.myGoals,round,winnerId:matchResult.won?s.myClubId:matchResult.opponentId,notes:matchResult.wentToPens?"Decided on penalties":null});
       next=addMail(next,{type:"cup",competition,subject:`${competition} update`,body:matchResult.won?`You are through after the ${round}.`:`Your ${competition} campaign has ended in the ${round}.`});
       return { ...next, lastCupResult: matchResult, lastLiveContext: liveContext, lineup: cleanedLineup, stage: liveContext ? "cup-live" : "cup-result",
         suspensions: { ...s.suspensions, domestic: newSuspended } };
@@ -80,6 +89,8 @@ export function advanceLeagueRound(s){
     }
 
 export function playEuropeanKnockout(s){
+      const scheduled=requireScheduledFixture(s,"UCL");
+      if(scheduled&&scheduled.id!==s.activeFixtureId)throw new Error("This European fixture is not due yet.");
       requireLineup(s,"ucl");
       const u = s.ucl;
       const opp = u.clubs.find(c=>c.id===u.currentKnockoutOpponentId);
@@ -88,7 +99,7 @@ export function playEuropeanKnockout(s){
       const leg = u.leg || 1;
       let isHome;
       if (isFinal) isHome = null;
-      else if (leg===1) isHome = Math.random() < 0.5;
+      else if (leg===1) isHome = scheduled?scheduled.homeId===s.myClubId:Math.random() < 0.5;
       else isHome = !u.firstLegHomeA;
       const allowPens = isFinal || leg===2;
       const result = simulateUclSingleMatch(s, opp, isFinal ? "Final" : `${roundName} — Leg ${leg}`, isHome, allowPens, !isFinal && leg===2 ? u.aggregate : {mine:0,opp:0});
@@ -100,6 +111,7 @@ export function playEuropeanKnockout(s){
       const newUclSuspended = result.redCard ? [result.redCard.id] : [];
       const formUpdates=[{clubId:s.myClubId,gf:result.myGoals,ga:result.oppGoals},{clubId:opp.id,gf:result.oppGoals,ga:result.myGoals}];
       let next=applyInjuries(applyPerformanceUpdates({...s,ucl:{...u,form:appendClubForm(u.form,formUpdates)}},result.performanceUpdates),result.injuries);
+      if(scheduled)next=recordScheduledResult(next,{fixtureId:scheduled.id,myGoals:scheduled.homeId===s.myClubId?result.myGoals:result.oppGoals,oppGoals:scheduled.homeId===s.myClubId?result.oppGoals:result.myGoals});
       const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newUclSuspended,...unavailablePlayerIds(next,"ucl")]);
       return { ...next, ucl: { ...next.ucl, lastMatch: result, liveContext, aggregate,
           firstLegHomeA: (!isFinal && leg===1) ? isHome : u.firstLegHomeA,
@@ -136,3 +148,58 @@ export function advanceEuropeanKnockout(s){
       return { ...s, ucl: { ...updatedU, knockoutRoundIndex: nextIdx, currentKnockoutOpponentId: opp.id,
         leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     }
+
+export function playEuropeanLeague(s){
+      const scheduled=requireScheduledFixture(s,"UCL");
+      if(scheduled?.id!==s.activeFixtureId)throw new Error("This European fixture is not due yet.");
+      requireLineup(s,"ucl");
+      const u = s.ucl;
+      const round = u.rounds[u.roundIndex];
+      const { updates, userResult, performanceUpdates, fixtures } = simulateUclRound(s, u.clubs, round);
+      const tableRaw = applyUpdates(u.tableRaw, updates);
+      const record = { ...u.campaignRecord };
+      record.gf += userResult.myGoals; record.ga += userResult.oppGoals;
+      if (userResult.myGoals>userResult.oppGoals) record.w++; else if (userResult.myGoals<userResult.oppGoals) record.l++; else record.d++;
+      const oppClub = u.clubs.find(c=>c.id===userResult.opponentId);
+      const liveContext = buildLiveMatchContext(s, userResult, oppClub);
+      const newUclSuspended = userResult.redCard ? [userResult.redCard.id] : [];
+      let next=applyInjuries(applyPerformanceUpdates({...s,ucl:{...u,tableRaw,form:appendClubForm(u.form,updates)}},performanceUpdates),userResult.injuries);
+      next=recordScheduledResult(next,{competition:"UCL",homeId:userResult.isHome?s.myClubId:userResult.opponentId,awayId:userResult.isHome?userResult.opponentId:s.myClubId,myGoals:userResult.isHome?userResult.myGoals:userResult.oppGoals,oppGoals:userResult.isHome?userResult.oppGoals:userResult.myGoals,round:u.roundIndex+1});
+      for(const fixture of fixtures)next=recordScheduledResult(next,{...fixture,myGoals:fixture.homeGoals,oppGoals:fixture.awayGoals});
+      next={...next,fixtureResults:[...(next.fixtureResults||[]),...fixtures]};
+      next=addMail(next,{type:"europe",competition:"UCL",subject:"Champions League result",body:`${findClubAnywhere(s,s.myClubId).name} ${userResult.myGoals}–${userResult.oppGoals} ${oppClub.name}. Your league-phase table is updated.`});
+      (userResult.injuries||[]).forEach(injury=>{next=addMail(next,{type:"medical",competition:"UCL",subject:`Medical update: ${injury.name}`,body:`${injury.severity}; unavailable for ${injury.matches} match${injury.matches===1?"":"es"}.`});});
+      const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newUclSuspended,...unavailablePlayerIds(next,"ucl")]);
+      return { ...next, ucl: { ...next.ucl, lastMatch: userResult, liveContext, stage: "match-live",
+        campaignResults: [...u.campaignResults, userResult], campaignRecord: record },
+        lineup: cleanedLineup,
+        suspensions: { ...s.suspensions, ucl: newUclSuspended } };
+
+}
+
+export function advanceEuropeanLeague(s){
+      const u = s.ucl;
+      if (u.roundIndex === 7){
+        const phaseTable = computeTableArray(u.tableRaw, u.clubs);
+        const rank = phaseTable.findIndex(r=>r.id===s.myClubId)+1;
+        const qualification = rank<=8 ? "top8" : rank<=24 ? "playoff" : "eliminated";
+        return { ...s, ucl: { ...u, phaseTable, qualification, stage: "phase-summary" } };
+      }
+      return prepareNextFixture({ ...s, ucl: { ...u, roundIndex: u.roundIndex+1, stage: "hub" } });
+
+}
+
+export function startEuropeanKnockout(s){
+      const u = s.ucl;
+      if (u.qualification === "eliminated"){
+        const outcome = "LEAGUE PHASE EXIT";
+        return prepareNextFixture({ ...s, ucl: { ...u, outcome, stage:"final" }, cups: { ...s.cups, ucl: { results:u.campaignResults, record:u.campaignRecord, outcome } } });
+      }
+      const knockoutBracket=startUclBracket(u.phaseTable,s.myClubId,u.clubs);
+      const current=bracketCurrentTie(knockoutBracket,s.myClubId);
+      const knockoutRounds=u.qualification==="playoff"?["Playoff","Round of 16","Quarter-Final","Semi-Final","Final"]:["Round of 16","Quarter-Final","Semi-Final","Final"];
+      const oppId=current.tie.aId===s.myClubId?current.tie.bId:current.tie.aId;
+      return prepareNextFixture(syncKnockoutSchedule({ ...s, ucl: { ...u, knockoutBracket, knockoutRounds, knockoutRoundIndex:0, knockoutFaced:[], currentKnockoutOpponentId:oppId,
+        leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } }));
+
+}

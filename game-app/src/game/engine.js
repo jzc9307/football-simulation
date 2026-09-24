@@ -429,7 +429,7 @@ export function performanceUpdatesForMatch(simulation,homeClubId,awayClubId,comp
     {clubId:awayClubId,ratings:simulation.match.playerRatings[1],competition,opponentStrength:strength(homeXI)},
   ];
 }
-export function applyPerformanceUpdates(s,updates=[]){
+export function applyPerformanceUpdates(s,updates=[],recoverUnplayed=true){
   const byClub=new Map();
   for(const update of updates){
     if(!byClub.has(update.clubId))byClub.set(update.clubId,[]);
@@ -437,6 +437,7 @@ export function applyPerformanceUpdates(s,updates=[]){
   }
   const updateClub=club=>{
     const ratings=byClub.get(club.id)||[];
+    if(!recoverUnplayed&&!ratings.length)return club;
     const byPlayer=new Map(ratings.map(r=>[r.playerId,r]));
     return {...club,players:club.players.map(player=>{
       const r=byPlayer.get(player.id);
@@ -643,7 +644,7 @@ export function simulateRound(s, round, gw){
   return { updates, userResult, performanceUpdates, fixtures };
 }
 export function ensureFixtures(s){
-  if (s.roundsHalf1) return s.seasonSchedule?.length?s:attachSeasonSchedule(s);
+  if (s.roundsHalf1) return attachSeasonSchedule(s);
   const ids = s.clubs.map(c=>c.id);
   const r1 = roundRobin(ids);
   const r2 = r1.map(round => round.map(([h,a]) => [a,h]));
@@ -708,13 +709,15 @@ export function simulateCupMatch(s, comp, round){
   const domesticPools={PL:[s.plClubs,s.championshipClubs],LALIGA:[s.laligaClubs,s.laliga2Clubs],SERIEA:[s.serieaClubs,s.serieBClubs],BUNDES:[s.bundesligaClubs,s.bundes2Clubs],LIGUE1:[s.ligue1Clubs,s.ligue2Clubs]};
   const pool=[...(domesticPools[s.league]||[s.clubs]).flat()].filter(club=>club.id!==s.myClubId);
   const avail = pool.filter(c=>!cs.faced.includes(c.id));
-  const opp = (avail.length ? avail : pool)[Math.floor(Math.random()*(avail.length ? avail.length : pool.length))];
+  const scheduled=s.seasonSchedule?.find(e=>e.kind==="cup"&&e.comp===comp&&e.round===round&&e.status==="scheduled"&&(e.homeId===s.myClubId||e.awayId===s.myClubId));
+  const opp = scheduled?findClubAnywhere(s,scheduled.homeId===s.myClubId?scheduled.awayId:scheduled.homeId):(avail.length ? avail : pool)[Math.floor(Math.random()*(avail.length ? avail.length : pool.length))];
+  if(!opp)throw new Error("The cup draw is not ready.");
   const lineupPlayers = getMatchPlayers(s);
   const oppPlayers = topXI(opp.players,opp.preferredFormation);
   const oppTactics = aiTactics(opp);
   const myTac = myTactics(s);
   const neutralVenue = round === "Final";
-  const homeA = Math.random() < 0.5;
+  const homeA = scheduled?scheduled.homeId===s.myClubId:Math.random() < 0.5;
   const homePlayers=homeA?lineupPlayers:oppPlayers, awayPlayers=homeA?oppPlayers:lineupPlayers;
   const homeTactics=homeA?myTac:oppTactics, awayTactics=homeA?oppTactics:myTac;
   let simulation = simMatchSmart(homePlayers, awayPlayers, neutralVenue ? null : true, homeTactics, awayTactics);
@@ -758,12 +761,13 @@ export function simulateUclMatch(s, homeClub, awayClub){
   return simMatchSmart(homePlayers, awayPlayers, true, homeTactics, awayTactics);
 }
 export function simulateUclRound(s, uclClubs, round){
-  const updates = [],performanceUpdates=[];
+  const updates = [],performanceUpdates=[],fixtures=[];
   let userResult = null;
   round.forEach(([home, away]) => {
     const homeClub = uclClubs.find(c=>c.id===home), awayClub = uclClubs.find(c=>c.id===away);
     const simulation = simulateUclMatch(s, homeClub, awayClub);
     const {goalsA,goalsB}=simulation;
+    fixtures.push({competition:"UCL",round:s.ucl.roundIndex+1,homeId:home,awayId:away,homeGoals:goalsA,awayGoals:goalsB});
     performanceUpdates.push(...performanceUpdatesForMatch(simulation,home,away,"ucl"));
     updates.push({ clubId:home, gf:goalsA, ga:goalsB });
     updates.push({ clubId:away, gf:goalsB, ga:goalsA });
@@ -777,7 +781,7 @@ export function simulateUclRound(s, uclClubs, round){
         isHome, myGoals, oppGoals, scorerStr, goalList, redCard, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
     }
   });
-  return { updates, userResult, performanceUpdates };
+  return { updates, userResult, performanceUpdates, fixtures };
 }
 export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, allowPens=true, prior={mine:0,opp:0}){
   const lineupPlayers = getMatchPlayers(s, "ucl");

@@ -1,119 +1,122 @@
-// The calendar is intentionally a data layer, rather than a screen.  Every surface
-// (league fixtures, calendar, cups and mail) consumes these same dated events.
-const DAY=24*60*60*1000;
-const iso=date=>new Date(date).toISOString().slice(0,10);
-const addDays=(date,days)=>{const base=date instanceof Date?date:new Date(`${date}T12:00:00Z`);return new Date(base.getTime()+days*DAY);};
-const SEASON_START={1:"2026-08-15"};
-
-export const COMPETITIONS={
-  PL:{name:"Premier League",short:"PL",kind:"league"}, LALIGA:{name:"La Liga",short:"LL",kind:"league"}, SERIEA:{name:"Serie A",short:"SA",kind:"league"}, BUNDES:{name:"Bundesliga",short:"BL",kind:"league"}, LIGUE1:{name:"Ligue 1",short:"L1",kind:"league"},
-  CHAMPIONSHIP:{name:"Championship",short:"EFL",kind:"league"}, LALIGA2:{name:"LaLiga Hypermotion",short:"LL2",kind:"league"}, SERIEB:{name:"Serie B",short:"B",kind:"league"}, BUNDES2:{name:"2. Bundesliga",short:"2BL",kind:"league"}, LIGUE2:{name:"Ligue 2",short:"L2",kind:"league"},
-  FA:{name:"FA Cup",short:"FA",kind:"cup"}, CARABAO:{name:"Carabao Cup",short:"EFL Cup",kind:"cup"}, COPA:{name:"Copa del Rey",short:"Copa",kind:"cup"}, COPPA:{name:"Coppa Italia",short:"Coppa",kind:"cup"}, DFB:{name:"DFB-Pokal",short:"DFB",kind:"cup"}, COUPE:{name:"Coupe de France",short:"Coupe",kind:"cup"},
-  UCL:{name:"Champions League",short:"UCL",kind:"europe"},
-};
-
-export function competitionForCup(league,comp){
-  if(comp==="fa")return "FA";
-  if(comp==="carabao")return "CARABAO";
-  if(comp==="copa")return "COPA";
-  return ({SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE"}[league]||"FA");
+// Shared, persisted fixture calendar. UI and match execution use the same event IDs.
+const DAY=86400000;
+export const dateValue=date=>Date.parse(`${date}T12:00:00Z`);
+export const addDays=(date,days)=>new Date(dateValue(date)+days*DAY).toISOString().slice(0,10);
+export const CUP_KEYS={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe"};
+export function competitionForCup(league,comp){return Object.keys(CUP_KEYS).find(id=>CUP_KEYS[id]===comp)||({SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE"}[league]||"FA");}
+export function leagueCompetition(league,division=1){return division===2?({PL:"CHAMPIONSHIP",LALIGA:"LALIGA2",SERIEA:"SERIEB",BUNDES:"BUNDES2",LIGUE1:"LIGUE2"}[league]||league):league;}
+export function seasonDate(season,month,day){return `${2025+season+(month<7?1:0)}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;}
+function weekday(date,day){return addDays(date,(day-new Date(dateValue(date)).getUTCDay()+7)%7);}
+export function seasonStart(season=1){return weekday(seasonDate(season,8,15),6);}
+export function buildLeagueSchedule({season=1,league,division=1,roundsHalf1=[],roundsHalf2=[]}){
+ const competition=leagueCompetition(league,division),rounds=[...roundsHalf1,...roundsHalf2];
+ const dates=[];for(let date=seasonStart(season);date<=seasonDate(season,5,23);date=addDays(date,7))dates.push(date);
+ const weekends=[...dates];let i=2;
+ while(dates.length<rounds.length){dates.push(addDays(weekends[i],3));i+=4;}
+ dates.sort();
+ return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`league-${competition}:${r+1}:${j}`,competition,kind:"league",round:r+1,date:dates[r],homeId,awayId,status:"scheduled"})));
 }
-
-export function leagueCompetition(league,division=1){
-  if(division===2)return ({PL:"CHAMPIONSHIP",LALIGA:"LALIGA2",SERIEA:"SERIEB",BUNDES:"BUNDES2",LIGUE1:"LIGUE2"}[league]||league);
-  return league;
-}
-
-function seasonStart(season){return SEASON_START[season]||iso(addDays(SEASON_START[1],(season-1)*365));}
-function weekendForRound(season,roundIndex){
-  // Five midweek league rounds keep the calendar plausible without colliding with the UCL windows.
-  const extra=Math.floor(roundIndex/6)*3;
-  return iso(addDays(seasonStart(season),roundIndex*7+extra));
-}
-function eventId(prefix,round,index){return `${prefix}:${round}:${index}`;}
-
-export function buildLeagueSchedule({season,league,division=1,roundsHalf1=[],roundsHalf2=[]}){
-  const competition=leagueCompetition(league,division), rounds=[...roundsHalf1,...roundsHalf2];
-  return rounds.flatMap((pairs,roundIndex)=>pairs.map(([homeId,awayId],index)=>({
-    id:eventId(`league-${competition}`,roundIndex+1,index), competition, kind:"league", round:roundIndex+1,
-    date:weekendForRound(season,roundIndex), homeId, awayId, status:"scheduled",
-  })));
-}
-
-const UCL_DATES=["2026-09-08","2026-10-13","2026-10-20","2026-11-03","2026-11-24","2026-12-08","2027-01-19","2027-01-27"];
-export function uclDate(season,roundIndex){
-  if(season===1)return UCL_DATES[roundIndex]||UCL_DATES.at(-1);
-  return iso(addDays(UCL_DATES[Math.min(roundIndex,7)],(season-1)*365));
-}
-export function buildUclSchedule({season,rounds=[],myClubId}){
-  return rounds.flatMap((pairs,roundIndex)=>pairs.filter(pair=>pair.includes(myClubId)).map(([homeId,awayId],index)=>({
-    id:eventId("ucl",roundIndex+1,index),competition:"UCL",kind:"europe",round:roundIndex+1,date:uclDate(season,roundIndex),homeId,awayId,status:"scheduled",
-  })));
-}
-
-const CUP_WINDOWS={
-  PL:[ ["CARABAO","Round 1",21],["CARABAO","Round 2",42],["CARABAO","Round 3",70],["CARABAO","Round 4",98],["CARABAO","Quarter-Final",126],["FA","Third Round",147],["CARABAO","Semi-Final",161],["FA","Fourth Round",175],["FA","Fifth Round",203],["CARABAO","Final",217],["FA","Quarter-Final",231],["FA","Semi-Final",259],["FA","Final",280] ],
-  LALIGA:[["COPA","Round of 32",147],["COPA","Round of 16",175],["COPA","Quarter-Final",203],["COPA","Semi-Final",231],["COPA","Final",280]],
-  SERIEA:[["COPPA","Round of 16",140],["COPPA","Quarter-Final",175],["COPPA","Semi-Final",224],["COPPA","Final",287]],
-  BUNDES:[["DFB","Round of 32",77],["DFB","Round of 16",140],["DFB","Quarter-Final",196],["DFB","Semi-Final",252],["DFB","Final",287]],
-  LIGUE1:[["COUPE","Round of 64",140],["COUPE","Round of 32",168],["COUPE","Round of 16",196],["COUPE","Quarter-Final",224],["COUPE","Semi-Final",252],["COUPE","Final",287]],
-};
-export function buildCupSchedule({season,league,myClubId}){
-  return (CUP_WINDOWS[league]||[]).map(([competition,round,offset],index)=>({
-    id:eventId(`cup-${competition}`,round,index),competition,kind:"cup",round,date:iso(addDays(seasonStart(season),offset)),homeId:myClubId,awayId:null,status:"pending-draw",
-  }));
-}
-
-export function createSeasonSchedule(state){
-  if(!state.roundsHalf1)return [];
-  const league=buildLeagueSchedule(state);
-  const cups=state.myClubId?buildCupSchedule(state):[];
-  const ucl=state.ucl?.rounds&&state.myClubId?buildUclSchedule({season:state.season,rounds:state.ucl.rounds,myClubId:state.myClubId}):[];
-  return [...league,...cups,...ucl].sort((a,b)=>a.date.localeCompare(b.date)||a.competition.localeCompare(b.competition));
-}
-
-function resolveCalendarConflicts(schedule,myClubId){
-  const result=schedule.map(event=>({...event}));
-  const protectedEvents=result.filter(event=>(event.kind==="cup"||event.kind==="europe")&&(event.homeId===myClubId||event.awayId===myClubId));
-  const moved=[];
-  for(const priority of protectedEvents){
-    const league=result.find(event=>event.kind==="league"&&(event.homeId===myClubId||event.awayId===myClubId)&&event.date===priority.date);
-    if(!league)continue;
-    let candidate=addDays(league.date,3);
-    while(result.some(event=>event!==league&&(event.homeId===myClubId||event.awayId===myClubId)&&Math.abs(new Date(`${event.date}T12:00:00Z`)-candidate)<DAY*3))candidate=addDays(candidate,3);
-    league.date=iso(candidate);league.rescheduled=true;moved.push(league);
+// UEFA's published 2026/27 match windows; subsequent seasons retain weekdays.
+const UCL_DATES=[[9,8],[10,13],[10,20],[11,3],[11,24],[12,8],[1,19],[1,27]];
+export function uclDate(season,index){const [m,d]=UCL_DATES[Math.min(index,7)];return weekday(seasonDate(season,m,d),index===7?3:2);}
+export function buildUclSchedule({season=1,rounds=[]}){return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`ucl:${r+1}:${j}`,competition:"UCL",kind:"europe",round:r+1,date:uclDate(season,r),homeId,awayId,status:"scheduled"})));}
+const POOLS={PL:["plClubs","championshipClubs"],LALIGA:["laligaClubs","laliga2Clubs"],SERIEA:["serieaClubs","serieBClubs"],BUNDES:["bundesligaClubs","bundes2Clubs"],LIGUE1:["ligue1Clubs","ligue2Clubs"]};
+const CUP_DATES={FA:[[1,9],[1,30],[2,17],[3,13],[4,17],[5,15]],CARABAO:[[8,25],[9,22],[10,27],[12,15],[2,2],[3,7]],COPA:[[12,2],[12,16],[1,13],[2,3],[3,3],[4,24]],COPPA:[[8,12],[9,16],[12,2],[1,13],[3,3],[5,19]],DFB:[[8,12],[10,27],[12,1],[2,9],[4,20],[5,22]],COUPE:[[12,16],[1,6],[1,27],[2,24],[4,7],[5,22]]};
+export function cupCompetitions(league){return league==="PL"?["FA","CARABAO"]:[{LALIGA:"COPA",SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE"}[league]].filter(Boolean);}
+function seed(text){let n=2166136261;for(const c of text)n=Math.imul(n^c.charCodeAt(0),16777619);return n>>>0;}
+export function buildCupSchedule(state){
+ const clubs=[...new Map((POOLS[state.league]||[]).flatMap(key=>state[key]||[]).map(c=>[c.id,c])).values()];
+ return cupCompetitions(state.league).flatMap(competition=>{
+  const ids=clubs.map(c=>c.id).sort((a,b)=>seed(`${state.season}:${competition}:${a}`)-seed(`${state.season}:${competition}:${b}`));
+  if(ids.length<2)return [];
+  const size=2**Math.ceil(Math.log2(ids.length)),roundCount=Math.log2(size),events=[],byes=size-ids.length;let cursor=0;
+  for(let r=0;r<roundCount;r++){
+   const count=size/2**(r+1),remaining=count*2;
+   const round=remaining===2?"Final":remaining===4?"Semi-Final":remaining===8?"Quarter-Final":competition==="FA"&&remaining===64?"Third Round":competition==="FA"&&remaining===32?"Fourth Round":competition==="FA"&&remaining===16?"Fifth Round":`Round of ${remaining}`;
+   const [m,d]=CUP_DATES[competition][6-roundCount+r],date=weekday(seasonDate(state.season,m,d),competition==="FA"||remaining===2?6:3);
+   for(let j=0;j<count;j++){
+    const bye=r===0&&j<byes;
+    const event={id:`cup-${competition}:${r}:${j}`,competition,comp:CUP_KEYS[competition],kind:"cup",round,roundIndex:r,date,status:r===0?"scheduled":"pending-draw",homeId:r===0?ids[cursor++]:null,awayId:r===0&&!bye?ids[cursor++]:null,neutral:remaining===2};
+    if(r>0)event.feeders=[`cup-${competition}:${r-1}:${j*2}`,`cup-${competition}:${r-1}:${j*2+1}`];
+    if(bye){event.status="bye";event.winnerId=event.homeId;}
+    events.push(event);
+   }
   }
-  return {schedule:result.sort((a,b)=>a.date.localeCompare(b.date)),moved};
+  return advanceCupDraws(events);
+ });
 }
-
+export function advanceCupDraws(schedule){
+ const events=schedule.map(e=>({...e})),byId=new Map(events.map(e=>[e.id,e]));
+ for(const e of events.filter(e=>e.feeders).sort((a,b)=>a.roundIndex-b.roundIndex)){
+  if(e.status==="completed")continue;
+  e.homeId=byId.get(e.feeders[0])?.winnerId||e.homeId;e.awayId=byId.get(e.feeders[1])?.winnerId||e.awayId;
+  if(e.homeId&&e.awayId)e.status="scheduled";
+ }
+ return events;
+}
+export function isMyFixture(state,event){return event.homeId===state.myClubId||event.awayId===state.myClubId;}
+export function nextFixture(state){return (state.seasonSchedule||[]).filter(e=>e.status==="scheduled"&&isMyFixture(state,e)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))[0]||null;}
+export function requireScheduledFixture(state,competition){
+ if(!state.scheduleVersion)return null;
+ const next=nextFixture(state);if(!next||next.competition!==competition)throw new Error("Play the next scheduled fixture first.");return next;
+}
+export function resolveCalendarConflicts(schedule){
+ const events=schedule.map(e=>({...e})),protectedEvents=events.filter(e=>e.kind!=="league"&&!["cancelled","bye"].includes(e.status));
+ const groups=new Map();for(const e of events.filter(e=>e.kind==="league")){if(!groups.has(e.round))groups.set(e.round,[]);groups.get(e.round).push(e);}
+ let previous=null;
+ for(const round of [...groups.keys()].sort((a,b)=>a-b)){
+  const group=groups.get(round);let date=group[0].date;
+  if(group.every(e=>e.status==="completed")){previous=date;continue;}
+  if(previous&&dateValue(date)-dateValue(previous)<3*DAY)date=addDays(previous,3);
+  const ids=new Set(group.flatMap(e=>[e.homeId,e.awayId]));
+  for(let guard=0;guard<370;guard++){
+   if(!protectedEvents.some(e=>Math.abs(dateValue(e.date)-dateValue(date))<3*DAY&&(!e.homeId||!e.awayId||ids.has(e.homeId)||ids.has(e.awayId))))break;
+   date=addDays(date,1);
+  }
+  for(const e of group)if(e.date!==date){e.originalDate=e.originalDate||e.date;e.date=date;e.rescheduled=true;}
+  previous=date;
+ }
+ return events.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+}
+export function createSeasonSchedule(state){return resolveCalendarConflicts([...buildLeagueSchedule(state),...buildCupSchedule(state),...buildUclSchedule({season:state.season,rounds:state.ucl?.rounds||[]})]);}
 export function attachSeasonSchedule(state){
-  const {schedule,moved}=resolveCalendarConflicts(createSeasonSchedule(state),state.myClubId);
-  const existing=state.mail||[];
-  const notices=moved.map(event=>({id:`mail:${state.season}:fixture:${event.id}`,type:"fixture",subject:"Fixture rearranged",body:`A league fixture was moved to ${event.date} to make room for ${COMPETITIONS.UCL.name} or a domestic cup tie.`,competition:event.competition,date:event.date,read:false}));
-  return {...state,seasonSchedule:schedule,mail:[...notices,...existing]};
+ if(!state.roundsHalf1||state.scheduleVersion===2)return state;
+ let schedule=createSeasonSchedule(state);
+ schedule=schedule.map(event=>{
+  const old=(state.seasonSchedule||[]).find(e=>e.competition===event.competition&&e.round===event.round&&e.homeId===event.homeId&&e.awayId===event.awayId&&e.status==="completed");
+  const result=(state.fixtureResults||[]).find(r=>r.round===event.round&&r.homeId===event.homeId&&r.awayId===event.awayId&&event.kind==="league");
+  const own=event.kind==="league"&&isMyFixture(state,event)?[...(state.results1||[]),...(state.results2||[])].find(r=>r.gw===event.round):null;
+  const europe=event.kind==="europe"&&isMyFixture(state,event)?state.ucl?.campaignResults?.find(r=>r.opponentId===(event.homeId===state.myClubId?event.awayId:event.homeId)&&r.stage==="League Phase"):null;
+  if(result)return {...event,status:"completed",result};
+  if(own||europe){const r=own||europe;return {...event,status:"completed",result:{homeGoals:r.isHome?r.myGoals:r.oppGoals,awayGoals:r.isHome?r.oppGoals:r.myGoals}};}
+  return old?{...event,status:"completed",result:old.result}:event;
+ });
+ return {...state,scheduleVersion:2,seasonSchedule:schedule,currentDate:state.currentDate||seasonStart(state.season),mail:state.mail||[]};
 }
-
-export function recordScheduledResult(state,{competition,homeId,awayId,myGoals,oppGoals,round,notes}){
-  const result={competition,homeId,awayId,myGoals,oppGoals,round,notes:notes||null};
-  const seasonSchedule=(state.seasonSchedule||[]).map(event=>event.competition===competition&&event.homeId===homeId&&event.awayId===awayId&&event.status!=="completed"?{...event,status:"completed",result}:event);
-  return {...state,seasonSchedule};
+export function recordScheduledResult(state,{competition,homeId,awayId,myGoals,oppGoals,round,notes,winnerId,fixtureId}){
+ let played;
+ const events=(state.seasonSchedule||[]).map(e=>{
+  if(e.status!=="scheduled"||(fixtureId?e.id!==fixtureId:e.competition!==competition||e.homeId!==homeId||e.awayId!==awayId||(round!=null&&e.round!==round)))return e;
+  played=e;return {...e,status:"completed",winnerId:winnerId||null,result:{homeGoals:myGoals,awayGoals:oppGoals,notes:notes||null}};
+ });
+ return {...state,seasonSchedule:advanceCupDraws(events),currentDate:played?.date||state.currentDate};
 }
-
-export function addMail(state,{type="update",subject,body,competition=null,date=null}){
-  const item={id:`mail:${state.season}:${Date.now()}:${Math.random().toString(36).slice(2,7)}`,type,subject,body,competition,date:date||new Date().toISOString(),read:false};
-  return {...state,mail:[item,...(state.mail||[])].slice(0,80)};
-}
-
+export function addMail(state,{type="update",subject,body,competition=null,date=null}){return {...state,mail:[{id:`mail:${state.season}:${Date.now()}:${Math.random().toString(36).slice(2,7)}`,type,subject,body,competition,date:date||state.currentDate||seasonStart(state.season),read:false},...(state.mail||[])].slice(0,80)};}
 export function markMailRead(state,id){return {...state,mail:(state.mail||[]).map(item=>item.id===id?{...item,read:true}:item)};}
-
-// Competition priority protects European ties.  A postponed league match is moved to the first
-// following midweek with two clear rest days on each side; users receive an explicit staff mail.
 export function rescheduleConflict(state,eventId){
-  const schedule=[...(state.seasonSchedule||[])],target=schedule.find(event=>event.id===eventId);
-  if(!target||target.kind!=="league")return state;
-  const clubId=state.myClubId,occupied=schedule.filter(event=>event.id!==eventId&&(event.homeId===clubId||event.awayId===clubId)).map(event=>event.date);
-  let candidate=addDays(target.date,3);
-  while(occupied.some(date=>Math.abs(new Date(`${date}T12:00:00Z`)-candidate)<DAY*3))candidate=addDays(candidate,3);
-  target.date=iso(candidate);target.rescheduled=true;
-  return addMail({...state,seasonSchedule:schedule.sort((a,b)=>a.date.localeCompare(b.date))},{type:"fixture",competition:target.competition,subject:"Fixture rearranged",body:`Your league match has moved to ${target.date} to protect a cup or European fixture.`});
+ const target=state.seasonSchedule?.find(e=>e.id===eventId);if(!target||target.kind!=="league")return state;
+ const seasonSchedule=resolveCalendarConflicts(state.seasonSchedule),updated=seasonSchedule.find(e=>e.id===eventId);
+ return updated.date===target.date?state:addMail({...state,seasonSchedule},{type:"fixture",subject:"Fixture rearranged",body:`Your league match has moved to ${updated.date} to protect recovery time for both clubs.`,competition:target.competition});
+}
+export function syncKnockoutSchedule(state){
+ const u=state.ucl;if(!u?.knockoutRounds?.length||u.stage==="final")return state;
+ const name=u.knockoutRounds[u.knockoutRoundIndex],leg=u.leg||1,id=`ucl-ko:${name}:${leg}`;
+ if(state.seasonSchedule.some(e=>e.id===id))return state;
+ const windows={"Playoff":[[2,16],[2,23]],"Round of 16":[[3,9],[3,16]],"Quarter-Final":[[4,6],[4,13]],"Semi-Final":[[4,27],[5,4]],"Final":[[5,29]]};
+ const [m,d]=windows[name][leg-1],neutral=name==="Final",home=neutral||(leg===1?true:!u.firstLegHomeA);
+ const event={id,competition:"UCL",kind:"europe",round:name,leg,date:weekday(seasonDate(state.season,m,d),neutral?6:2),homeId:home?state.myClubId:u.currentKnockoutOpponentId,awayId:home?u.currentKnockoutOpponentId:state.myClubId,status:"scheduled",neutral};
+ const seasonSchedule=resolveCalendarConflicts([...state.seasonSchedule,event]);
+ let next={...state,seasonSchedule};
+ for(const e of seasonSchedule.filter(e=>e.kind==="league"&&isMyFixture(state,e)&&state.seasonSchedule.find(old=>old.id===e.id)?.date!==e.date))next=addMail(next,{type:"fixture",competition:e.competition,subject:"Fixture rearranged",body:`Your league fixture has moved to ${e.date} following the Champions League draw.`});
+ return next;
 }
