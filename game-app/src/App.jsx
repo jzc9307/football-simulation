@@ -1,9 +1,10 @@
-import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, applyUpdates, appendClubForm, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, pendingCupSlot, uclZoneLabel, simulateUclRound, cleanLineupOfSuspended, buildLiveMatchContext, freshState, applyPerformanceUpdates, applyInjuries, unavailablePlayerIds, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES } from "./game/engine.js";
-import { selectUclField } from "./game/uclSelection.js";
+import { slotAccepts, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, applyUpdates, appendClubForm, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, pendingCupSlot, uclZoneLabel, simulateUclRound, cleanLineupOfSuspended, buildLiveMatchContext, freshState, applyPerformanceUpdates, applyInjuries, unavailablePlayerIds, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES, findClubAnywhere } from "./game/engine.js";
+import { createUclCampaign, uclQualified } from "./game/uclSelection.js";
+import { addMail, attachSeasonSchedule, markMailRead, recordScheduledResult } from "./game/seasonSchedule.js";
 import { standingsZone, standingsLegend } from "./game/standingsZones.js";
 import { startUclBracket, bracketCurrentTie } from "./game/uclBracket.js";
 import { simulateHalf, playLeagueRound, playDomesticCup, advanceLeagueRound, playEuropeanKnockout, advanceEuropeanKnockout } from "./game/actions.js";
-import { ROLE_GROUP, GROUP_COLOR, EUROPEAN_CLUBS, FORMATIONS } from "./game/config.js";
+import { ROLE_GROUP, GROUP_COLOR, FORMATIONS } from "./game/config.js";
 import { marketOpen, loanFee, loanTerms, transfer, transferTerms, evaluateOffer, allClubs, startNextSeason } from "./game/career.js";
 import { validateSave, loadGame, saveGame, exportGame } from "./game/storage.js";
 import LiveMatchScreen from "./components/LiveMatchScreen.jsx";
@@ -11,7 +12,7 @@ import { CompetitionMark } from "./components/CompetitionBrand.jsx";
 import { competitionBrand, competitionTheme } from "./components/competitionBrand.js";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeftRight, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins } from "lucide-react";
+import { ArrowLeftRight, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins, CalendarDays, Mail } from "lucide-react";
 
 export default function App(){
   const [state, setState] = useState(null);
@@ -20,6 +21,8 @@ export default function App(){
   const [saveBlocked,setSaveBlocked]=useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
   const [cupsOpen, setCupsOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
   const [tacticsOpen, setTacticsOpen] = useState(false);
   const [marketFilter, setMarketFilter] = useState({ q:"", pos:"ALL", league:"ALL", club:"ALL", sort:"ovr_desc" });
   const [toast, setToast] = useState("");
@@ -133,7 +136,11 @@ export default function App(){
   function selectClub(clubId){
     const club = state.clubs.find(c=>c.id===clubId);
     const identity=aiTactics(club);
-    setState(s => ({ ...s, myClubId: clubId, budget: club.budget, formation:club.preferredFormation || s.formation, lineup: autoLineup(FORMATIONS[club.preferredFormation || s.formation], club.players), tacticalStyle:identity.style, defensiveLine:identity.line, defensiveAggression:identity.aggression, offsideTrap:identity.trap, stage: "mode" }));
+    setState(s => {
+      const selected={...s,myClubId:clubId,budget:club.budget,formation:club.preferredFormation||s.formation,lineup:autoLineup(FORMATIONS[club.preferredFormation||s.formation],club.players),tacticalStyle:identity.style,defensiveLine:identity.line,defensiveAggression:identity.aggression,offsideTrap:identity.trap,stage:"mode"};
+      const withEurope=!selected.ucl&&uclQualified(selected)?{...selected,ucl:createUclCampaign(selected,roundRobin,initTable)}:selected;
+      return attachSeasonSchedule(withEurope);
+    });
   }
   function pickMode(mode){ setState(s => ({ ...s, simMode: mode, stage: "squad" })); }
 
@@ -175,7 +182,7 @@ export default function App(){
   function runHalf(half){commitGame(s=>simulateHalf(s, half));}
 
   function beginMatchday(half){
-    commitGame(s => { const cur = ensureFixtures(s); return { ...cur, half, roundIndex: 0, stage: "matchday-prep" }; });
+    commitGame(s => routeToDueEuropeanFixture({ ...ensureFixtures(s), half, roundIndex: 0, stage: "matchday-prep" }));
   }
   function playRound(){commitGame(s=>playLeagueRound(s));}
 
@@ -185,7 +192,7 @@ export default function App(){
     commitGame(s => ({ ...s, stage: s.stage==="matchday-live" ? "matchday-result" : s.stage==="cup-live" ? "cup-result" : s.stage }));
   }
   function continueAfterCup(){ commitGame(s => ({ ...s, stage: "matchday-prep" })); }
-  function nextMatch(){commitGame(s=>advanceLeagueRound(s));}
+  function nextMatch(){commitGame(s=>routeToDueEuropeanFixture(advanceLeagueRound(s)));}
 
   function goToMidWindow(){ commitGame(s => ({ ...s, stage: "squad2" })); }
   function finalizeSeason(){ commitGame(s => ({ ...s, stage: "summary" })); }
@@ -193,17 +200,8 @@ export default function App(){
   // Build a 36-club field with genuine representatives from the managed league as well.
   function enterUcl(){
     commitGame(s => {
-      if (s.ucl && s.ucl.stage !== "final") return { ...s, stage: "ucl" };
-      const clubs = selectUclField(s);
-      const ids = clubs.map(c=>c.id);
-      const rounds = roundRobin(ids).slice(0, 8);
-      return { ...s, stage: "ucl", ucl: {
-        stage: "hub", clubs, rounds, roundIndex: 0, tableRaw: initTable(ids), form: {}, lastMatch: null,
-        campaignResults: [], campaignRecord: { w:0,d:0,l:0,gf:0,ga:0 },
-        phaseTable: null, qualification: null,
-        knockoutRounds: [], knockoutRoundIndex: 0, knockoutFaced: [], currentKnockoutOpponentId: null,
-        leg: 1, aggregate: { mine:0, opp:0 }, firstLegHomeA: undefined, outcome: null,
-      }};
+      const ucl=s.ucl&&s.ucl.stage!=="final"?s.ucl:createUclCampaign(s,roundRobin,initTable);
+      return attachSeasonSchedule({...s,stage:"ucl",ucl});
     });
   }
   function uclGoToPrep(){ commitGame(s => ({ ...s, ucl: { ...s.ucl, stage: "match-prep" } })); }
@@ -221,6 +219,9 @@ export default function App(){
       const liveContext = buildLiveMatchContext(s, userResult, oppClub);
       const newUclSuspended = userResult.redCard ? [userResult.redCard.id] : [];
       let next=applyInjuries(applyPerformanceUpdates({...s,ucl:{...u,tableRaw,form:appendClubForm(u.form,updates)}},performanceUpdates),userResult.injuries);
+      next=recordScheduledResult(next,{competition:"UCL",homeId:userResult.isHome?s.myClubId:userResult.opponentId,awayId:userResult.isHome?userResult.opponentId:s.myClubId,myGoals:userResult.isHome?userResult.myGoals:userResult.oppGoals,oppGoals:userResult.isHome?userResult.oppGoals:userResult.myGoals,round:u.roundIndex+1});
+      next=addMail(next,{type:"europe",competition:"UCL",subject:"Champions League result",body:`${myClub.name} ${userResult.myGoals}–${userResult.oppGoals} ${oppClub.name}. Your league-phase table is updated.`});
+      (userResult.injuries||[]).forEach(injury=>{next=addMail(next,{type:"medical",competition:"UCL",subject:`Medical update: ${injury.name}`,body:`${injury.severity}; unavailable for ${injury.matches} match${injury.matches===1?"":"es"}.`});});
       const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newUclSuspended,...unavailablePlayerIds(next,"ucl")]);
       return { ...next, ucl: { ...next.ucl, lastMatch: userResult, liveContext, stage: "match-live",
         campaignResults: [...u.campaignResults, userResult], campaignRecord: record },
@@ -267,11 +268,18 @@ export default function App(){
 
   function uclContinueAfterKnockout(){commitGame(s=>advanceEuropeanKnockout(s));}
 
-  function uclBackToSeason(){ commitGame(s => ({ ...s, stage: myClub ? (s.tableFinal ? "summary" : "squad") : "select" })); }
+  function routeToDueEuropeanFixture(s){
+    if(!s.ucl||s.ucl.stage==="final"||s.ucl.roundIndex>=8||!s.roundsHalf1)return s;
+    const globalRound=(s.half===1?0:s.roundsHalf1.length)+(s.roundIndex||0)+1;
+    const leagueDate=(s.seasonSchedule||[]).find(event=>event.kind==="league"&&event.round===globalRound&&(event.homeId===s.myClubId||event.awayId===s.myClubId))?.date;
+    const european=(s.seasonSchedule||[]).find(event=>event.competition==="UCL"&&event.round===s.ucl.roundIndex+1&&event.status!=="completed");
+    return leagueDate&&european&&european.date<=leagueDate?{...s,stage:"ucl",ucl:{...s.ucl,stage:"hub"}}:s;
+  }
+  function uclBackToSeason(){ commitGame(s => ({ ...s, stage: myClub ? (s.tableFinal ? "summary" : s.roundsHalf1?"matchday-prep":"squad") : "select" })); }
   const uclActions = { enterUcl, uclGoToPrep, uclPlayLeagueMatch, uclFinishLiveMatch, uclContinueAfterMatch, uclContinueAfterPhaseSummary,
     uclPlayKnockout, uclContinueAfterKnockout, uclBackToSeason };
 
-  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: ()=>setCupsOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
+  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: ()=>setCupsOpen(true), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
@@ -286,7 +294,7 @@ export default function App(){
   else if (state.stage === "matchday-prep" && myClub){
     const cupSlot = pendingCupSlot(state.myClubId, state.half, state.roundIndex, state.cupStatus, state.league);
     if (cupSlot){
-      const compLabel = cupSlot.comp === "fa" ? "FA Cup" : cupSlot.comp === "copa" ? "Copa del Rey" : "Carabao Cup";
+      const compLabel = ({fa:"FA Cup",carabao:"Carabao Cup",copa:"Copa del Rey",coppa:"Coppa Italia",dfb:"DFB-Pokal",coupe:"Coupe de France"})[cupSlot.comp]||"Domestic Cup";
       stageEl = (
         <div>
           <div style={{ background:"#1c1a12", border:"1px solid #6b5a2d", borderRadius:10, padding:"10px 16px", marginBottom:14, textAlign:"center" }}>
@@ -323,7 +331,7 @@ export default function App(){
   }
   else if (state.stage === "cup-result"){
     const r = state.lastCupResult;
-    const compLabel = r.comp === "fa" ? "FA Cup" : r.comp === "copa" ? "Copa del Rey" : "Carabao Cup";
+    const compLabel = ({fa:"FA Cup",carabao:"Carabao Cup",copa:"Copa del Rey",coppa:"Coppa Italia",dfb:"DFB-Pokal",coupe:"Coupe de France"})[r.comp]||"Domestic Cup";
     stageEl = (
       <div style={{ textAlign:"center", padding:"20px 0" }}>
         <div style={{ fontSize:12, color:"#e8d09a", marginBottom:10 }}>🏆 {compLabel} · {r.round}</div>
@@ -395,6 +403,7 @@ export default function App(){
         }
         @keyframes pulseGlow { 0%{box-shadow:0 0 0 0 rgba(127,216,143,0.45);} 70%{box-shadow:0 0 0 10px rgba(127,216,143,0);} 100%{box-shadow:0 0 0 0 rgba(127,216,143,0);} }
         .slot-eligible { animation: pulseGlow 1.1s infinite; }
+        .fixture-browser,.cup-workspace,.calendar-panel,.mail-panel{background:#0c150e;border:1px solid #294432;border-radius:18px;overflow:hidden;animation:surfaceIn .28s ease both}.fixture-browser>header,.cup-workspace>header,.calendar-panel>header,.mail-panel>header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;background:linear-gradient(105deg,var(--competition-dark,#132513),var(--competition-panel,#1c3a2a));border-bottom:1px solid color-mix(in srgb,var(--competition-accent,#7fd88f) 28%,transparent)}.fixture-browser header span,.cup-workspace header span,.calendar-panel header span,.mail-panel header span{display:block;color:var(--competition-accent,#8ee0a0);font-size:10px;letter-spacing:.15em;font-weight:800}.fixture-browser header strong,.cup-workspace header strong,.calendar-panel header strong,.mail-panel header strong{display:block;font-size:21px}.fixture-browser header small,.cup-workspace header small{color:#a9b9ac;font-size:12px}.fixture-week-switch{display:flex;align-items:center;justify-content:center;gap:20px;padding:14px;border-bottom:1px solid #213126}.fixture-week-switch button,.calendar-controls button{width:34px;height:34px;border:1px solid #334a3a;border-radius:11px;background:#142018;color:#e8ede8;font-size:22px}.fixture-week-switch button:disabled,.calendar-controls button:disabled{opacity:.35}.fixture-week-switch div{text-align:center;min-width:160px}.fixture-week-switch small{display:block;color:#7f9b84;font-size:10px;letter-spacing:.15em}.fixture-week-switch strong{font-size:18px}.fixture-week-switch i{font-style:normal;color:#78917c}.fixture-week-switch span{display:block;color:#98a999;font-size:11px}.fixture-list{padding:8px 12px 14px}.season-fixture-row{display:grid;grid-template-columns:1fr 90px 1fr;gap:10px;align-items:center;min-height:52px;padding:8px 10px;border-bottom:1px solid #1b2b20;border-radius:10px}.season-fixture-row.is-my-fixture{background:linear-gradient(90deg,#174128,#132719);box-shadow:inset 3px 0 var(--competition-accent,#7fd88f)}.fixture-club{display:flex;align-items:center;gap:8px;min-width:0}.fixture-home{justify-content:flex-end;text-align:right}.fixture-club strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fixture-score{text-align:center}.fixture-score b{font-size:14px}.fixture-score i{font-style:normal;color:#839487}.fixture-score small{font-size:10px;color:#91a292}.cup-workspace{margin-top:2px}.cup-workspace header button{background:#1b5230;border:1px solid #56a870;color:#fff;border-radius:10px;padding:9px 12px;font-weight:700}.cup-workspace-grid,.cup-modal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:16px}.cup-workspace-card,.cup-modal-card{min-height:150px;padding:15px;border:1px solid color-mix(in srgb,var(--competition-accent) 32%,#26402c);border-radius:14px;background:linear-gradient(145deg,var(--competition-dark),#101713);text-align:left;color:#eff4ef;transition:transform .2s ease,filter .2s ease}.cup-workspace-card:hover,.cup-modal-card:hover{transform:translateY(-3px);filter:brightness(1.12)}.cup-workspace-card>div{display:flex;align-items:center;gap:8px}.cup-workspace-card>div span,.cup-modal-card>span{font-size:9px;letter-spacing:.13em;color:var(--competition-accent);font-weight:800}.cup-workspace-card>strong,.cup-modal-card>strong{display:block;margin-top:15px;font-size:17px}.cup-workspace-card>small,.cup-modal-card>small{display:block;color:#c1cdc3;font-size:11px;margin-top:5px}.cup-workspace-card footer{display:flex;justify-content:space-between;margin-top:18px;font-size:10px;color:#b3c4b6}.cup-workspace-card footer b{color:var(--competition-accent)}.cup-modal-card{min-height:170px}.cup-modal-card b{display:block;margin-top:16px;color:var(--competition-accent);font-size:11px}.is-ended{filter:saturate(.2);opacity:.62}.cup-detail{margin:0 16px 16px;border:1px solid color-mix(in srgb,var(--competition-accent) 35%,#294432);border-radius:14px;overflow:hidden;background:#0d160f}.cup-detail header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:linear-gradient(110deg,var(--competition-dark),var(--competition-panel))}.cup-detail header>div{display:flex;align-items:center;gap:8px}.cup-detail header span{font-size:9px;letter-spacing:.12em;color:var(--competition-accent);font-weight:800}.cup-detail header strong{font-size:14px}.cup-detail header button{background:transparent;border:0;color:#edf5ef}.cup-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#294432}.cup-detail-grid>div{background:#0e1710;padding:12px}.cup-detail-grid small{color:var(--competition-accent);font-size:9px;font-weight:800;letter-spacing:.11em}.cup-detail-grid>div>strong{display:block;font-size:12px;margin:6px 0}.cup-detail-grid p{display:flex;justify-content:space-between;gap:8px;color:#9daf9f;font-size:10px;margin:7px 0}.cup-detail-grid p b{color:#dce8de}.calendar-panel{background:#0d160f}.calendar-controls{display:flex;gap:6px;align-items:center}.calendar-controls button:nth-child(2){width:auto;padding:0 10px;font-size:11px}.calendar-events{padding:12px}.calendar-event{display:grid;grid-template-columns:44px 32px 1fr 32px auto;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #203021;background:linear-gradient(90deg,color-mix(in srgb,var(--competition-panel) 30%,#0d160f),#0d160f)}.calendar-event time{text-align:center;border-right:1px solid #364538}.calendar-event time b{display:block;font-size:17px}.calendar-event time span{display:block;color:#8fa092;font-size:9px;text-transform:uppercase}.calendar-event strong{display:block;font-size:12px}.calendar-event small{display:block;color:#95a698;font-size:10px}.calendar-status{font-size:9px;color:var(--competition-accent);font-weight:800;text-transform:uppercase}.calendar-empty,.mail-empty{padding:30px;text-align:center;color:#8a9c8d;font-size:12px}.mail-panel header{background:linear-gradient(105deg,#14231a,#1a3522)}.mail-panel header b{background:#315e3c;color:#dfffe5;padding:5px 8px;border-radius:8px;font-size:10px}.mail-panel article,.mail-click-list button{display:flex;gap:10px;width:100%;text-align:left;padding:12px 16px;border:0;border-bottom:1px solid #1d2d21;background:#0d160f;color:#dce8de}.mail-panel article.is-unread,.mail-click-list button.is-unread{background:#122a19}.mail-panel article i,.mail-click-list i{font-style:normal;color:#8be49b;font-weight:900}.mail-panel article strong,.mail-click-list strong{display:block;font-size:12px}.mail-panel article small,.mail-click-list small{display:block;color:#91a292;font-size:10px;margin-top:3px}.hub-overlay{position:fixed;inset:0;z-index:100;background:rgba(3,8,4,.74);display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(10px)}.hub-sheet{width:min(900px,100%);max-height:87vh;overflow:auto;background:#0b120d;border:1px solid #34503a;border-radius:22px 22px 0 0;box-shadow:0 -20px 70px rgba(0,0,0,.45);animation:sheetIn .3s cubic-bezier(.2,.9,.2,1)}.hub-sheet>header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #223223}.hub-sheet>header span{display:block;font-size:10px;letter-spacing:.14em;color:#88b992;font-weight:800}.hub-sheet>header strong{font-size:20px}.hub-sheet>header button{border:1px solid #344b38;background:#132016;border-radius:10px;color:#e7eee8;padding:7px}.mail-click-list button{cursor:pointer}.mail-click-list button:hover{background:#18341f}@media(max-width:650px){.cup-detail-grid{grid-template-columns:1fr}.calendar-event{grid-template-columns:38px 28px 1fr auto}.calendar-event>.club-badge{display:none}}@keyframes surfaceIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}@keyframes sheetIn{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
 
       {toast && (
@@ -423,6 +432,8 @@ export default function App(){
       {cupsOpen && myClub && (
         <CupsHub state={state} onClose={()=>setCupsOpen(false)} onEnterUcl={()=>{ setCupsOpen(false); enterUcl(); }} />
       )}
+      {calendarOpen && myClub && <CalendarHub state={state} onClose={()=>setCalendarOpen(false)} />}
+      {mailOpen && myClub && <MailHub state={state} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} />}
       {tacticsOpen && myClub && (
         <TacticsModal state={state} onClose={()=>setTacticsOpen(false)} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} />
       )}
@@ -855,7 +866,36 @@ function LeagueStandings({state}){
   return <CompetitionStandings table={table} myClubId={state.myClubId} brandId={brandId} title={isUcl?"Champions League league phase table":`${LEAGUE_NAMES[state.league]} table`} zone={isUcl}/>;
 }
 
-function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
+function clubFor(state,id){return findClubAnywhere(state,id)||{id,name:id,color:"#607060"};}
+function fixtureResult(state,event){return (state.fixtureResults||[]).find(result=>result.competition===event.competition&&result.round===event.round&&result.homeId===event.homeId&&result.awayId===event.awayId);}
+function shortDate(date){return new Intl.DateTimeFormat("en-GB",{weekday:"short",day:"numeric",month:"short"}).format(new Date(`${date}T12:00:00Z`));}
+function FixtureRow({state,event}){
+  const home=clubFor(state,event.homeId),away=clubFor(state,event.awayId),result=fixtureResult(state,event);
+  const mine=event.homeId===state.myClubId||event.awayId===state.myClubId;
+  return <div className={`season-fixture-row ${mine?"is-my-fixture":""}`}><div className="fixture-club fixture-home"><ClubBadge club={home} size="xs"/><strong>{home.name}</strong></div><div className="fixture-score">{result?<b>{result.homeGoals} <i>–</i> {result.awayGoals}</b>:event.status==="pending-draw"?<small>DRAW TBC</small>:<small>{event.competition==="UCL"?"20:00":"15:00"}</small>}</div><div className="fixture-club"><ClubBadge club={away} size="xs"/><strong>{away.name}</strong></div></div>;
+}
+function FixturesPanel({state}){
+  const [round,setRound]=useState(Math.max(1,(state.half===1?0:state.roundsHalf1?.length||0)+(state.roundIndex||0)+1));
+  const total=(state.roundsHalf1?.length||0)+(state.roundsHalf2?.length||0),events=(state.seasonSchedule||[]).filter(event=>event.kind==="league"&&event.round===round);
+  const title=events[0]?.date?shortDate(events[0].date):"Season fixtures";
+  return <section className="fixture-browser competition-theme" style={competitionTheme(state.league)}><header><div><span>LEAGUE FIXTURES</span><strong>{competitionBrand(state.league).name} matchweek</strong><small>Every fixture, result and upcoming opponent in one place.</small></div><CompetitionMark id={state.league}/></header><div className="fixture-week-switch"><button disabled={round<=1} onClick={()=>setRound(value=>value-1)}>‹</button><div><small>MATCHWEEK</small><strong>{round} <i>/</i> {total}</strong><span>{title}</span></div><button disabled={round>=total} onClick={()=>setRound(value=>value+1)}>›</button></div><div className="fixture-list">{events.map(event=><FixtureRow key={event.id} state={state} event={event}/>)}</div></section>;
+}
+function cupConfig(state){
+  const generic={SERIEA:["COPPA","Coppa Italia","coppa"],BUNDES:["DFB","DFB-Pokal","dfb"],LIGUE1:["COUPE","Coupe de France","coupe"]}[state.league];
+  return state.league==="PL"?[["FA","FA Cup",state.cupStatus.fa],["CARABAO","Carabao Cup",state.cupStatus.carabao]]:state.league==="LALIGA"?[["COPA","Copa del Rey",state.cupStatus.copa]]:generic?[[generic[0],generic[1],state.cupStatus[generic[2]]||{playedRounds:[],outcome:null}]]:[];
+}
+function CupWorkspace({state,onOpen}){
+  const cups=[...cupConfig(state),["UCL","Champions League",state.ucl?{playedRounds:state.ucl.campaignResults||[],outcome:state.ucl.outcome}:{playedRounds:[],outcome:"NOT QUALIFIED"}]];
+  return <section className="cup-workspace"><header><div><span>COMPETITION CENTRE</span><strong>Cup Hub</strong><small>Your domestic cups and European campaign, all tied to the live calendar.</small></div><button onClick={onOpen}>Open detailed hub <span>→</span></button></header><div className="cup-workspace-grid">{cups.map(([id,title,status])=>{const played=status.playedRounds?.length||0,ended=!!status.outcome;const next=(state.seasonSchedule||[]).find(event=>event.competition===id&&event.status!=="completed");return <article className={`cup-workspace-card competition-theme ${ended?"is-ended":""}`} style={competitionTheme(id)} key={id}><div><CompetitionMark id={id} size="sm"/><span>{id==="UCL"?"EUROPEAN":"DOMESTIC CUP"}</span></div><strong>{title}</strong><small>{ended?status.outcome:played?`${played} tie${played===1?"":"s"} played`:next?`Next: ${next.round}`:"Awaiting entry"}</small><footer>{next?<><b>{shortDate(next.date)}</b><span>{next.round}</span></>:<span>{ended?"View campaign history":"Competition details"}</span>}</footer></article>;})}</div></section>;
+}
+function CalendarPanel({state,compact=false}){
+  const [month,setMonth]=useState(0),events=(state.seasonSchedule||[]).filter(event=>event.homeId===state.myClubId||event.awayId===state.myClubId),months=[...new Set(events.map(event=>event.date.slice(0,7)))],key=months[Math.min(month,Math.max(0,months.length-1))],shown=events.filter(event=>event.date.startsWith(key));
+  if(!events.length)return <div className="calendar-empty">Your dated fixture calendar unlocks when the season begins.</div>;
+  return <section className={`calendar-panel ${compact?"calendar-compact":""}`}><header><div><span>SEASON PLANNER</span><strong>{new Intl.DateTimeFormat("en-GB",{month:"long",year:"numeric"}).format(new Date(`${key}-01T12:00:00Z`))}</strong></div><div className="calendar-controls"><button disabled={month<=0} onClick={()=>setMonth(value=>value-1)}>‹</button><button onClick={()=>setMonth(Math.max(0,months.findIndex(value=>value===new Date().toISOString().slice(0,7))))}>Today</button><button disabled={month>=months.length-1} onClick={()=>setMonth(value=>value+1)}>›</button></div></header><div className="calendar-events">{shown.map(event=>{const opponent=clubFor(state,event.homeId===state.myClubId?event.awayId:event.homeId),home=event.homeId===state.myClubId;return <article className="calendar-event competition-theme" style={competitionTheme(event.competition)} key={event.id}><time><b>{new Date(`${event.date}T12:00:00Z`).getUTCDate()}</b><span>{new Intl.DateTimeFormat("en-GB",{weekday:"short"}).format(new Date(`${event.date}T12:00:00Z`))}</span></time><CompetitionMark id={event.competition} size="sm"/><div><strong>{home?"vs":"@"} {opponent.name}</strong><small>{competitionBrand(event.competition).name} · {event.round?`Round ${event.round}`:"Scheduled"}</small></div><ClubBadge club={opponent} size="sm"/><span className="calendar-status">{event.status==="completed"?"FT":event.rescheduled?"Moved":"Upcoming"}</span></article>;})}</div></section>;
+}
+function MailPanel({items,compact=false}){const list=items.slice(0,compact?3:20);return <section className={`mail-panel ${compact?"mail-compact":""}`}><header><div><span>CLUB CORRESPONDENCE</span><strong>Staff mail</strong></div><b>{items.filter(item=>!item.read).length} unread</b></header>{list.length?list.map(item=><article className={!item.read?"is-unread":""} key={item.id}><i>{item.type==="medical"?"+":item.type==="discipline"?"!":"•"}</i><div><strong>{item.subject}</strong><small>{item.body}</small></div></article>):<div className="mail-empty">No staff updates yet. Injuries, suspensions, fixtures and cup progress will appear here.</div>}</section>;}
+
+function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
   const suspendedSet = new Set(suspendedIds || []);
   const usedIds = new Set(Object.values(state.lineup).filter(Boolean));
@@ -872,6 +912,8 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
         <div className="command-actions">
           {showMarketBar&&<button className="command-tile transfer-command" onClick={onOpenMarket} disabled={!windowOpen}><ArrowLeftRight size={18}/><span><strong>Transfer Centre</strong><small>{windowOpen?"Scout all leagues & negotiate":"Window closed"}</small></span></button>}
           {showMarketBar&&onOpenCups&&<button className="command-tile" onClick={onOpenCups}><Trophy size={17}/><span><strong>Cup Hub</strong><small>Fixtures and progress</small></span></button>}
+          {showMarketBar&&onOpenCalendar&&<button className="command-tile" onClick={onOpenCalendar}><CalendarDays size={17}/><span><strong>Calendar</strong><small>Season schedule</small></span></button>}
+          {showMarketBar&&onOpenMail&&<button className="command-tile" onClick={onOpenMail}><Mail size={17}/><span><strong>Mail</strong><small>{(state.mail||[]).filter(item=>!item.read).length?`${(state.mail||[]).filter(item=>!item.read).length} unread`:"Staff inbox"}</small></span></button>}
           {onOpenTactics&&<button className="command-tile" onClick={onOpenTactics}><SlidersHorizontal size={17}/><span><strong>Match Plan</strong><small>{STYLES[state.tacticalStyle||"balanced"].name}</small></span></button>}
           {showSimulate&&<button className="kickoff-command" onClick={onSimulate} disabled={!!issue}><span>{simulateLabel}</span><small>{issue||"Lineup ready"}</small></button>}
         </div>
@@ -881,9 +923,13 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
         <button className={workspaceTab==="squad"?"active":""} onClick={()=>setWorkspaceTab("squad")}>Squad board</button>
         <button className={workspaceTab==="performance"?"active":""} onClick={()=>setWorkspaceTab("performance")}>Performance centre {hasSeasonData&&<span>LIVE</span>}</button>
         <button className={workspaceTab==="table"?"active":""} onClick={()=>setWorkspaceTab("table")}>League table</button>
+        <button className={workspaceTab==="fixtures"?"active":""} onClick={()=>setWorkspaceTab("fixtures")}>Fixtures</button>
+        <button className={workspaceTab==="cups"?"active":""} onClick={()=>setWorkspaceTab("cups")}>Cup hub</button>
+        <button className={workspaceTab==="calendar"?"active":""} onClick={()=>setWorkspaceTab("calendar")}>Calendar</button>
+        <button className={workspaceTab==="mail"?"active":""} onClick={()=>setWorkspaceTab("mail")}>Mail {(state.mail||[]).filter(item=>!item.read).length>0&&<span>NEW</span>}</button>
       </div>
 
-      {workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
+      {workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="fixtures" ? <FixturesPanel state={state}/> : workspaceTab==="cups" ? <CupWorkspace state={state} onOpen={onOpenCups}/> : workspaceTab==="calendar" ? <CalendarPanel state={state}/> : workspaceTab==="mail" ? <MailPanel items={state.mail||[]} /> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
       <div className="lineup-toolbar">
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           <span style={{ fontSize:12, color:"#9ab89a" }}>Formation</span>
@@ -1089,6 +1135,8 @@ function SummaryScreen({ state, myClub, onNextSeason, onOpenCups }){
   );
 }
 
+// Kept for older external embeds that import these two presentation blocks.
+// eslint-disable-next-line no-unused-vars
 function ScheduleCupCard({ title, icon, desc, cs, isEuropean }){
   const started = cs.playedRounds.length > 0;
   const statusText = cs.outcome ? cs.outcome : started ? `Alive — through to next round after beating ${cs.results[cs.results.length-1].opponent}` : (isEuropean ? "Awaiting Round 2 (bye from Round 1)" : "Not yet drawn");
@@ -1121,6 +1169,7 @@ function ScheduleCupCard({ title, icon, desc, cs, isEuropean }){
     </div>
   );
 }
+// eslint-disable-next-line no-unused-vars
 function UclCard({ ucl, played, locked, onEnter }){
   const inProgress = ucl && ucl.stage !== "final";
   return (
@@ -1199,7 +1248,7 @@ function UclTable({ table, myClubId }){
   return <CompetitionStandings table={table} myClubId={myClubId} brandId="UCL" title="Champions League league phase table" zone/>;
 }
 
-function UclHub({ state, onPlayNext }){
+function UclHub({ state, onPlayNext, onBack }){
   const u = state.ucl;
   const tableArr = computeTableArray(u.tableRaw, u.clubs);
   const myRank = tableArr.findIndex(r=>r.id===state.myClubId)+1;
@@ -1231,7 +1280,7 @@ function UclHub({ state, onPlayNext }){
                 <div style={{ fontSize:11, color:"#9ab89a" }}>{isHome ? "Home" : "Away"} · Matchday {u.roundIndex+1}</div>
               </div>
             </div>
-            <button onClick={onPlayNext} style={primaryBtnStyle}>View Squads & Play →</button>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={onPlayNext} style={primaryBtnStyle}>View Squads & Play →</button><button onClick={onBack} style={{background:"transparent",border:"1px solid #405b74",color:"#bfd0ed",borderRadius:10,padding:"10px 12px",fontWeight:700}}>Back to season</button></div>
           </div>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:"#cfe8cf" }}>Upcoming Fixtures</div>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -1391,7 +1440,7 @@ function UclFinal({ myClub, rec, onBack, bracket, clubs }){
 function UclPage({ state, myClub, squadCommonProps, actions }){
   const u = state.ucl;
   if (!u) return null;
-  if (u.stage === "hub") return <UclHub state={state} myClub={myClub} onPlayNext={actions.uclGoToPrep} />;
+  if (u.stage === "hub") return <UclHub state={state} myClub={myClub} onPlayNext={actions.uclGoToPrep} onBack={actions.uclBackToSeason} />;
   if (u.stage === "match-prep") return <UclMatchPrep state={state} myClub={myClub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayLeagueMatch} />;
   if (u.stage === "match-live") return <LiveMatchScreen {...u.liveContext} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text="Kick-Off" sub={`League Phase · vs ${u.lastMatch.opponent}`} />} />;
   if (u.stage === "match-result") return <UclMatchResult myClub={myClub} result={u.lastMatch} onContinue={actions.uclContinueAfterMatch} />;
@@ -1427,9 +1476,8 @@ function UclPage({ state, myClub, squadCommonProps, actions }){
   return null;
 }
 function CupsHub({ state, onClose, onEnterUcl }){
-  const rank=state.tableFinal?.findIndex(r=>r.id===state.myClubId)??-1;
-  const uclUnlocked=rank>=0&&rank<4;
-  const isEuropean = EUROPEAN_CLUBS.includes(state.myClubId);
+  const [selectedCup,setSelectedCup]=useState(null);
+  const entries=[...cupConfig(state),["UCL","Champions League",state.ucl?{playedRounds:state.ucl.campaignResults||[],outcome:state.ucl.outcome}:{playedRounds:[],outcome:"NOT QUALIFIED"}]];
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:100 }}>
       <div style={{ background:"#0d160d", border:"1px solid #223322", borderRadius:"16px 16px 0 0", width:"100%", maxWidth:600, maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
@@ -1438,29 +1486,19 @@ function CupsHub({ state, onClose, onEnterUcl }){
           <button onClick={onClose} aria-label="Close" style={{ background:"transparent", border:"none", color:"#9ab89a" }}><X size={18}/></button>
         </div>
         <div style={{ overflowY:"auto", padding:"14px 18px 20px" }}>
-          {state.league === "PL" && (
-            <>
-              <ScheduleCupCard title="FA Cup" icon="🏆" desc="Third Round → Final. Slotted into your second-half fixture list — no manual entry needed."
-                cs={state.cupStatus.fa} isEuropean={false} />
-              <ScheduleCupCard title="Carabao Cup" icon="🥤" desc={isEuropean ? "Your club is in Europe, so you get a bye straight to Round 2." : "Round 1 → Final. Opponents rotate their squads, so expect weaker sides."}
-                cs={state.cupStatus.carabao} isEuropean={isEuropean} />
-            </>
-          )}
-          {state.league === "LALIGA" && (
-            <ScheduleCupCard title="Copa del Rey" icon="🏆" desc="Round of 32 → Final. Slotted into your second-half fixture list."
-              cs={state.cupStatus.copa} isEuropean={false} />
-          )}
-          {(state.league === "SERIEA" || state.league === "BUNDES" || state.league === "LIGUE1") && (
-            <div style={{ fontSize:12, color:"#9ab89a", marginBottom:14, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:12 }}>
-              {state.league === "SERIEA" ? "Coppa Italia isn't modelled yet" : state.league === "BUNDES" ? "DFB-Pokal isn't modelled yet" : "Coupe de France isn't modelled yet"} — Champions League is still available below.
-            </div>
-          )}
-          <UclCard ucl={state.ucl} played={state.cups.ucl} locked={!uclUnlocked} onEnter={onEnterUcl} />
+          <div className="cup-modal-grid">{entries.map(([id,title,cs])=>{const next=(state.seasonSchedule||[]).find(event=>event.competition===id&&event.status!=="completed");const disabled=id==="UCL"&&!state.ucl;const status=next?`Next fixture · ${shortDate(next.date)}`:(cs.outcome||"Awaiting entry");return <button disabled={disabled} key={id} onClick={()=>id==="UCL"?onEnterUcl():setSelectedCup(id)} className={`cup-modal-card competition-theme ${disabled?"is-ended":""}`} style={competitionTheme(id)}><CompetitionMark id={id} size="sm"/><span>{id==="UCL"?"EUROPEAN COMPETITION":"DOMESTIC CUP"}</span><strong>{title}</strong><small>{status}</small><b>{cs.outcome||next?.round||"View details"}</b></button>;})}</div>
+          {selectedCup&&<CupDetail state={state} competition={selectedCup} onClose={()=>setSelectedCup(null)}/>}
+          <div style={{marginTop:14}}><CalendarPanel state={state} compact/></div>
         </div>
       </div>
     </div>
   );
 }
+
+function CupDetail({state,competition,onClose}){const key={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe"}[competition];const status=state.cupStatus[key];const results=status?.results||[];const players=(state.clubs.find(club=>club.id===state.myClubId)?.players||[]).map(player=>({player,stats:player.competitionStats?.[key]||{}})).filter(row=>(row.stats.ratedMatches||0)>0).sort((a,b)=>(b.stats.ratingTotal/b.stats.ratedMatches)-(a.stats.ratingTotal/a.stats.ratedMatches)).slice(0,5);const next=(state.seasonSchedule||[]).find(event=>event.competition===competition&&event.status!=="completed");return <section className="cup-detail competition-theme" style={competitionTheme(competition)}><header><div><CompetitionMark id={competition} size="sm"/><span>COMPETITION DETAIL</span><strong>{competitionBrand(competition).name}</strong></div><button onClick={onClose}><X size={16}/></button></header><div className="cup-detail-grid"><div><small>NEXT FIXTURE</small><strong>{next?`${shortDate(next.date)} · ${next.round}`:"No upcoming fixture"}</strong><p>{status?.outcome||"Your route, results and player form update after each tie."}</p></div><div><small>CUP PLAYER RATINGS</small>{players.length?players.map(({player,stats})=><p key={player.id}><b>{player.name}</b><span>{(stats.ratingTotal/stats.ratedMatches).toFixed(2)}</span></p>):<p>No cup ratings yet.</p>}</div><div><small>KNOCKOUT PATH</small>{results.length?results.map(result=><p key={`${result.round}-${result.opponent}`}><b>{result.round}</b><span>{result.myGoals}–{result.oppGoals} {result.opponent}</span></p>):<p>Awaiting the first draw.</p>}</div></div></section>;}
+
+function CalendarHub({state,onClose}){return <div className="hub-overlay"><div className="hub-sheet"><header><div><span>FIXTURE CALENDAR</span><strong>Season planner</strong></div><button onClick={onClose}><X size={18}/></button></header><CalendarPanel state={state}/></div></div>;}
+function MailHub({state,onClose,onRead}){return <div className="hub-overlay"><div className="hub-sheet"><header><div><span>CLUB CORRESPONDENCE</span><strong>Staff mail</strong></div><button onClick={onClose}><X size={18}/></button></header><div className="mail-click-list">{(state.mail||[]).length?(state.mail||[]).map(item=><button key={item.id} onClick={()=>onRead(item.id)} className={!item.read?"is-unread":""}><i>{item.type==="medical"?"+":item.type==="discipline"?"!":"•"}</i><span><strong>{item.subject}</strong><small>{item.body}</small></span></button>):<div className="mail-empty">No staff updates yet.</div>}</div></div></div>;}
 
 function TacticsModal({ state, onClose, onSetStyle, onSetLine, onSetAggression, onSetTrap, onSetPlan }){
   const styleList = Object.entries(STYLES).map(([key,v]) => ({ key, ...v }));

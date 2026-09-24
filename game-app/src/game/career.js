@@ -1,7 +1,7 @@
 import { autoLineup, freshState, topXI, clamp } from './engine.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 
-const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs'];
+const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
 const DIVISIONS={
   PL:{top:'plClubs',second:'championshipClubs',name:'Premier League',secondName:'Championship'},
@@ -17,10 +17,10 @@ export function allClubs(s){
 }
 function commitClubs(s,clubs){
   const byId=new Map(clubs.map(c=>[c.id,c]));
-  return {...s,...Object.fromEntries(POOLS.map(k=>[k,(s[k]||[]).map(c=>byId.get(c.id)||c)])),
-    clubs:s.clubs.map(c=>byId.get(c.id)||c)};
+  const updatedPools=Object.fromEntries(POOLS.map(k=>[k,(s[k]||[]).map(c=>byId.get(c.id)||c)]));
+  return Object.assign({},s,updatedPools,{clubs:s.clubs.map(c=>byId.get(c.id)||c)});
 }
-export function marketOpen(s){retaurn s.stage==='squad'||s.stage==='squad2';}
+export function marketOpen(s){return s.stage==='squad'||s.stage==='squad2';}
 export function projectedPotential(p){
   if(Number.isFinite(p.potential))return clamp(p.potential,p.ovr,96);
   const growth=p.age<=18?7:p.age<=20?5:p.age<=22?4:p.age<=24?2:p.age===25?1:0;

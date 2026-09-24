@@ -1,5 +1,7 @@
-import { ROLE_GROUP, ROLE_COMPAT, FORMATIONS, EUROPEAN_CLUBS, CARABAO_SCHEDULE, CARABAO_FINAL_SLOT, FA_SCHEDULE, COPA_SCHEDULE } from "./config.js";
+import { ROLE_GROUP, ROLE_COMPAT, FORMATIONS, EUROPEAN_CLUBS, CARABAO_SCHEDULE, CARABAO_FINAL_SLOT, FA_SCHEDULE, COPA_SCHEDULE, COPPA_SCHEDULE, DFB_SCHEDULE, COUPE_SCHEDULE } from "./config.js";
 import { buildClubs, buildChampionshipClubs, buildLaLigaClubs, buildSerieAClubs, buildBundesligaClubs, buildLigue1Clubs, buildLaLiga2Clubs, buildSerieBClubs, buildBundes2Clubs, buildLigue2Clubs } from "../data/players.js";
+import { buildEuropeanGuestClubs } from "./uclSelection.js";
+import { attachSeasonSchedule } from "./seasonSchedule.js";
 export function slotAccepts(slotRole, player){
   if (!player) return false;
   if (player.role === slotRole) return true;
@@ -615,6 +617,7 @@ export function getMatchPlayers(s, competition="domestic"){
 export function simulateRound(s, round, gw){
   const lineupPlayers = getMatchPlayers(s);
   let userResult = null;
+  const fixtures=[];
   const updates = [],performanceUpdates=[];
   round.forEach(([home, away]) => {
     const homeClub = s.clubs.find(c=>c.id===home), awayClub = s.clubs.find(c=>c.id===away);
@@ -624,6 +627,7 @@ export function simulateRound(s, round, gw){
     const awayTactics = away===s.myClubId ? myTactics(s) : aiTactics(awayClub);
     const simulation = simMatchSmart(homePlayers, awayPlayers, true, homeTactics, awayTactics);
     const {goalsA,goalsB}=simulation;
+    fixtures.push({competition:s.league,round:gw,homeId:home,awayId:away,homeGoals:goalsA,awayGoals:goalsB});
     performanceUpdates.push(...performanceUpdatesForMatch(simulation,home,away));
     updates.push({ clubId:home, gf:goalsA, ga:goalsB });
     updates.push({ clubId:away, gf:goalsB, ga:goalsA });
@@ -636,14 +640,14 @@ export function simulateRound(s, round, gw){
       userResult = { ...matchFields(simulation,isHome), gw, opponent: opponent.name, opponentColor: opponent.color, opponentId: opponent.id, isHome, myGoals, oppGoals, scorerStr, goalList, redCard, result: myGoals>oppGoals?"W":myGoals<oppGoals?"L":"D" };
     }
   });
-  return { updates, userResult, performanceUpdates };
+  return { updates, userResult, performanceUpdates, fixtures };
 }
 export function ensureFixtures(s){
-  if (s.roundsHalf1) return s;
+  if (s.roundsHalf1) return s.seasonSchedule?.length?s:attachSeasonSchedule(s);
   const ids = s.clubs.map(c=>c.id);
   const r1 = roundRobin(ids);
   const r2 = r1.map(round => round.map(([h,a]) => [a,h]));
-  return { ...s, roundsHalf1:r1, roundsHalf2:r2, tableRaw: initTable(ids) };
+  return attachSeasonSchedule({ ...s, roundsHalf1:r1, roundsHalf2:r2, tableRaw: initTable(ids), fixtureResults:s.fixtureResults||[] });
 }
 export function pickN(pool, n){ return [...pool].sort(()=>Math.random()-0.5).slice(0, n); }
 export function emptyCupStatus(){
@@ -661,6 +665,12 @@ export function pendingCupSlot(myClubId, half, roundIndex, cupStatus, league){
         return { comp:"copa", round: slot.round };
       }
     }
+    return null;
+  }
+  const domesticCup={SERIEA:{comp:"coppa",slots:COPPA_SCHEDULE},BUNDES:{comp:"dfb",slots:DFB_SCHEDULE},LIGUE1:{comp:"coupe",slots:COUPE_SCHEDULE}}[league];
+  if(domesticCup){
+    if(half!==2)return null;
+    for(const slot of domesticCup.slots){const cs=cupStatus[domesticCup.comp];if(slot.afterRound===roundIndex&&cs?.alive!==false&&!cs?.playedRounds.includes(slot.round))return {comp:domesticCup.comp,round:slot.round};}
     return null;
   }
   if (league !== "PL") return null;
@@ -845,7 +855,7 @@ export function analyzeMatchup(myPlayers, oppPlayers, myTac, oppTac){
     lineMe, lineOpp, aggressionMe:myTac.aggression??50, aggressionOpp:oppTac.aggression??50, effAttackMe, effAttackOpp, effDefenseMe, effDefenseOpp };
 }
 export function findClubAnywhere(s, id){
-  const pools = [s.clubs, s.championshipClubs, s.laliga2Clubs, s.serieBClubs, s.bundes2Clubs, s.ligue2Clubs, s.plClubs, s.laligaClubs, s.serieaClubs, s.bundesligaClubs, s.ligue1Clubs];
+  const pools = [s.clubs, s.europeanGuestClubs, s.championshipClubs, s.laliga2Clubs, s.serieBClubs, s.bundes2Clubs, s.ligue2Clubs, s.plClubs, s.laligaClubs, s.serieaClubs, s.bundesligaClubs, s.ligue1Clubs];
   for (const pool of pools){ if (pool){ const found = pool.find(c=>c.id===id); if (found) return found; } }
   return null;
 }
@@ -872,9 +882,10 @@ export function cleanLineupOfSuspended(formation, players, lineup, suspendedIds)
   });
   return newLineup;
 }
-export function buildLiveMatchContext(s, userResult, oppClub, competition="ucl"){
+export function buildLiveMatchContext(s, userResult, oppClub, competition="UCL"){
   const myClubObj = s.clubs.find(c=>c.id===s.myClubId);
-  const lineupPlayers = getMatchPlayers(s, competition);
+  const competitionKey=competition==="UCL"?"ucl":"domestic";
+  const lineupPlayers = getMatchPlayers(s, competitionKey);
   const oppPlayers = topXI(oppClub.players,oppClub.preferredFormation);
   const homeName = userResult.isHome ? myClubObj.name : oppClub.name;
   const awayName = userResult.isHome ? oppClub.name : myClubObj.name;
@@ -885,7 +896,7 @@ export function buildLiveMatchContext(s, userResult, oppClub, competition="ucl")
   const stats=match?.stats;
   const analysis = analyzeMatchup(lineupPlayers, oppPlayers, myTac, oppTac);
   return { timeline, homeName, awayName, homeClubId:userResult.isHome?myClubObj.id:oppClub.id,
-    awayClubId:userResult.isHome?oppClub.id:myClubObj.id, homeColor:userResult.isHome?myClubObj.color:oppClub.color, awayColor:userResult.isHome?oppClub.color:myClubObj.color, competition:competition==="ucl"?"UCL":s.league,
+    awayClubId:userResult.isHome?oppClub.id:myClubObj.id, homeColor:userResult.isHome?myClubObj.color:oppClub.color, awayColor:userResult.isHome?oppClub.color:myClubObj.color, competition,
     myName: myClubObj.name, oppName: oppClub.name, stats, analysis,
     playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,myTacStyle: myTac.style, oppTacStyle: oppTac.style };
 }
@@ -899,14 +910,14 @@ export function freshState(){
   return {
     stage: "league-select", league: null, division:1, clubs: plClubs,
     season:1, history:[], loans:[], finances:[], halftimeStyle:"keep", autoSubs:true,
-    plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, championshipClubs: buildChampionshipClubs(), laliga2Clubs:buildLaLiga2Clubs(), serieBClubs:buildSerieBClubs(), bundes2Clubs:buildBundes2Clubs(), ligue2Clubs:buildLigue2Clubs(),
+    plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, championshipClubs: buildChampionshipClubs(), laliga2Clubs:buildLaLiga2Clubs(), serieBClubs:buildSerieBClubs(), bundes2Clubs:buildBundes2Clubs(), ligue2Clubs:buildLigue2Clubs(), europeanGuestClubs:buildEuropeanGuestClubs(),
     myClubId: null, simMode: null,
     formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, defensiveAggression: 50, offsideTrap: false,
     suspensions: { domestic: [], ucl: [] }, injuries: {},
     half: 1, roundIndex: 0, roundsHalf1: null, roundsHalf2: null, tableRaw: null, lastResult: null,
-    results1: [], results2: [], table1: null, tableFinal: null,
+    results1: [], results2: [], fixtureResults: [], seasonSchedule: [], mail:[], table1: null, tableFinal: null,
     clubForm: {},
-    cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus() }, lastCupResult: null,
+    cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus(), coppa:emptyCupStatus(), dfb:emptyCupStatus(), coupe:emptyCupStatus() }, lastCupResult: null,
     cups: { ucl: null }, ucl: null,
   };
 }

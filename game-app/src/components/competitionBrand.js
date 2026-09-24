@@ -12,6 +12,17 @@ const brands={
   SERIEA:{name:"Serie A",logo:seriea,dark:"#101d3a",panel:"#193768",accent:"#62bfff",logoPlate:"#eff8ff"},
   LIGUE1:{name:"Ligue 1",logo:ligue1,dark:"#151c31",panel:"#27385b",accent:"#ffdf30",logoPlate:"#fff8db"},
   UCL:{name:"Champions League",logo:ucl,dark:"#090f36",panel:"#15215c",accent:"#b6cbff",logoPlate:"#f1f4ff"},
+  FA:{name:"FA Cup",mark:"FA",dark:"#152b43",panel:"#1f4b72",accent:"#b9dcff",logoPlate:"#edf7ff"},
+  CARABAO:{name:"Carabao Cup",mark:"EFL",dark:"#12342b",panel:"#1d5b48",accent:"#9be45d",logoPlate:"#f0ffe5"},
+  COPA:{name:"Copa del Rey",mark:"C",dark:"#4a1920",panel:"#7d2735",accent:"#f6cf62",logoPlate:"#fff4d5"},
+  COPPA:{name:"Coppa Italia",mark:"CI",dark:"#12314b",panel:"#1b527a",accent:"#c8e8ff",logoPlate:"#f2faff"},
+  DFB:{name:"DFB-Pokal",mark:"DFB",dark:"#3f1219",panel:"#741f2a",accent:"#ffc2c2",logoPlate:"#fff2f2"},
+  COUPE:{name:"Coupe de France",mark:"CF",dark:"#172d63",panel:"#234596",accent:"#f5e4a8",logoPlate:"#f5f8ff"},
+  CHAMPIONSHIP:{name:"Championship",mark:"EFL",dark:"#281c15",panel:"#5d321e",accent:"#f4b64a",logoPlate:"#fff1d6"},
+  LALIGA2:{name:"LaLiga Hypermotion",mark:"LL2",dark:"#2d1921",panel:"#66313e",accent:"#ff8a80",logoPlate:"#fff0ee"},
+  SERIEB:{name:"Serie B",mark:"B",dark:"#182d40",panel:"#265676",accent:"#8bd6ff",logoPlate:"#effaff"},
+  BUNDES2:{name:"2. Bundesliga",mark:"2BL",dark:"#321b21",panel:"#682b35",accent:"#ff969b",logoPlate:"#fff2f3"},
+  LIGUE2:{name:"Ligue 2",mark:"L2",dark:"#21243d",panel:"#3d476e",accent:"#d0dcff",logoPlate:"#f3f6ff"},
 };
 
 export function competitionBrand(id){return brands[id]||brands.PL;}

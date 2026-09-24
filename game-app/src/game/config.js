@@ -33,6 +33,15 @@ export const COPA_SCHEDULE = [
   { afterRound:10, round:"Semi-Final" },
   { afterRound:13, round:"Final" },
 ]; // half 2 — Copa del Rey for La Liga saves
+export const COPPA_SCHEDULE = [
+  { afterRound:1, round:"Round of 16" },{ afterRound:5, round:"Quarter-Final" },{ afterRound:10, round:"Semi-Final" },{ afterRound:15, round:"Final" },
+];
+export const DFB_SCHEDULE = [
+  { afterRound:1, round:"Round of 32" },{ afterRound:4, round:"Round of 16" },{ afterRound:8, round:"Quarter-Final" },{ afterRound:12, round:"Semi-Final" },{ afterRound:16, round:"Final" },
+];
+export const COUPE_SCHEDULE = [
+  { afterRound:1, round:"Round of 64" },{ afterRound:4, round:"Round of 32" },{ afterRound:7, round:"Round of 16" },{ afterRound:10, round:"Quarter-Final" },{ afterRound:13, round:"Semi-Final" },{ afterRound:16, round:"Final" },
+];
 
 export const FORMATIONS = {
   "4-3-3": [
@@ -74,4 +83,3 @@ export const FORMATIONS = {
     {role:"ST",x:38,y:12},{role:"ST",x:62,y:12}
   ],
 };
-

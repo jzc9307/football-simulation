@@ -3,9 +3,9 @@ import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
-const SAVE_VERSION=5;
+const SAVE_VERSION=6;
 const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
-const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs'];
+const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
@@ -49,7 +49,7 @@ function restoreCompactState(input, defaults){
 export function validateSave(raw){
   const input=raw?.version&&raw?.state?raw.state:raw;
   requireValid(input&&typeof input==='object'&&!Array.isArray(input),'invalid format.');
-  requireValid(!raw.version||[1,2,3,4,SAVE_VERSION].includes(raw.version),'unsupported save version.');
+  requireValid(!raw.version||[1,2,3,4,5,SAVE_VERSION].includes(raw.version),'unsupported save version.');
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
