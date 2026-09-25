@@ -414,8 +414,8 @@ a { color: #a8d0f0; }
 /* Competition broadcast skin shared by the fixture, team sheets, table and live score. */
 .competition-mark { display:inline-grid; width:40px; height:40px; flex:0 0 40px; place-items:center; overflow:hidden; padding:6px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,.2); }
 .competition-mark img { display:block; max-width:100%; max-height:100%; object-fit:contain; }
-.competition-mark-bundes { background:#d20515!important; }
-.competition-mark-bundes img { max-width:none; max-height:none; width:auto; height:220%; transform:none; }
+.competition-mark-bundes { background:#fff!important; }
+.competition-mark-bundes img { width:92%; height:auto; max-width:none; max-height:none; transform:none; }
 .competition-mark-sm { width:26px; height:26px; flex-basis:26px; padding:4px; border-radius:7px; }
 .matchday-preview.competition-theme { border-color:color-mix(in srgb,var(--competition-accent) 36%,transparent); background:radial-gradient(ellipse at 50% 0%,var(--competition-panel),transparent 62%),linear-gradient(125deg,var(--competition-dark),#0b130f 78%); }
 .matchday-preview-top { border-color:color-mix(in srgb,var(--competition-accent) 22%,transparent); color:#d5dddf; }
