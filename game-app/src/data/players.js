@@ -1,4 +1,6 @@
 import { ROLE_GROUP } from "../game/config.js";
+import { PROMOTED_2627 } from "./season2627Promotions.js";
+import { RAW_PORTUGAL_CLUBS } from "./portugal2627.js";
 
 // FC 27 Career Mode roster data from FCCareer (2026-09-24). OVR and potential are distinct.
 // These are genuine secondary roles, rather than a UI-only exception. The
@@ -46000,4 +46002,17 @@ const NUMBER_BY_ROLE={GK:[1,13,25],RB:[2,22],LB:[3,23],CB:[4,5,6,15],CDM:[6,16],
 function stablePlayerId(clubId,slug){return clubId+":"+slug;}
 function squadNumbers(players){const used=new Set();return players.map(player=>{const preferred=NUMBER_BY_ROLE[player.role]||[];const number=preferred.find(value=>!used.has(value))||Array.from({length:99},(_,index)=>index+1).find(value=>!used.has(value));used.add(number);return number;});}
 function hydrate(raw){const leagueAvg=Math.round(raw.flatMap(club=>club.players).reduce((total,player)=>total+player[4],0)/raw.flatMap(club=>club.players).length);return raw.map(club=>{const players=club.players.map(args=>P(...args)),numbers=squadNumbers(players);return {...club,leagueAvg,players:players.map((player,index)=>({...player,id:stablePlayerId(club.id,player.slug),club:club.id,number:numbers[index],loan:false,condition:100,energy:100,appearances:0}))};});}
-export function buildClubs(){return hydrate(RAW_PLCLUBS);} export function buildChampionshipClubs(){return hydrate(RAW_CHAMPIONSHIPCLUBS);} export function buildLaLigaClubs(){return hydrate(RAW_LALIGACLUBS);} export function buildSerieAClubs(){return hydrate(RAW_SERIEACLUBS);} export function buildBundesligaClubs(){return hydrate(RAW_BUNDESLIGACLUBS);} export function buildLigue1Clubs(){return hydrate(RAW_LIGUE1CLUBS);} export function buildLaLiga2Clubs(){return hydrate(RAW_LALIGA2CLUBS);} export function buildSerieBClubs(){return hydrate(RAW_SERIEBCLUBS);} export function buildBundes2Clubs(){return hydrate(RAW_BUNDES2CLUBS);} export function buildLigue2Clubs(){return hydrate(RAW_LIGUE2CLUBS);}
+const replaceTop=(clubs,outgoing,incoming)=>[...clubs.filter(club=>!outgoing.includes(club.id)),...incoming];
+const pick=(clubs,names)=>clubs.filter(club=>names.includes(club.name));
+
+// First-season membership is the real 2026/27 line-up. Former top-flight
+// clubs stay in their existing second-division pools where those squads exist.
+export function buildClubs(){return hydrate(RAW_PLCLUBS);} export function buildChampionshipClubs(){return hydrate(RAW_CHAMPIONSHIPCLUBS);}
+export function buildLaLigaClubs(){return hydrate(replaceTop(RAW_LALIGACLUBS,["gir","mal","rov"],PROMOTED_2627.LALIGA));}
+export function buildSerieAClubs(){return hydrate(replaceTop(RAW_SERIEACLUBS,["cre","hel","pis"],PROMOTED_2627.SERIEA));}
+export function buildBundesligaClubs(){return hydrate(replaceTop(RAW_BUNDESLIGACLUBS,["1fc","fcs","vfl"],[...PROMOTED_2627.BUNDES,...pick(RAW_BUNDES2CLUBS,["FC Schalke 04","SC Paderborn 07"])]));}
+export function buildLigue1Clubs(){return hydrate(replaceTop(RAW_LIGUE1CLUBS,["fcm","fcn"],PROMOTED_2627.LIGUE1));}
+export function buildLaLiga2Clubs(){return hydrate(RAW_LALIGA2CLUBS);} export function buildSerieBClubs(){return hydrate(RAW_SERIEBCLUBS);}
+export function buildBundes2Clubs(){return hydrate([...RAW_BUNDES2CLUBS.filter(club=>!["SV Elversberg","FC Schalke 04","SC Paderborn 07"].includes(club.name)),...pick(RAW_BUNDESLIGACLUBS,["1. FC Heidenheim 1846","FC St. Pauli","VfL Wolfsburg"])]);}
+export function buildLigue2Clubs(){return hydrate(RAW_LIGUE2CLUBS);}
+export function buildPortugalClubs(){return hydrate(RAW_PORTUGAL_CLUBS);}

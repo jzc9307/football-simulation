@@ -135,7 +135,7 @@ export default function App(){
   }
 
   function pickLeague(lg){
-    const map = { PL: s=>s.plClubs, LALIGA: s=>s.laligaClubs, SERIEA: s=>s.serieaClubs, BUNDES: s=>s.bundesligaClubs, LIGUE1: s=>s.ligue1Clubs };
+    const map = { PL: s=>s.plClubs, LALIGA: s=>s.laligaClubs, SERIEA: s=>s.serieaClubs, BUNDES: s=>s.bundesligaClubs, LIGUE1: s=>s.ligue1Clubs, PORTUGAL:s=>s.portugalClubs };
     setState(s => ({ ...s, league: lg, division:1, clubs: (map[lg]||map.PL)(s), stage: "select" }));
   }
   function selectClub(clubId){
@@ -486,6 +486,7 @@ function LeagueSelect({ onPick }){
     {id:"SERIEA",country:"Italy",clubs:"20 clubs",cups:"Coppa Italia",note:"A tactical title race with a demanding knockout path."},
     {id:"BUNDES",country:"Germany",clubs:"18 clubs",cups:"DFB-Pokal",note:"Fast transition football and a compact league season."},
     {id:"LIGUE1",country:"France",clubs:"18 clubs",cups:"Coupe de France",note:"A modern, athletic league with cup pressure built in."},
+    {id:"PORTUGAL",country:"Portugal",clubs:"18 clubs",cups:"European qualification",note:"A technical league with three historic powers and a fierce race for Europe."},
   ];
   return (
     <section className="league-launchpad">
@@ -509,7 +510,7 @@ function LeagueSelect({ onPick }){
   );
 }
 function TeamSelect({ clubs, league, gameState, onSelect, onBack }){
-  const LEAGUE_NAMES = { LALIGA:"La Liga", SERIEA:"Serie A", BUNDES:"Bundesliga", LIGUE1:"Ligue 1" };
+  const LEAGUE_NAMES = { LALIGA:"La Liga", SERIEA:"Serie A", BUNDES:"Bundesliga", LIGUE1:"Ligue 1", PORTUGAL:"Liga Portugal" };
   const leagueName = LEAGUE_NAMES[league] || "Premier League";
   const [preview,setPreview]=useState(null);
   const champions=new Set(selectUclField(gameState).map(club=>club.id));
@@ -1432,7 +1433,7 @@ function TacticsModal({ state, onClose, onSetStyle, onSetLine, onSetAggression, 
     </div>
   );
 }
-const MARKET_LEAGUES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1",CHAMP:"Championship",LALIGA2:"LaLiga Hypermotion",SERIEB:"Serie B",BUNDES2:"2. Bundesliga",LIGUE2:"Ligue 2",EUROPE:"European guests"};
+const MARKET_LEAGUES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1",PORTUGAL:"Liga Portugal",CHAMP:"Championship",LALIGA2:"LaLiga Hypermotion",SERIEB:"Serie B",BUNDES2:"2. Bundesliga",LIGUE2:"Ligue 2",EUROPE:"European guests"};
 function playerAttributes(player){
   let hash=0;for(const ch of player.id)hash=(Math.imul(hash,31)+ch.charCodeAt(0))>>>0;
   const jitter=i=>((hash>>>(i*4))&7)-3;
@@ -1473,7 +1474,7 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
   const incomingLoans=state.loans.filter(loan=>loan.borrowerId===state.myClubId).length;
   const pools=[
     ["PL",state.plClubs],["LALIGA",state.laligaClubs],["SERIEA",state.serieaClubs],
-    ["BUNDES",state.bundesligaClubs],["LIGUE1",state.ligue1Clubs],["CHAMP",state.championshipClubs],
+    ["BUNDES",state.bundesligaClubs],["LIGUE1",state.ligue1Clubs],["PORTUGAL",state.portugalClubs],["CHAMP",state.championshipClubs],
     ["LALIGA2",state.laliga2Clubs],["SERIEB",state.serieBClubs],["BUNDES2",state.bundes2Clubs],["LIGUE2",state.ligue2Clubs],["EUROPE",state.europeanGuestClubs],
   ];
   const leagueByClub=new Map(pools.flatMap(([league,clubs])=>(clubs||[]).map(club=>[club.id,league])));

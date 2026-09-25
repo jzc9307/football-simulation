@@ -1,14 +1,15 @@
 import { autoLineup, freshState, topXI, clamp } from './engine.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 
-const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
-const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
+const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
+const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
 const DIVISIONS={
   PL:{top:'plClubs',second:'championshipClubs',name:'Premier League',secondName:'Championship'},
   LALIGA:{top:'laligaClubs',second:'laliga2Clubs',name:'LaLiga',secondName:'LaLiga Hypermotion'},
   SERIEA:{top:'serieaClubs',second:'serieBClubs',name:'Serie A',secondName:'Serie B'},
   BUNDES:{top:'bundesligaClubs',second:'bundes2Clubs',name:'Bundesliga',secondName:'2. Bundesliga'},
   LIGUE1:{top:'ligue1Clubs',second:'ligue2Clubs',name:'Ligue 1',secondName:'Ligue 2'},
+  PORTUGAL:{top:'portugalClubs',second:null,name:'Liga Portugal',secondName:null},
 };
 export function allClubs(s){
   const map=new Map(POOLS.flatMap(k=>s[k]||[]).map(c=>[c.id,c]));
@@ -233,6 +234,7 @@ export function startNextSeason(s){
   const previousTier=s.division||1;
   let nextTier=previousTier,gameOver=false,movement=null;
   for(const [league,division] of Object.entries(DIVISIONS)){
+    if(!division.second)continue;
     const top=pools[division.top],second=pools[division.second];
     const topTable=league===s.league&&previousTier===1?s.tableFinal:seasonTable(top);
     const secondTable=league===s.league&&previousTier===2?s.tableFinal:seasonTable(second);

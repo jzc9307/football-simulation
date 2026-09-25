@@ -37,6 +37,12 @@ export function standingsZone(league,rank,total){
   // The champion gets a distinct gold mark. The following top-four places
   // route to the Champions League and fifth/sixth to Europa League.
   if(rank===1)return {key:'champion',label:'League winners',color:'gold'};
+  if(league==='PORTUGAL'){
+    if(rank<=2)return {key:'champions',label:'Champions League places',color:'blue'};
+    if(rank===3)return {key:'europa',label:'Europa League place',color:'orange'};
+    if(rank>total-3)return {key:'relegation',label:'Relegation places',color:'red'};
+    return null;
+  }
   if(rank<=4)return {key:'champions',label:'Champions League places',color:'blue'};
   if(rank<=6)return {key:'europa',label:'Europa League places',color:'orange'};
   if((league==='BUNDES'||league==='LIGUE1')&&rank===total-2)return {key:'relegation-playoff',label:'Relegation playoff',color:'amber'};
@@ -52,6 +58,7 @@ export function standingsLegend(league,total){
     LALIGA2:[1,3,total-3],
     SERIEB:[1,3,16,18],
     LIGUE2:[1,3,total-2],
+    PORTUGAL:[1,2,3,total-2],
   };
   const ranks=ranksByCompetition[league]||[1,2,5,total-(league==='BUNDES'||league==='LIGUE1'?2:3)+1,...((league==='BUNDES'||league==='LIGUE1')?[total-2]:[])];
   return ranks.map(rank=>standingsZone(league,rank,total)).filter((zone,index,array)=>zone&&array.findIndex(item=>item?.key===zone.key)===index);

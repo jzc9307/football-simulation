@@ -767,3 +767,7 @@ a { color: #a8d0f0; }
 
 /* Crop the tall Serie A source asset to its monogram for the launch-card fade. */
 .league-choice-watermark .competition-mark-seriea img{width:150px;max-width:none;max-height:none;height:auto;transform:translateY(-8px)}
+
+/* Six launch cards should form one balanced desktop row, while the existing
+   responsive rules continue to take over below tablet width. */
+@media(min-width:1061px){.league-choice-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}

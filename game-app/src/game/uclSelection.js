@@ -2,16 +2,17 @@ import { ROLE_GROUP } from "./config.js";
 import { GUEST_CRESTS } from "./guestAssets.js";
 import { FIRST_SEASON_UCL_ROUNDS } from "./firstSeasonFixtures.js";
 
-const LEAGUE_KEYS={PL:"plClubs",LALIGA:"laligaClubs",SERIEA:"serieaClubs",BUNDES:"bundesligaClubs",LIGUE1:"ligue1Clubs"};
+const LEAGUE_KEYS={PL:"plClubs",LALIGA:"laligaClubs",SERIEA:"serieaClubs",BUNDES:"bundesligaClubs",LIGUE1:"ligue1Clubs",PORTUGAL:"portugalClubs"};
+const UCL_SLOTS={PL:4,LALIGA:4,SERIEA:4,BUNDES:4,LIGUE1:4,PORTUGAL:2};
 // Fixed first-season qualifiers. Subsequent seasons use the five domestic top fours;
 // the remaining places come from this persistent European guest-club world.
 // 2026/27 is a fixed, real-world-inspired entry list. Lyon appears in the
 // supplied Europa list too, so it is intentionally kept in Europa: that keeps
 // the two 36-club league phases mutually exclusive.
-const FIRST_SEASON_IDS=["ars","ast","liv","man","mun","lil","par2","rcl","bor","fcb2","rbl","vfb","rom","com","int","nap","atl","fcb","rea","rma","vil"];
-const FIRST_SEASON_GUEST_IDS=["lask","sabah","bru","sla","aek","fey","psv","bod","viking","por","spo","slovan","fener","gal","sha"];
+const FIRST_SEASON_IDS=["ars","ast","liv","man","mun","lil","par2","rcl","bor","fcb2","rbl","vfb","rom","com","int","nap","atl","fcb","rea","rma","vil","pt-porto","pt-sporting"];
+const FIRST_SEASON_GUEST_IDS=["lask","sabah","bru","sla","aek","fey","psv","bod","viking","slovan","fener","gal","sha"];
 const GUESTS=[
-  ["ben","SL Benfica","Portugal",82,"#e31937"],["spo","Sporting CP","Portugal",80,"#198f59"],["por","FC Porto","Portugal",80,"#1f63b5"],["psv","PSV Eindhoven","Netherlands",79,"#df2537"],
+  ["psv","PSV Eindhoven","Netherlands",79,"#df2537"],
   ["fey","Feyenoord","Netherlands",78,"#e62e36"],["bru","Club Brugge","Belgium",77,"#173d92"],["cel","Celtic","Scotland",76,"#198659"],["ran","Rangers","Scotland",75,"#2570bc"],
   ["sha","Shakhtar Donetsk","Ukraine",77,"#e46b20"],["sal","RB Salzburg","Austria",77,"#d21f3c"],["gal","Galatasaray","Türkiye",78,"#f2a900"],["sla","Slavia Praha","Czechia",75,"#d51b2d"],
   ["oly","Olympiacos","Greece",76,"#d8202d"],["din","GNK Dinamo Zagreb","Croatia",74,"#2461aa"],["ybo","BSC Young Boys","Switzerland",74,"#e8bf1c"],["bod","Bodø/Glimt","Norway",73,"#e8c022"],
@@ -65,7 +66,7 @@ export function uclQualified(state){return selectUclField(state).some(club=>club
 export function selectUclField(state){
   const domestic=clubMap(state),guests=mergedEuropeanGuestClubs(state);
   if((state.season||1)===1){const guestById=new Map(guests.map(club=>[club.id.replace(/^eu-/,""),club]));return [...FIRST_SEASON_IDS.map(id=>domestic.get(id)).filter(Boolean),...FIRST_SEASON_GUEST_IDS.map(id=>guestById.get(id)).filter(Boolean)];}
-  const qualifiers=Object.entries(LEAGUE_KEYS).flatMap(([league,key])=>{const clubs=state[key]||[];const rows=state.qualificationTables?.[league]||(league===state.league&&state.tableFinal);const ranks=rows?.length?new Map(rows.map((row,index)=>[row.id,index])):null;return [...clubs].sort((a,b)=>ranks?(ranks.get(a.id)??999)-(ranks.get(b.id)??999):strength(b)-strength(a)).slice(0,4);});
+  const qualifiers=Object.entries(LEAGUE_KEYS).flatMap(([league,key])=>{const clubs=state[key]||[];const rows=state.qualificationTables?.[league]||(league===state.league&&state.tableFinal);const ranks=rows?.length?new Map(rows.map((row,index)=>[row.id,index])):null;return [...clubs].sort((a,b)=>ranks?(ranks.get(a.id)??999)-(ranks.get(b.id)??999):strength(b)-strength(a)).slice(0,UCL_SLOTS[league]||4);});
   const europaWinner=state.uel?.championId?domestic.get(state.uel.championId):null;
   const unique=[...new Map([...qualifiers,europaWinner].filter(Boolean).map(club=>[club.id,club])).values()];
   return [...unique,...stableShuffle(guests,`ucl-${state.season}`).filter(club=>!unique.some(qualifier=>qualifier.id===club.id)).slice(0,36-unique.length)];

@@ -5,8 +5,8 @@ const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
 const SAVE_VERSION=6;
 const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
-const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
-const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
+const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
+const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
 // A club can move between the top flight and its second tier. Look up the
@@ -96,7 +96,7 @@ export function validateSave(raw){
     }
   }
   requireValid(s.lineup&&typeof s.lineup==='object'&&!Array.isArray(s.lineup),'invalid lineup.');
-  requireValid(['PL','LALIGA','SERIEA','BUNDES','LIGUE1',null].includes(s.league),'invalid league.');
+  requireValid(['PL','LALIGA','SERIEA','BUNDES','LIGUE1','PORTUGAL',null].includes(s.league),'invalid league.');
   s.division=s.division===2?2:1;
   if(s.myClubId)requireValid(s.clubs.some(c=>c.id===s.myClubId),'your club is missing.');
   if(!['league-select','select'].includes(s.stage))requireValid(!!s.myClubId,'no selected club.');

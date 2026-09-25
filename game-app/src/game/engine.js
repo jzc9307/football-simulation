@@ -1,5 +1,5 @@
 import { ROLE_GROUP, ROLE_COMPAT, FORMATIONS, EUROPEAN_CLUBS, CARABAO_SCHEDULE, CARABAO_FINAL_SLOT, FA_SCHEDULE, COPA_SCHEDULE, COPPA_SCHEDULE, DFB_SCHEDULE, COUPE_SCHEDULE } from "./config.js";
-import { buildClubs, buildChampionshipClubs, buildLaLigaClubs, buildSerieAClubs, buildBundesligaClubs, buildLigue1Clubs, buildLaLiga2Clubs, buildSerieBClubs, buildBundes2Clubs, buildLigue2Clubs } from "../data/players.js";
+import { buildClubs, buildChampionshipClubs, buildLaLigaClubs, buildSerieAClubs, buildBundesligaClubs, buildLigue1Clubs, buildLaLiga2Clubs, buildSerieBClubs, buildBundes2Clubs, buildLigue2Clubs, buildPortugalClubs } from "../data/players.js";
 import { buildEuropeanGuestClubs } from "./uclSelection.js";
 import { attachSeasonSchedule } from "./seasonSchedule.js";
 import { firstSeasonLeagueOrder } from "./firstSeasonFixtures.js";
@@ -976,10 +976,11 @@ export function freshState(){
   const serieaClubs = buildSerieAClubs();
   const bundesligaClubs = buildBundesligaClubs();
   const ligue1Clubs = buildLigue1Clubs();
+  const portugalClubs = buildPortugalClubs();
   return {
     stage: "league-select", league: null, division:1, clubs: plClubs,
     season:1, history:[], loans:[], finances:[], halftimeStyle:"keep", autoSubs:true,
-    plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, championshipClubs: buildChampionshipClubs(), laliga2Clubs:buildLaLiga2Clubs(), serieBClubs:buildSerieBClubs(), bundes2Clubs:buildBundes2Clubs(), ligue2Clubs:buildLigue2Clubs(), europeanGuestClubs:buildEuropeanGuestClubs(),
+    plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, portugalClubs, championshipClubs: buildChampionshipClubs(), laliga2Clubs:buildLaLiga2Clubs(), serieBClubs:buildSerieBClubs(), bundes2Clubs:buildBundes2Clubs(), ligue2Clubs:buildLigue2Clubs(), europeanGuestClubs:buildEuropeanGuestClubs(),
     myClubId: null, simMode: null,
     formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, defensiveAggression: 50, offsideTrap: false,
     suspensions: { domestic: [], ucl: [] }, injuries: {},
@@ -993,4 +994,4 @@ export function freshState(){
 
 
 export function seasonLabel(s){const y=2026+(s.season||1)-1;return `${y}/${String(y+1).slice(-2)}`;}
-export const LEAGUE_NAMES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1"};
+export const LEAGUE_NAMES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1",PORTUGAL:"Liga Portugal"};

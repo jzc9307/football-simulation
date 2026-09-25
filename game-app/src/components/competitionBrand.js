@@ -16,6 +16,7 @@ import laliga2 from "../assets/competition-logos/laliga2.png";
 import serieB from "../assets/competition-logos/serieb.png";
 import bundes2 from "../assets/competition-logos/bundes2.png";
 import ligue2 from "../assets/competition-logos/ligue2.png";
+import portugal from "../assets/competition-logos/portugal.png";
 
 const brands={
   PL:{name:"Premier League",logo:pl,dark:"#251333",panel:"#3c2050",accent:"#00ff85",logoPlate:"#321745"},
@@ -26,6 +27,7 @@ const brands={
   BUNDES:{name:"Bundesliga",logo:bundes,wordmark:bundes,dark:"#301319",panel:"#54212a",accent:"#fa404b",logoPlate:"#ffffff"},
   SERIEA:{name:"Serie A",logo:seriea,dark:"#101d3a",panel:"#193768",accent:"#62bfff",logoPlate:"#eff8ff"},
   LIGUE1:{name:"Ligue 1",logo:ligue1,dark:"#151c31",panel:"#27385b",accent:"#ffdf30",logoPlate:"#fff8db"},
+  PORTUGAL:{name:"Liga Portugal",logo:portugal,dark:"#112b43",panel:"#1d5276",accent:"#27d59d",logoPlate:"#edf9f3"},
   UCL:{name:"Champions League",logo:ucl,dark:"#090f36",panel:"#15215c",accent:"#b6cbff",logoPlate:"#f1f4ff"},
   UEL:{name:"Europa League",logo:uel,dark:"#21150d",panel:"#4c2911",accent:"#ffae45",logoPlate:"#fff3dc"},
   FA:{name:"FA Cup",logo:faCup,dark:"#152b43",panel:"#1f4b72",accent:"#b9dcff",logoPlate:"#edf7ff"},

@@ -10,7 +10,7 @@ function weekday(date,day){return addDays(date,(day-new Date(dateValue(date)).ge
 export function seasonStart(season=1){return weekday(seasonDate(season,8,15),6);}
 export function buildLeagueSchedule({season=1,league,division=1,roundsHalf1=[],roundsHalf2=[]}){
  const competition=leagueCompetition(league,division),rounds=[...roundsHalf1,...roundsHalf2];
- const publishedStarts={PL:"2026-08-21",LALIGA:"2026-08-15",SERIEA:"2026-08-23",BUNDES:"2026-08-28",LIGUE1:"2026-08-21"};
+ const publishedStarts={PL:"2026-08-21",LALIGA:"2026-08-15",SERIEA:"2026-08-23",BUNDES:"2026-08-28",LIGUE1:"2026-08-21",PORTUGAL:"2026-08-09"};
  const start=season===1&&division===1?(publishedStarts[league]||seasonStart(season)):seasonStart(season);
  const dates=[];for(let date=start;date<=seasonDate(season,5,23);date=addDays(date,7))dates.push(date);
  const weekends=[...dates];let i=2;
