@@ -8,6 +8,32 @@ export function slotAccepts(slotRole, player){
   return (ROLE_COMPAT[slotRole] || []).includes(player.role);
 }
 const WIDE_ROLES = new Set(["LW", "LM", "RW", "RM"]);
+// Every outfield player can be selected in every outfield slot. Their match
+// level then reflects how close that assignment is to their real role. This is
+// deliberately separate from slotAccepts, which remains the AI's conservative
+// preference when it picks an XI automatically.
+export function positionFit(slotRole, player){
+  if(!player)return 0;
+  const natural=player.role;
+  if(natural===slotRole)return 1;
+  if(natural==="GK"||slotRole==="GK")return .42;
+  if(WIDE_ROLES.has(natural)&&WIDE_ROLES.has(slotRole)){
+    return natural[0]===slotRole[0]?1:.91;
+  }
+  const centralMid=new Set(["CDM","CM","CAM"]);
+  if(centralMid.has(natural)&&centralMid.has(slotRole)){
+    if((natural==="CDM"&&slotRole==="CAM")||(natural==="CAM"&&slotRole==="CDM"))return .86;
+    return .94;
+  }
+  const sameGroup=ROLE_GROUP[natural]===ROLE_GROUP[slotRole];
+  if(sameGroup)return ROLE_GROUP[natural]==="DEF"?.84:.87;
+  const adjacent=(ROLE_GROUP[natural]==="MID"&&ROLE_GROUP[slotRole]==="FWD")||(ROLE_GROUP[natural]==="FWD"&&ROLE_GROUP[slotRole]==="MID")||(ROLE_GROUP[natural]==="MID"&&ROLE_GROUP[slotRole]==="DEF")||(ROLE_GROUP[natural]==="DEF"&&ROLE_GROUP[slotRole]==="MID");
+  return adjacent?.72:.60;
+}
+export function positionFitLabel(slotRole,player){
+  const fit=positionFit(slotRole,player);
+  return fit>=.995?"Natural position":fit>=.93?"Secondary position":fit>=.84?"Adapted position":"Out of position";
+}
 // Tactics: each formation is reduced to zone counts (wide defenders, central defenders, central midfielders,
 // wide midfielders, wide attackers, central strikers) computed directly from its slot list. A team's tactical
 // edge comes from genuine mismatches — extra strikers against too few center-backs, spare width against a side
@@ -23,6 +49,16 @@ export function formationShape(formation){
     attWide: cnt("LW")+cnt("RW"),
     attCentral: cnt("ST"),
   };
+}
+export function formationProfile(formation){
+  const shape=formationShape(formation);
+  if(shape.defCentral>=5)return {strength:"Extra cover and compact defending",risk:"Fewer numbers between the lines"};
+  if(shape.defCentral===3&&shape.midWide>=2)return {strength:"Wing-back width and a strong central spine",risk:"Space behind the wide midfielders"};
+  if(shape.attCentral>=2&&shape.attWide>=2)return {strength:"Maximum box presence and wide overloads",risk:"Can be exposed through midfield"};
+  if(shape.attCentral>=2&&shape.attWide===0&&shape.midWide===0)return {strength:"Central combinations and two-striker pressure",risk:"Little natural width"};
+  if(shape.midCentral>=4)return {strength:"Midfield control and pressing options",risk:"Needs wide players to stretch a block"};
+  if(shape.attWide>=2)return {strength:"Width, transitions and isolation opportunities",risk:"Central midfield can be outnumbered"};
+  return {strength:"Balanced shape with clear passing lanes",risk:"No single overwhelming overload"};
 }
 export function tacticalBreakdown(myForm, oppForm){
   const my = formationShape(myForm), opp = formationShape(oppForm);
@@ -70,7 +106,7 @@ export function readinessLineup(slots, players, preferred={}){
   slots.forEach((slot,i)=>{
     const chosen=players.find(p=>p.id===preferred[i]);
     const current=players.find(p=>p.id===lineup[i]);
-    if(chosen&&!used.has(chosen.id)&&current&&slotAccepts(slot.role,chosen)&&score(chosen)>=score(current)-3){
+    if(chosen&&!used.has(chosen.id)&&current&&score(chosen)*positionFit(slot.role,chosen)>=score(current)-3){
       used.delete(current.id);lineup[i]=chosen.id;used.add(chosen.id);
     }
   });
@@ -80,8 +116,7 @@ export function playersForLineup(players, lineup, formation){
   return (FORMATIONS[formation] || FORMATIONS["4-4-2"]).flatMap((slot, i) => {
     const p = players.find(p => p.id === lineup[i]);
     if (!p) return [];
-    const sameWing = WIDE_ROLES.has(p.role) && WIDE_ROLES.has(slot.role) && p.role[0] === slot.role[0];
-    const fit = (p.role === slot.role || sameWing) ? 1 : slotAccepts(slot.role,p) ? 0.96 : 0.78;
+    const fit=positionFit(slot.role,p);
     return [{...p, assignedRole:slot.role, group:ROLE_GROUP[slot.role], ovr:p.ovr*fit}];
   });
 }
@@ -900,10 +935,16 @@ export function buildLiveMatchContext(s, userResult, oppClub, competition="UCL")
   const myTac=myTactics(s),oppTac=aiTactics(oppClub);
   const stats=match?.stats;
   const analysis = analyzeMatchup(lineupPlayers, oppPlayers, myTac, oppTac);
+  const shootout=userResult.shootout?{
+    ...userResult.shootout,
+    homeScore:userResult.isHome?userResult.shootout.mine:userResult.shootout.opp,
+    awayScore:userResult.isHome?userResult.shootout.opp:userResult.shootout.mine,
+    wonHome:userResult.isHome?userResult.wonPens:!userResult.wonPens,
+  }:null;
   return { timeline, homeName, awayName, homeClubId:userResult.isHome?myClubObj.id:oppClub.id,
     awayClubId:userResult.isHome?oppClub.id:myClubObj.id, homeColor:userResult.isHome?myClubObj.color:oppClub.color, awayColor:userResult.isHome?oppClub.color:myClubObj.color, competition,
     myName: myClubObj.name, oppName: oppClub.name, stats, analysis,
-    playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,myTacStyle: myTac.style, oppTacStyle: oppTac.style };
+    playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,shootout,myTacStyle: myTac.style, oppTacStyle: oppTac.style };
 }
 
 export function freshState(){

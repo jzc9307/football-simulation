@@ -9,6 +9,10 @@ const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs'
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+// A club can move between the top flight and its second tier. Look up the
+// canonical roster across every default pool when hydrating a compact save,
+// rather than assuming it is still in the division where it began.
+function baseClubs(defaults){return new Map(POOL_KEYS.filter(key=>key!=='clubs').flatMap(key=>defaults[key]||[]).map(club=>[club.id,club]));}
 function basePlayers(defaults){return new Map(POOL_KEYS.filter(key=>key!=='clubs').flatMap(key=>(defaults[key]||[]).flatMap(club=>club.players)).map(player=>[player.id,player]));}
 function compactPlayer(player, base){
   if(!base)return {...player};
@@ -27,20 +31,24 @@ function compactPool(clubs, defaults, players){
 function restoreCompactState(input, defaults){
   if(!input?.rosterPatches)return input;
   const baseByPlayer=basePlayers(defaults);
+  const baseByClub=baseClubs(defaults);
   const restored={...input};
   for(const key of POOL_KEYS.filter(key=>key!=='clubs')){
     if(!Array.isArray(input[key]))continue;
     const baseClubs=new Map((defaults[key]||[]).map(club=>[club.id,club]));
     restored[key]=(input[key]||[]).map(patch=>{
-      const base=baseClubs.get(patch.id);
+      const base=baseClubs.get(patch.id)||baseByClub.get(patch.id);
       requireValid(!!base,`unknown club ${patch.id}.`);
       const {players,...clubPatch}=patch;
       requireValid(Array.isArray(players),`invalid compact roster for ${patch.id}.`);
       return {...base,...clubPatch,players:players.map(playerPatch=>{
         const basePlayer=baseByPlayer.get(playerPatch.id);
+        // v6 guest squads used four generated reserve players. They have no
+        // real-player replacement, so drop only those obsolete guest patches.
+        if(!basePlayer&&key==='europeanGuestClubs')return null;
         requireValid(!!basePlayer||typeof playerPatch.name==="string",`unknown player ${playerPatch.id}.`);
         return {...basePlayer,...playerPatch,club:patch.id};
-      })};
+      }).filter(Boolean)};
     });
   }
   delete restored.rosterPatches;

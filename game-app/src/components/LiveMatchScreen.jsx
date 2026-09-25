@@ -2,9 +2,10 @@ import { revealStats } from "../game/engine.js";
 import { isShotEvent, momentumSeries } from "../game/matchVisuals.js";
 import { CompetitionMark } from "./CompetitionBrand.jsx";
 import { competitionBrand, competitionTheme } from "./competitionBrand.js";
+import { GUEST_CRESTS } from "../game/guestAssets.js";
 import {useState,useEffect,useRef} from "react";
 const CLUB_LOGOS=import.meta.glob("../assets/club-logos/*.png",{eager:true,query:"?url",import:"default"});
-function ScoreCrest({clubId,name}){const src=CLUB_LOGOS[`../assets/club-logos/${clubId}.png`];return <span className="score-crest">{src?<img src={src} alt={`${name} crest`}/>:<b>{name?.slice(0,2).toUpperCase()}</b>}</span>;}
+function ScoreCrest({clubId,name}){const [failed,setFailed]=useState(false);const src=GUEST_CRESTS[clubId]||CLUB_LOGOS[`../assets/club-logos/${clubId}.png`];return <span className="score-crest">{src&&!failed?<img src={src} alt={`${name} crest`} onError={()=>setFailed(true)}/>:<b>{name?.slice(0,2).toUpperCase()}</b>}</span>;}
 const primaryBtnStyle={background:"#2d6b3f",color:"white",padding:"12px 28px",borderRadius:10,border:0};
 function PossessionBar({ home, away }){
   return (
@@ -109,26 +110,48 @@ function PlayerRatingsPanel({ ratings, manOfTheMatch, homeName, awayName, done }
   );
 }
 
-function pulseArea(series,side){
+function pulseArea(series,side,endMinute){
   const baseline=156;
-  const points=series.map((value,i)=>`${40+i/95*920},${baseline-(side===0?Math.max(0,value):-Math.max(0,-value))*112}`);
+  const points=series.map((value,i)=>`${40+i/endMinute*920},${baseline-(side===0?Math.max(0,value):-Math.max(0,-value))*112}`);
   return `M40,${baseline} L${points.join(' L')} L960,${baseline} Z`;
 }
-function MatchPulse({events,minute,homeName,awayName,homeColor,awayColor}){
-  const series=momentumSeries(events,minute);
+function MatchPulse({events,minute,homeName,awayName,homeColor,awayColor,endMinute}){
+  const displayEnd=Math.max(95,endMinute||minute);
+  const series=momentumSeries(events,displayEnd);
   const marks=events.filter(event=>event.minute<=minute&&(event.isGoal||event.type==='red'));
   const colors={"--momentum-home":homeColor||"#9c2736","--momentum-away":awayColor||"#3667a4"};
+  const point=matchMinute=>40+matchMinute/displayEnd*920;
+  const hasExtraTime=displayEnd>95;
   return <section className="match-pulse" style={colors} aria-label="Live match momentum"><h2>Momentum</h2>
     <div className="momentum-legend"><span><i/> {homeName}</span><span><i/> {awayName}</span></div>
     <svg className="momentum-svg" viewBox="0 0 1000 320" role="img" aria-label={`Momentum by minute, ${homeName} above the line and ${awayName} below`}>
       <line x1="40" y1="156" x2="960" y2="156" className="momentum-baseline"/>
-      <line x1="505" y1="18" x2="505" y2="285" className="momentum-halftime"/>
-      <path d={pulseArea(series,0)} className="momentum-home-area"/>
-      <path d={pulseArea(series,1)} className="momentum-away-area"/>
-      {marks.map((event,i)=><g key={`${event.minute}-${i}`} transform={`translate(${40+event.minute/95*920},${event.side===0?37:274})`}><text textAnchor="middle" fontSize="22" fill="#fff">{event.type==='red'?'🟥':'⚽'}</text></g>)}
-      <text x="40" y="308" className="momentum-axis">0′</text><text x="505" y="308" textAnchor="middle" className="momentum-axis">HT</text><text x="960" y="308" textAnchor="end" className="momentum-axis">FT</text>
+      <line x1={point(45)} y1="18" x2={point(45)} y2="285" className="momentum-halftime"/>
+      {hasExtraTime&&<><line x1={point(90)} y1="18" x2={point(90)} y2="285" className="momentum-extra"/><line x1={point(105)} y1="18" x2={point(105)} y2="285" className="momentum-halftime"/></>}
+      <path d={pulseArea(series,0,displayEnd)} className="momentum-home-area"/>
+      <path d={pulseArea(series,1,displayEnd)} className="momentum-away-area"/>
+      {marks.map((event,i)=><g key={`${event.minute}-${i}`} transform={`translate(${point(event.minute)},${event.side===0?37:274})`}><text textAnchor="middle" fontSize="22" fill="#fff">{event.type==='red'?'🟥':'⚽'}</text></g>)}
+      <text x="40" y="308" className="momentum-axis">0′</text><text x={point(45)} y="308" textAnchor="middle" className="momentum-axis">HT</text>{hasExtraTime?<><text x={point(90)} y="308" textAnchor="middle" className="momentum-axis">90′</text><text x={point(105)} y="308" textAnchor="middle" className="momentum-axis">ET</text><text x="960" y="308" textAnchor="end" className="momentum-axis">120′</text></>:<text x="960" y="308" textAnchor="end" className="momentum-axis">FT</text>}
     </svg>
-    <div className="momentum-note">Shot pressure, xG and goals · smoothed minute by minute</div>
+    <div className="momentum-note">{hasExtraTime?"Extra time included · shot pressure, xG and goals": "Shot pressure, xG and goals · smoothed minute by minute"}</div>
+  </section>;
+}
+function GoalRibbon({goals,homeName,awayName,homeGoals,awayGoals}){
+  if(!goals.length)return <div className="goal-ribbon is-waiting"><span>LIVE MOMENT</span><strong>Kick-off. The first big moment will appear here.</strong></div>;
+  const latest=goals.at(-1),scorer=(latest.text||"").replace(/ scores.*$/i,"");
+  return <section className="goal-ribbon" aria-live="polite">
+    <span className="goal-ribbon-kicker">GOAL · {latest.minute>90?`90+${latest.minute-90}`:latest.minute}′</span>
+    <strong>⚽ {scorer || latest.teamName}</strong>
+    <small>{latest.teamName} <b>{homeGoals} – {awayGoals}</b> {latest.teamName===homeName?awayName:homeName}</small>
+  </section>;
+}
+function ShootoutPanel({shootout,homeName,awayName,homeClubId,awayClubId}){
+  const ordered=[...(shootout.kicks||[])];
+  return <section className="shootout-panel" aria-label="Penalty shootout">
+    <header><span>PENALTY SHOOTOUT</span><strong>Every kick, every decision</strong><small>The knockout tie is level after extra time.</small></header>
+    <div className="shootout-score"><div><ScoreCrest clubId={homeClubId} name={homeName}/><strong>{homeName}</strong></div><b>{shootout.homeScore}<i>–</i>{shootout.awayScore}</b><div><ScoreCrest clubId={awayClubId} name={awayName}/><strong>{awayName}</strong></div></div>
+    <div className="shootout-kicks">{[0,1].map(side=><div className="shootout-team" key={side}><small>{side===0?homeName:awayName}</small><div>{ordered.filter(kick=>kick.side===side).map((kick,index)=><span className={kick.scored?"scored":"missed"} title={kick.name} key={`${kick.name}-${index}`}>{kick.scored?"✓":"×"}</span>)}</div></div>)}</div>
+    <ol className="shootout-log">{ordered.map((kick,index)=><li key={`${kick.name}-${index}`}><span>{index+1}</span><strong>{kick.name}</strong><em>{kick.side===0?homeName:awayName}</em><b className={kick.scored?"scored":"missed"}>{kick.scored?"SCORED":"SAVED / MISSED"}</b></li>)}</ol>
   </section>;
 }
 function ShotMapPanel({events,homeName,awayName,homeClubId,awayClubId}){
@@ -149,7 +172,7 @@ function ShotMapPanel({events,homeName,awayName,homeClubId,awayClubId}){
   </section>;
 }
 
-export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayClubId, homeColor="#9c2736", awayColor="#3667a4", competition="PL", myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, onDone, banner }){
+export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayClubId, homeColor="#9c2736", awayColor="#3667a4", competition="PL", myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, shootout, onDone, banner }){
   const [minute, setMinute] = useState(0);
   const endMinute=Math.max(95,...timeline.map(e=>e.minute));
   const done=minute>=endMinute;
@@ -177,6 +200,7 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
 
   const homeGoals = revealed.filter(e => e.isGoal === true && e.teamName===homeName).length;
   const awayGoals = revealed.filter(e => e.isGoal === true && e.teamName===awayName).length;
+  const revealedGoals=revealed.filter(event=>event.isGoal===true);
   const ICONS = { foul:"⚠️", goal:"⚽", penalty:"🎯", freekick:"🌀", corner:"🚩", yellow:"🟨", red:"🟥", chance:"➡️", var:"📺", offside:"🚫", "penalty-miss":"❌", "corner-miss":"🚩", sub:"🔄", tactics:"🧠" };
   const currentStats=stats?revealStats(stats,minute):null;
   const tabBtn = (key, label) => (
@@ -197,7 +221,8 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
         <div className="scoreboard-live-data"><div><span>POSSESSION</span><strong>{currentStats?`${currentStats.possession[0]}% — ${currentStats.possession[1]}%`:"—"}</strong></div><div><span>SHOTS</span><strong>{currentStats?`${currentStats.shots[0]} — ${currentStats.shots[1]}`:"—"}</strong></div><div><span>EXPECTED GOALS</span><strong>{currentStats?`${currentStats.xg[0].toFixed(2)} — ${currentStats.xg[1].toFixed(2)}`:"—"}</strong></div></div>
         <div className="scoreboard-trim"/>
       </section>
-      <MatchPulse events={revealed} minute={minute} homeName={homeName} awayName={awayName} homeColor={homeColor} awayColor={awayColor}/>
+      <GoalRibbon goals={revealedGoals} homeName={homeName} awayName={awayName} homeGoals={homeGoals} awayGoals={awayGoals}/>
+      {shootout&&done?<ShootoutPanel shootout={shootout} homeName={homeName} awayName={awayName} homeClubId={homeClubId} awayClubId={awayClubId}/>:<MatchPulse events={revealed} minute={minute} endMinute={endMinute} homeName={homeName} awayName={awayName} homeColor={homeColor} awayColor={awayColor}/>} 
 
       {stats && (
         <div style={{ display:"flex", gap:6, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:4, marginBottom:16 }}>

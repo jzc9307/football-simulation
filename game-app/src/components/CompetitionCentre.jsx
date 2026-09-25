@@ -4,14 +4,16 @@ import { CompetitionMark } from "./CompetitionBrand.jsx";
 import { competitionTheme, competitionBrand } from "./competitionBrand.js";
 import { CUP_KEYS, cupCompetitions, isMyFixture, nextFixture, seasonStart, addDays, dateValue, leagueCompetition } from "../game/seasonSchedule.js";
 import { findClubAnywhere } from "../game/engine.js";
+import { GUEST_CRESTS } from "../game/guestAssets.js";
 import "./CompetitionCentre.css";
 import { formatDate } from "./calendarFormat.js";
 
 const LOGOS=import.meta.glob("../assets/club-logos/*.png",{eager:true,query:"?url",import:"default"});
 function club(state,id){return id?(findClubAnywhere(state,id)||{id,name:"Club unavailable"}):{name:"Winner to be confirmed"};}
 function Crest({team,large=false,watermark=false}){
- const name=team?.name||"To be confirmed",logo=LOGOS[`../assets/club-logos/${team?.id}.png`];
- return <span className={`cc-crest ${large?"is-large":""} ${watermark?"is-watermark":""}`} style={{"--club-color":team?.color||"#667b92"}}>{logo?<img src={logo} alt={watermark?"":name}/>:<b>{team?.id?name.split(" ").map(s=>s[0]).slice(0,2).join(""):"?"}</b>}</span>;
+ const [failed,setFailed]=useState(false);
+ const name=team?.name||"To be confirmed",logo=GUEST_CRESTS[team?.id]||LOGOS[`../assets/club-logos/${team?.id}.png`]||team?.crestUrl;
+ return <span className={`cc-crest ${large?"is-large":""} ${watermark?"is-watermark":""}`} style={{"--club-color":team?.color||"#667b92"}}>{logo&&!failed?<img src={logo} alt={watermark?"":name} onError={()=>setFailed(true)}/>:<b>{team?.id?name.split(" ").map(s=>s[0]).slice(0,2).join(""):"?"}</b>}</span>;
 }
 function roundName(event){return typeof event.round==="number"?`${event.kind==="europe"?"Matchday":"Matchweek"} ${event.round}`:`${event.round||"Draw pending"}${event.leg?` · Leg ${event.leg}`:""}`;}
 function score(event){const r=event.result;return r&&Number.isFinite(r.homeGoals??r.myGoals)?`${r.homeGoals??r.myGoals} – ${r.awayGoals??r.oppGoals}`:event.status==="completed"?"FT":null;}

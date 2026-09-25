@@ -55,6 +55,18 @@ test("five leagues have complete draws and no invalid opponent dates",()=>{
  }
 });
 
+test("a relegated manager receives all 46 Championship league fixtures",()=>{
+ let s=freshState();
+ s={...s,league:"PL",division:2,clubs:s.championshipClubs,myClubId:s.championshipClubs[0].id,stage:"squad",simMode:"match",scheduleMigrationDone:true};
+ const me=s.clubs.find(c=>c.id===s.myClubId);
+ s={...s,budget:me.budget,formation:me.preferredFormation,lineup:autoLineup(FORMATIONS[me.preferredFormation],me.players)};
+ s=ensureFixtures(s);
+ const mine=s.seasonSchedule.filter(event=>event.kind==="league"&&(event.homeId===s.myClubId||event.awayId===s.myClubId));
+ assert.equal(s.clubs.length,24);
+ assert.equal(s.roundsHalf1.length+s.roundsHalf2.length,46);
+ assert.equal(mine.length,46);
+});
+
 test("new seasons rebuild fixtures and generated youth survive save reload",()=>{
  let s=game();
  s={...s,ucl:{...s.ucl,stage:"final"},tableFinal:[{id:"liv"},...s.clubs.filter(c=>c.id!=="liv").map(c=>({id:c.id}))]};

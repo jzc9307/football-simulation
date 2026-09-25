@@ -2,9 +2,10 @@ const SHOT_TYPES=new Set(['goal','penalty','freekick','corner','chance','penalty
 export function isShotEvent(event){return SHOT_TYPES.has(event.type);}
 // A smoothed home-minus-away pressure curve built only from generated match events.
 export function momentumSeries(events,until=95){
-  const impulses=Array(96).fill(0);
+  const length=Math.max(95,until);
+  const impulses=Array(length+1).fill(0);
   for(const event of events){
-    if(event.minute>until||event.minute<1||event.minute>95)continue;
+    if(event.minute>length||event.minute<1)continue;
     let weight=0;
     if(isShotEvent(event))weight=0.28+Math.min(0.8,(event.xg||0.08)*2)+(event.isGoal?1.15:0);
     else if(event.type==='red')weight=-0.75;
