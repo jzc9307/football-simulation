@@ -192,6 +192,28 @@ export function transfer(s,{type,playerId,sellerId,fee}){
     loans:isLoan?[...s.loans,{playerId:player.id,ownerId:seller.id,borrowerId:buyer.id,endsSeason:s.season}]:s.loans,
     finances:[...s.finances,{season:s.season,type,player:player.name,amount:outgoing?price:-price}].slice(-100)};
 }
+function promotionAndRelegation(league,topTable,secondTable,season){
+  const ids=rows=>rows.map(row=>row.id);
+  // England and Spain award the final promotion place through the playoff field;
+  // in an instant season the highest-ranked eligible side wins that mini-tournament.
+  if(league==='PL'||league==='LALIGA')return {relegated:ids(topTable.slice(-3)),promoted:ids(secondTable.slice(0,3)),playoffWinner:secondTable[2]?.id||null};
+  // Serie B has a broader playoff chase in the table, but one promoted club keeps
+  // the two divisions balanced in this season model.
+  if(league==='SERIEA')return {relegated:ids(topTable.slice(-3)),promoted:ids(secondTable.slice(0,3)),playoffWinner:secondTable[2]?.id||null};
+  if(league==='LIGUE1')return {relegated:ids(topTable.slice(-2)),promoted:ids(secondTable.slice(0,2)),playoffWinner:null};
+  if(league==='BUNDES'){
+    const directRelegated=topTable.slice(-2),directPromoted=secondTable.slice(0,2);
+    const topPlayoff=topTable[15],secondPlayoff=secondTable[2];
+    // A deterministic strength-weighted playoff result keeps imported saves
+    // stable and lets the 16th-place/third-place labels have real meaning.
+    const topStrength=topPlayoff?.club?.players?.slice(0,11).reduce((n,p)=>n+p.ovr,0)/11||70;
+    const secondStrength=secondPlayoff?.club?.players?.slice(0,11).reduce((n,p)=>n+p.ovr,0)/11||70;
+    const secondWins=stableFraction(`${season}:${topPlayoff?.id}:${secondPlayoff?.id}:playoff`) < Math.max(.24,Math.min(.76,.5+(secondStrength-topStrength)/28));
+    return {relegated:ids([...directRelegated,...(secondWins&&topPlayoff?[topPlayoff]:[])]),promoted:ids([...directPromoted,...(secondWins&&secondPlayoff?[secondPlayoff]:[])]),playoffWinner:secondWins?secondPlayoff?.id:topPlayoff?.id||null};
+  }
+  return {relegated:ids(topTable.slice(-3)),promoted:ids(secondTable.slice(0,3)),playoffWinner:null};
+}
+
 export function startNextSeason(s){
   if(!s.tableFinal)throw new Error('Finish the league season first.');
   if(s.ucl&&s.ucl.stage!=='final')throw new Error('Finish your Champions League campaign first.');
@@ -214,15 +236,27 @@ export function startNextSeason(s){
     const top=pools[division.top],second=pools[division.second];
     const topTable=league===s.league&&previousTier===1?s.tableFinal:seasonTable(top);
     const secondTable=league===s.league&&previousTier===2?s.tableFinal:seasonTable(second);
-    const relegated=topTable.slice(-3).map(row=>row.id),promoted=secondTable.slice(0,3).map(row=>row.id);
+    const {relegated,promoted,playoffWinner}=promotionAndRelegation(league,topTable,secondTable,s.season);
     if(league===s.league){
       if(previousTier===1&&relegated.includes(s.myClubId)){nextTier=2;movement=`Relegated to ${division.secondName}`;}
-      if(previousTier===2&&promoted.includes(s.myClubId)){nextTier=1;movement=`Promoted to ${division.name}`;}
-      if(previousTier===2&&secondTable.slice(-3).some(row=>row.id===s.myClubId)){gameOver=true;movement=`Relegated from ${division.secondName}`;}
+      if(previousTier===2&&promoted.includes(s.myClubId)){nextTier=1;movement=playoffWinner===s.myClubId?`Promoted to ${division.name} via the playoff`:`Promoted to ${division.name}`;}
+      const secondRelegationCount=league==='BUNDES'?2:league==='LIGUE1'?2:league==='SERIEA'?3:league==='PL'||league==='LALIGA'?3:3;
+      if(previousTier===2&&secondTable.slice(-secondRelegationCount).some(row=>row.id===s.myClubId)){gameOver=true;movement=`Relegated from ${division.secondName}`;}
     }
     pools[division.top]=[...top.filter(club=>!relegated.includes(club.id)),...second.filter(club=>promoted.includes(club.id))];
     pools[division.second]=[...second.filter(club=>!promoted.includes(club.id)),...top.filter(club=>relegated.includes(club.id))];
   }
+  // Keep every top-flight final order. European qualification is based on the
+  // five league tables, not on a fresh strength-only sort when next season is
+  // created. The managed league preserves its actual completed table.
+  const qualificationTables=Object.fromEntries(Object.entries(LEAGUE_POOL).map(([league,key])=>{
+    const clubs=pools[key];
+    if(league===s.league&&previousTier===1){
+      const clubById=new Map(clubs.map(club=>[club.id,club]));
+      return [league,s.tableFinal.filter(row=>clubById.has(row.id)).map((row,index)=>({...row,club:clubById.get(row.id),rank:index+1}))];
+    }
+    return [league,seasonTable(clubs)];
+  }));
   const activePool=previousTier===2&&gameOver?DIVISIONS[s.league].second:(nextTier===1?DIVISIONS[s.league].top:DIVISIONS[s.league].second);
   const activeClubs=pools[activePool],me=activeClubs.find(club=>club.id===s.myClubId)||byId.get(s.myClubId);
   const grant=(nextTier===1?10:6)+(activeClubs.length-rank+1)*2;
@@ -233,7 +267,7 @@ export function startNextSeason(s){
     half:1,roundIndex:0,roundsHalf1:null,roundsHalf2:null,tableRaw:null,table1:null,tableFinal:null,
     results1:[],results2:[],clubForm:{},lastResult:null,lastCupResult:null,lastLiveContext:null,
     scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:null,midSeasonDone:false,activeFixtureId:null,
-    cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,suspensions:fresh.suspensions,
+    cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,uel:null,qualificationTables,suspensions:fresh.suspensions,
     injuries:{},lineup:autoLineup(FORMATIONS[s.formation],me.players),development:development.rows,retirements,movement,
     history:[...s.history,{season:s.season,rank,club:me.name,division:previousTier,ucl:s.cups.ucl?.outcome||null,movement}],
     finances:[...s.finances,{season:s.season+1,type:'Season funding',amount:grant}].slice(-100),

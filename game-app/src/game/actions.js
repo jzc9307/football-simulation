@@ -159,13 +159,14 @@ export function advanceEuropeanKnockout(s){
         leg:1, aggregate:{mine:0,opp:0}, firstLegHomeA: undefined, stage: "knockout-prep" } };
     }
 
-export function playEuropeanLeague(s){
-      const scheduled=requireScheduledFixture(s,"UCL");
+export function playEuropeanLeague(s,competition="UCL"){
+      const campaignKey=competition==="UEL"?"uel":"ucl";
+      const scheduled=requireScheduledFixture(s,competition);
       if(scheduled?.id!==s.activeFixtureId)throw new Error("This European fixture is not due yet.");
       requireLineup(s,"ucl");
-      const u = s.ucl;
+      const u = s[campaignKey];
       const round = u.rounds[u.roundIndex];
-      const { updates, userResult, performanceUpdates, fixtures } = simulateUclRound(s, u.clubs, round);
+      const { updates, userResult, performanceUpdates, fixtures } = simulateUclRound({...s,ucl:u}, u.clubs, round);
       const tableRaw = applyUpdates(u.tableRaw, updates);
       const record = { ...u.campaignRecord };
       record.gf += userResult.myGoals; record.ga += userResult.oppGoals;
@@ -173,22 +174,32 @@ export function playEuropeanLeague(s){
       const oppClub = u.clubs.find(c=>c.id===userResult.opponentId);
       const liveContext = buildLiveMatchContext(s, userResult, oppClub);
       const newUclSuspended = userResult.redCard ? [userResult.redCard.id] : [];
-      let next=applyInjuries(applyPerformanceUpdates({...s,ucl:{...u,tableRaw,form:appendClubForm(u.form,updates)}},performanceUpdates),userResult.injuries);
-      next=recordScheduledResult(next,{competition:"UCL",homeId:userResult.isHome?s.myClubId:userResult.opponentId,awayId:userResult.isHome?userResult.opponentId:s.myClubId,myGoals:userResult.isHome?userResult.myGoals:userResult.oppGoals,oppGoals:userResult.isHome?userResult.oppGoals:userResult.myGoals,round:u.roundIndex+1});
-      for(const fixture of fixtures)next=recordScheduledResult(next,{...fixture,myGoals:fixture.homeGoals,oppGoals:fixture.awayGoals});
-      next={...next,fixtureResults:[...(next.fixtureResults||[]),...fixtures]};
-      next=addMail(next,{type:"europe",competition:"UCL",subject:"Champions League result",body:`${findClubAnywhere(s,s.myClubId).name} ${userResult.myGoals}–${userResult.oppGoals} ${oppClub.name}. Your league-phase table is updated.`});
-      (userResult.injuries||[]).forEach(injury=>{next=addMail(next,{type:"medical",competition:"UCL",subject:`Medical update: ${injury.name}`,body:`${injury.severity}; unavailable for ${injury.matches} match${injury.matches===1?"":"es"}.`});});
+      let next=applyInjuries(applyPerformanceUpdates({...s,[campaignKey]:{...u,tableRaw,form:appendClubForm(u.form,updates)}},performanceUpdates),userResult.injuries);
+      next=recordScheduledResult(next,{competition,homeId:userResult.isHome?s.myClubId:userResult.opponentId,awayId:userResult.isHome?userResult.opponentId:s.myClubId,myGoals:userResult.isHome?userResult.myGoals:userResult.oppGoals,oppGoals:userResult.isHome?userResult.oppGoals:userResult.myGoals,round:u.roundIndex+1});
+      for(const fixture of fixtures)next=recordScheduledResult(next,{...fixture,competition,myGoals:fixture.homeGoals,oppGoals:fixture.awayGoals});
+      next={...next,fixtureResults:[...(next.fixtureResults||[]),...fixtures.map(fixture=>({...fixture,competition}))]};
+      next=addMail(next,{type:"europe",competition,subject:`${competition==="UEL"?"Europa League":"Champions League"} result`,body:`${findClubAnywhere(s,s.myClubId).name} ${userResult.myGoals}–${userResult.oppGoals} ${oppClub.name}. Your league-phase table is updated.`});
+      (userResult.injuries||[]).forEach(injury=>{next=addMail(next,{type:"medical",competition,subject:`Medical update: ${injury.name}`,body:`${injury.severity}; unavailable for ${injury.matches} match${injury.matches===1?"":"es"}.`});});
       const cleanedLineup = cleanLineupOfSuspended(s.formation, next.clubs.find(c=>c.id===s.myClubId).players, s.lineup, [...newUclSuspended,...unavailablePlayerIds(next,"ucl")]);
-      return { ...next, ucl: { ...next.ucl, lastMatch: userResult, liveContext, stage: "match-live",
+      return { ...next, [campaignKey]: { ...next[campaignKey], lastMatch: userResult, liveContext, stage: "match-live",
         campaignResults: [...u.campaignResults, userResult], campaignRecord: record },
         lineup: cleanedLineup,
         suspensions: { ...s.suspensions, ucl: newUclSuspended } };
 
 }
 
-export function advanceEuropeanLeague(s){
-      const u = s.ucl;
+export function advanceEuropeanLeague(s,competition="UCL"){
+      const campaignKey=competition==="UEL"?"uel":"ucl";
+      const u = s[campaignKey];
+      if(competition==="UEL"){
+        if(u.roundIndex===u.rounds.length-1){
+          const phaseTable=computeTableArray(u.tableRaw,u.clubs),rank=phaseTable.findIndex(row=>row.id===s.myClubId)+1,championId=phaseTable[0]?.id;
+          const qualification=rank<=8?"top8":rank<=24?"playoff":"eliminated";
+          const outcome=championId===s.myClubId?"CHAMPION":qualification==="eliminated"?"LEAGUE PHASE EXIT":"LEAGUE PHASE COMPLETE";
+          return prepareNextFixture({...s,uel:{...u,phaseTable,qualification,championId,outcome,stage:"final"}});
+        }
+        return prepareNextFixture({...s,uel:{...u,roundIndex:u.roundIndex+1,stage:"hub"}});
+      }
       if (u.roundIndex === 7){
         const phaseTable = computeTableArray(u.tableRaw, u.clubs);
         const rank = phaseTable.findIndex(r=>r.id===s.myClubId)+1;

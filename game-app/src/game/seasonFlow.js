@@ -1,11 +1,12 @@
 import { ensureFixtures, findClubAnywhere, topXI, aiTactics, simMatchSmart, addExtraTime, simulateShootout, performanceUpdatesForMatch, applyPerformanceUpdates, computeTableArray, roundRobin, initTable } from "./engine.js";
 import { createUclCampaign } from "./uclSelection.js";
+import { createEuropaCampaign } from "./europaSelection.js";
 import { syncEuropeanDraw, knockoutContext, initializeEuropeanKnockout } from "./europeanCalendar.js";
 import { simulateUclRound, applyUpdates, appendClubForm } from "./engine.js";
 import { autoLineup, unavailablePlayerIds } from "./engine.js";
 import { FORMATIONS } from "./config.js";
 import { playLeagueRound, playDomesticCup, playEuropeanLeague, advanceEuropeanLeague, startEuropeanKnockout, playEuropeanKnockout, advanceEuropeanKnockout } from "./actions.js";
-import { nextFixture, syncKnockoutSchedule, recordScheduledResult, isMyFixture, addMail, advanceCupDraws, CUP_KEYS, buildUclSchedule, resolveCalendarConflicts } from "./seasonSchedule.js";
+import { nextFixture, syncKnockoutSchedule, recordScheduledResult, isMyFixture, addMail, advanceCupDraws, CUP_KEYS, buildUclSchedule, buildUelSchedule, resolveCalendarConflicts } from "./seasonSchedule.js";
 
 function advanceEuropeanWorld(state,round){
  const {updates,performanceUpdates,fixtures}=simulateUclRound({...state,ucl:{...state.ucl,roundIndex:round-1}},state.ucl.clubs,state.ucl.rounds[round-1]);
@@ -13,6 +14,25 @@ function advanceEuropeanWorld(state,round){
  for(const fixture of fixtures)s=recordScheduledResult(s,{...fixture,myGoals:fixture.homeGoals,oppGoals:fixture.awayGoals,round});
  s={...s,fixtureResults:[...(s.fixtureResults||[]),...fixtures]};
  if(round===8)s=initializeEuropeanKnockout({...s,ucl:{...s.ucl,phaseTable:computeTableArray(s.ucl.tableRaw,s.ucl.clubs),qualification:"eliminated",outcome:"NOT QUALIFIED",stage:"final"}});
+ return s;
+}
+
+function advanceEuropaWorld(state,round){
+ const u=state.uel;
+ if(!u?.rounds?.[round-1])return state;
+ // The same 90-minute engine drives both European league phases. Europa is
+ // resolved in the background for non-qualified managers, then exposed in the
+ // competition centre with its own table and Thursday fixture windows.
+ const shadow={...state,ucl:{...u,roundIndex:round-1}};
+ const {updates,fixtures}=simulateUclRound(shadow,u.clubs,u.rounds[round-1]);
+ let s={...state,uel:{...u,roundIndex:Math.min(u.rounds.length,round),tableRaw:applyUpdates(u.tableRaw,updates),form:appendClubForm(u.form,updates)}};
+ for(const fixture of fixtures)s=recordScheduledResult(s,{...fixture,competition:"UEL",myGoals:fixture.homeGoals,oppGoals:fixture.awayGoals,round});
+ s={...s,fixtureResults:[...(s.fixtureResults||[]),...fixtures.map(f=>({...f,competition:"UEL"}))]};
+ if(round===u.rounds.length){
+  const phaseTable=computeTableArray(s.uel.tableRaw,s.uel.clubs);
+  const championId=phaseTable[0]?.id;
+  s={...s,uel:{...s.uel,phaseTable,championId,qualification:"complete",outcome:championId===s.myClubId?"CHAMPION":"LEAGUE PHASE COMPLETE",stage:"final"}};
+ }
  return s;
 }
 
@@ -49,15 +69,26 @@ export function prepareNextFixture(input){
  let s=ensureFixtures(input);
  if(!s.ucl){
   const ucl=createUclCampaign(s,roundRobin,initTable);
-  s={...s,ucl,seasonSchedule:resolveCalendarConflicts([...s.seasonSchedule,...buildUclSchedule({season:s.season,rounds:ucl.rounds})])};
+  const uel=createEuropaCampaign(s,roundRobin,initTable);
+  s={...s,ucl,uel,seasonSchedule:resolveCalendarConflicts([...s.seasonSchedule,...buildUclSchedule({season:s.season,rounds:ucl.rounds}),...buildUelSchedule({season:s.season,rounds:uel.rounds})])};
+ }
+ if(!s.uel){
+  const uel=createEuropaCampaign(s,roundRobin,initTable);
+  s={...s,uel,seasonSchedule:resolveCalendarConflicts([...s.seasonSchedule,...buildUelSchedule({season:s.season,rounds:uel.rounds})])};
  }
  s=syncKnockoutSchedule(s);
  for(let pass=0;pass<120;pass++){
   const next=nextFixture(s),limit=next?.date||s.seasonSchedule.at(-1)?.date;
   if(!limit)break;
-  const backgroundEurope=!s.ucl.clubs.some(c=>c.id===s.myClubId)?s.seasonSchedule.find(e=>e.competition==="UCL"&&typeof e.round==="number"&&e.status==="scheduled"&&e.date<=limit):null;
+  // A European league-phase round is simulated as one batch.  Never advance
+  // that batch in the background if it contains the manager's fixture: doing
+  // so records the manager's match before they get the chance to play it.
+  const backgroundEurope=s.seasonSchedule.find(e=>{
+   if(!["UCL","UEL"].includes(e.competition)||typeof e.round!=="number"||e.status!=="scheduled"||e.date>limit||isMyFixture(s,e))return false;
+   return !s.seasonSchedule.some(candidate=>candidate.competition===e.competition&&candidate.round===e.round&&candidate.status==="scheduled"&&isMyFixture(s,candidate));
+  });
   const firstCup=s.seasonSchedule.find(e=>(e.kind==="cup"||e.knockoutKey)&&e.status==="scheduled"&&!isMyFixture(s,e)&&e.date<=limit);
-  if(backgroundEurope&&(!firstCup||backgroundEurope.date<=firstCup.date)){s=advanceEuropeanWorld(s,backgroundEurope.round);continue;}
+  if(backgroundEurope&&(!firstCup||backgroundEurope.date<=firstCup.date)){s=backgroundEurope.competition==="UEL"?advanceEuropaWorld(s,backgroundEurope.round):advanceEuropeanWorld(s,backgroundEurope.round);continue;}
   const pending=s.seasonSchedule.some(e=>(e.kind==="cup"||e.knockoutKey)&&e.status==="scheduled"&&!isMyFixture(s,e)&&e.date<=limit);
   if(!pending)break;
   s=advanceCupWorld(s,limit);
@@ -73,7 +104,8 @@ export function prepareNextFixture(input){
  const dated={...s,currentDate:event.date,activeFixtureId:event.id};
  if(event.kind==="europe"){
   const knockout=typeof event.round==="string";
-  return {...dated,stage:"ucl",ucl:event.knockoutKey?knockoutContext(s,event):{...s.ucl,roundIndex:knockout?s.ucl.roundIndex:event.round-1,stage:knockout?"knockout-prep":"match-prep"}};
+  const campaignKey=event.competition==="UEL"?"uel":"ucl",campaign=s[campaignKey];
+  return {...dated,stage:"ucl",activeEuropeanCompetition:event.competition,[campaignKey]:event.knockoutKey?knockoutContext(s,event):{...campaign,roundIndex:knockout?campaign.roundIndex:event.round-1,stage:knockout?"knockout-prep":"match-prep"}};
  }
  if(event.kind==="cup")return {...dated,stage:"matchday-prep"};
  const half=event.round<=s.roundsHalf1.length?1:2;
@@ -133,8 +165,9 @@ export function simulateScheduledHalf(input,half){
   if(event.kind==="league")s=prepareNextFixture(playLeagueRound(s));
   else if(event.kind==="cup")s=prepareNextFixture(playDomesticCup(s,event.comp,event.round));
   else if(typeof event.round==="number"){
-   s=advanceEuropeanLeague(playEuropeanLeague(s));
-   if(s.ucl.stage==="phase-summary")s=startEuropeanKnockout(s);
+   const competition=event.competition||"UCL";
+   s=advanceEuropeanLeague(playEuropeanLeague(s,competition),competition);
+   if(competition==="UCL"&&s.ucl.stage==="phase-summary")s=startEuropeanKnockout(s);
   }else s=prepareNextFixture(syncKnockoutSchedule(advanceEuropeanKnockout(playEuropeanKnockout(s))));
  }
  throw new Error("The season calendar could not advance.");

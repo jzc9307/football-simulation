@@ -1,7 +1,16 @@
 import { ROLE_GROUP } from "../game/config.js";
 
 // FC 27 Career Mode roster data from FCCareer (2026-09-24). OVR and potential are distinct.
-const P=(slug,name,role,age,ovr,potential,value)=>({slug,name,role,group:ROLE_GROUP[role],age,ovr,potential,value,stamina:Math.max(66,Math.min(94,(role==="GK"?72:["LB","RB","LM","RM","LW","RW"].includes(role)?84:role==="CB"?77:81)-Math.max(0,age-29)*2+(ovr>=86?3:0)))});
+// These are genuine secondary roles, rather than a UI-only exception. The
+// engine still permits any outfield assignment, but uses this information to
+// make versatile players feel versatile when the manager changes shape.
+const SECONDARY_ROLES={
+  "dominik-szoboszlai":["CM","LW","RW"],
+  "florian-richard-wirtz":["CM","LW","RW"],
+  "ryan-jiro-gravenberch":["CM","CDM"],
+  "cody-mathes-gakpo":["ST","LW","CAM"],
+};
+const P=(slug,name,role,age,ovr,potential,value)=>({slug,name,role,secondaryRoles:SECONDARY_ROLES[slug]||[],group:ROLE_GROUP[role],age,ovr,potential,value,stamina:Math.max(66,Math.min(94,(role==="GK"?72:["LB","RB","LM","RM","LW","RW"].includes(role)?84:role==="CB"?77:81)-Math.max(0,age-29)*2+(ovr>=86?3:0)))});
 
 const RAW_PLCLUBS=[
   {

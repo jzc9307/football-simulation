@@ -3,6 +3,7 @@ import { isShotEvent, momentumSeries } from "../game/matchVisuals.js";
 import { CompetitionMark } from "./CompetitionBrand.jsx";
 import { competitionBrand, competitionTheme } from "./competitionBrand.js";
 import { GUEST_CRESTS } from "../game/guestAssets.js";
+import { FORMATIONS, GROUP_COLOR, ROLE_GROUP } from "../game/config.js";
 import {useState,useEffect,useRef} from "react";
 const CLUB_LOGOS=import.meta.glob("../assets/club-logos/*.png",{eager:true,query:"?url",import:"default"});
 function ScoreCrest({clubId,name}){const [failed,setFailed]=useState(false);const src=GUEST_CRESTS[clubId]||CLUB_LOGOS[`../assets/club-logos/${clubId}.png`];return <span className="score-crest">{src&&!failed?<img src={src} alt={`${name} crest`} onError={()=>setFailed(true)}/>:<b>{name?.slice(0,2).toUpperCase()}</b>}</span>;}
@@ -87,6 +88,57 @@ function TacticalBreakdown({ analysis, myName, oppName }){
   );
 }
 function ratingColor(rating){return rating>=8?"#83e29a":rating>=7?"#c6db75":rating>=6?"#e8d39a":"#ec8d8d";}
+function shortPlayerName(name=""){
+  const parts=name.trim().split(/\s+/).filter(Boolean);
+  if(parts.length<2)return name;
+  const particles=new Set(["da","de","del","di","dos","van","von"]);
+  const particle=parts.findIndex((part,index)=>index>0&&particles.has(part.toLowerCase()));
+  const surname=particle>1?parts[particle-1]:parts.at(-1);
+  return `${parts[0][0]}. ${surname}`;
+}
+function eventMark(event,playerId){
+  if(event.isGoal&&event.playerId===playerId)return {icon:"⚽",label:`Goal ${event.minute}′`,kind:"goal"};
+  if(event.assistId===playerId)return {icon:"A",label:`Assist ${event.minute}′`,kind:"assist"};
+  if(event.type==="yellow"&&event.playerId===playerId)return {icon:"▰",label:`Yellow ${event.minute}′`,kind:"yellow"};
+  if(event.type==="red"&&event.playerId===playerId)return {icon:"■",label:`Red ${event.minute}′`,kind:"red"};
+  if(event.type==="penalty-miss"&&event.playerId===playerId)return {icon:"×",label:`Missed penalty ${event.minute}′`,kind:"miss"};
+  if(event.type==="injury"&&event.playerId===playerId)return {icon:"+",label:`Injured ${event.minute}′`,kind:"injury"};
+  if(event.type==="sub"&&event.playerId===playerId)return {icon:"↗",label:`On ${event.minute}′`,kind:"sub-on"};
+  if((event.type==="sub"||event.type==="injury")&&event.outId===playerId)return {icon:"↘",label:`Off ${event.minute}′`,kind:"sub-off"};
+  return null;
+}
+function MatchPlayerCard({player,slot,events,done}){
+  const marks=events.map(event=>eventMark(event,player.playerId)).filter(Boolean);
+  const role=slot?.role||player.role||"CM";
+  return <article className="match-lineup-card" title={`${player.name} · ${role}`} style={{"--lineup-role":GROUP_COLOR[ROLE_GROUP[role]]||"#84d79b"}}>
+    <div className="match-lineup-card-top"><b>{done?player.rating.toFixed(1):"LIVE"}</b><span>{role}</span></div>
+    <strong>{shortPlayerName(player.name)}</strong>
+    <small>{player.minutes}′ played</small>
+    {marks.length>0&&<div className="match-lineup-marks">{marks.slice(0,4).map((mark,index)=><i className={mark.kind} title={mark.label} key={`${mark.kind}-${index}`}>{mark.icon}</i>)}</div>}
+  </article>;
+}
+function MatchLineupPitch({teamName,teamId,formation,ratings,events,done}){
+  const slots=FORMATIONS[formation]||FORMATIONS["4-3-3"];
+  const starters=(ratings||[]).filter(player=>player.start===0).slice(0,11);
+  const bench=(ratings||[]).filter(player=>player.start>0);
+  return <section className="match-lineup-team">
+    <header><ScoreCrest clubId={teamId} name={teamName}/><div><span>{formation||"4-3-3"} · MATCH LINEUP</span><strong>{teamName}</strong></div><b>{done?`${starters.length}/11`:`LIVE`}</b></header>
+    <div className="match-lineup-pitch">
+      <div className="match-lineup-pitch-lines"><i/><b/></div>
+      {slots.map((slot,index)=>{const player=starters[index];return <div className="match-lineup-position" key={`${slot.role}-${index}`} style={{left:`${slot.x}%`,top:`${slot.y}%`}}>{player?<MatchPlayerCard player={player} slot={slot} events={events} done={done}/>:<span className="match-lineup-vacant">{slot.role}</span>}</div>;})}
+    </div>
+    <div className="match-lineup-bench"><span>BENCH / CHANGES</span><div>{bench.length?bench.map(player=>{const marks=events.map(event=>eventMark(event,player.playerId)).filter(Boolean);return <article key={player.playerId}><b>{done?player.rating.toFixed(1):"—"}</b><strong>{shortPlayerName(player.name)}</strong><small>{marks.find(mark=>mark.kind==="sub-on")?.label||"Unused"}</small></article>}):<small>No substitutions made</small>}</div></div>
+  </section>;
+}
+function MatchLineupPanel({ratings,events,homeName,awayName,homeClubId,awayClubId,homeFormation,awayFormation,done}){
+  if(!ratings)return null;
+  const keyEvents=events.filter(event=>event.isGoal||["sub","injury","yellow","red","penalty-miss"].includes(event.type));
+  return <div className="match-lineup-panel">
+    <header className="match-lineup-heading"><div><span>MATCH LINEUPS</span><strong>Every starter, change and decisive moment</strong></div><small>{done?"Final ratings and incidents":"Live incidents appear as the match unfolds"}</small></header>
+    <div className="match-lineup-pitches"><MatchLineupPitch teamName={homeName} teamId={homeClubId} formation={homeFormation||"4-3-3"} ratings={ratings[0]} events={events} done={done}/><MatchLineupPitch teamName={awayName} teamId={awayClubId} formation={awayFormation||"4-3-3"} ratings={ratings[1]} events={events} done={done}/></div>
+    <section className="match-lineup-activity"><header><span>MATCH ACTIVITY</span><strong>Goals, cards and substitutions</strong></header>{keyEvents.length?<div>{keyEvents.map((event,index)=><article key={`${event.minute}-${index}`} className={`event-${event.type}`}><b>{event.minute}′</b><i>{event.isGoal?"⚽":event.type==="sub"?"↗":event.type==="injury"?"✚":event.type==="yellow"?"▰":event.type==="red"?"■":"×"}</i><span>{event.text}</span><small>{event.side===0?homeName:awayName}</small></article>)}</div>:<p>Team sheets are ready. Match incidents will appear here after kick-off.</p>}</section>
+  </div>;
+}
 function PlayerRatingsPanel({ ratings, manOfTheMatch, homeName, awayName, done }){
   if(!done)return <div className="ratings-wait"><span>★</span><strong>Player ratings unlock at full time</strong><small>Goals, assists, chances, clean sheets, the result and discipline all contribute.</small></div>;
   if(!ratings)return null;
@@ -172,7 +224,7 @@ function ShotMapPanel({events,homeName,awayName,homeClubId,awayClubId}){
   </section>;
 }
 
-export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayClubId, homeColor="#9c2736", awayColor="#3667a4", competition="PL", myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, shootout, onDone, banner }){
+export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayClubId, homeColor="#9c2736", awayColor="#3667a4", competition="PL", myName, oppName, timeline, stats, analysis, playerRatings, manOfTheMatch, shootout, homeFormation, awayFormation, onDone, banner }){
   const [minute, setMinute] = useState(0);
   const endMinute=Math.max(95,...timeline.map(e=>e.minute));
   const done=minute>=endMinute;
@@ -226,7 +278,7 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
 
       {stats && (
         <div style={{ display:"flex", gap:6, background:"#111a11", border:"1px solid #2a3a2a", borderRadius:10, padding:4, marginBottom:16 }}>
-          {tabBtn("events", "Match feed")}{tabBtn("stats", "Match stats")}{tabBtn("shots", "Shot map")}{analysis && tabBtn("analysis", "Analysis")}{playerRatings&&tabBtn("ratings", "Player Ratings")}
+          {tabBtn("events", "Match feed")}{tabBtn("stats", "Match stats")}{tabBtn("shots", "Shot map")}{analysis && tabBtn("analysis", "Analysis")}{playerRatings&&tabBtn("lineup", "Lineup")}{playerRatings&&tabBtn("ratings", "Player Ratings")}
         </div>
       )}
 
@@ -247,6 +299,8 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
         <ShotMapPanel events={revealed} homeName={homeName} awayName={awayName} homeClubId={homeClubId} awayClubId={awayClubId}/>
       ) : tab==="analysis" ? (
         <TacticalBreakdown analysis={analysis} myName={myName} oppName={oppName} />
+      ) : tab==="lineup" ? (
+        <MatchLineupPanel ratings={playerRatings} events={revealed} homeName={homeName} awayName={awayName} homeClubId={homeClubId} awayClubId={awayClubId} homeFormation={homeFormation} awayFormation={awayFormation} done={done}/>
       ) : (
         <PlayerRatingsPanel ratings={playerRatings} manOfTheMatch={manOfTheMatch} homeName={homeName} awayName={awayName} done={done}/>
       )}

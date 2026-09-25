@@ -1,9 +1,11 @@
 import pl from "../assets/competition-logos/pl.svg";
 import laliga from "../assets/competition-logos/laliga.svg";
 import bundes from "../assets/competition-logos/bundes.svg";
+import bundesKicker from "../assets/competition-logos/bundes2.png";
 import seriea from "../assets/competition-logos/seriea.svg";
 import ligue1 from "../assets/competition-logos/ligue1.svg";
 import ucl from "../assets/competition-logos/ucl.svg";
+import uel from "../assets/competition-logos/uel.png";
 import faCup from "../assets/competition-logos/fa-cup.png";
 import carabao from "../assets/competition-logos/carabao.png";
 import copa from "../assets/competition-logos/copa.png";
@@ -19,10 +21,14 @@ import ligue2 from "../assets/competition-logos/ligue2.png";
 const brands={
   PL:{name:"Premier League",logo:pl,dark:"#251333",panel:"#3c2050",accent:"#00ff85",logoPlate:"#321745"},
   LALIGA:{name:"La Liga",logo:laliga,dark:"#29171a",panel:"#472326",accent:"#ff4b44",logoPlate:"#fff0eb"},
-  BUNDES:{name:"Bundesliga",logo:bundes,dark:"#301319",panel:"#54212a",accent:"#fa404b",logoPlate:"#fff4f3"},
+  // The old horizontal wordmark becomes unreadable in a compact mark.  This
+  // crop is the red kicking-player lockup, which remains recognisable at every
+  // UI size (the CSS crops out the 2. Bundesliga wordmark below it).
+  BUNDES:{name:"Bundesliga",logo:bundesKicker,wordmark:bundes,dark:"#301319",panel:"#54212a",accent:"#fa404b",logoPlate:"#d20515"},
   SERIEA:{name:"Serie A",logo:seriea,dark:"#101d3a",panel:"#193768",accent:"#62bfff",logoPlate:"#eff8ff"},
   LIGUE1:{name:"Ligue 1",logo:ligue1,dark:"#151c31",panel:"#27385b",accent:"#ffdf30",logoPlate:"#fff8db"},
   UCL:{name:"Champions League",logo:ucl,dark:"#090f36",panel:"#15215c",accent:"#b6cbff",logoPlate:"#f1f4ff"},
+  UEL:{name:"Europa League",logo:uel,dark:"#21150d",panel:"#4c2911",accent:"#ffae45",logoPlate:"#fff3dc"},
   FA:{name:"FA Cup",logo:faCup,dark:"#152b43",panel:"#1f4b72",accent:"#b9dcff",logoPlate:"#edf7ff"},
   CARABAO:{name:"Carabao Cup",logo:carabao,dark:"#12342b",panel:"#1d5b48",accent:"#9be45d",logoPlate:"#f0ffe5"},
   COPA:{name:"Copa del Rey",logo:copa,dark:"#4a1920",panel:"#7d2735",accent:"#f6cf62",logoPlate:"#fff4d5"},

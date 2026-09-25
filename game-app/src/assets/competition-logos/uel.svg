@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Europa League">
+  <rect width="120" height="120" rx="24" fill="#20160d"/>
+  <path d="M31 31h58L77 90H43z" fill="none" stroke="#ff9b28" stroke-width="6"/>
+  <path d="M45 31l9 59m21-59l-9 59" stroke="#ffd16b" stroke-width="5"/>
+  <path d="M30 98h60" stroke="#ff9b28" stroke-width="7"/>
+</svg>

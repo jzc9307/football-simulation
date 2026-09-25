@@ -1,5 +1,6 @@
 import { positionFit, positionFitLabel, formationProfile, tacticalHints, clamp, topXI, matchOvr, STYLES, styleMatchupBonus, inferStyle, aiTactics, roundRobin, initTable, computeTableArray, ovrLabel, fmtM, ord, autoLineup, lineupIssue, ensureFixtures, uclZoneLabel, freshState, unavailablePlayerIds, playerSeasonAverage, seasonPlayerRows, seasonBestXI, seasonLabel, LEAGUE_NAMES, findClubAnywhere } from "./game/engine.js";
-import { createUclCampaign } from "./game/uclSelection.js";
+import { createUclCampaign, selectUclField } from "./game/uclSelection.js";
+import { createEuropaCampaign, selectEuropaField } from "./game/europaSelection.js";
 import { attachSeasonSchedule, markMailRead, nextFixture, syncKnockoutSchedule, leagueCompetition, cupCompetitions, competitionForCup } from "./game/seasonSchedule.js";
 import { prepareNextFixture, migrateSeason, simulateScheduledHalf } from "./game/seasonFlow.js";
 import { FixturesPanel, CupWorkspace, CalendarPanel, CupDetail, CalendarHub } from "./components/CompetitionCentre.jsx";
@@ -29,6 +30,7 @@ export default function App(){
   const [tacticsOpen, setTacticsOpen] = useState(false);
   const [marketFilter, setMarketFilter] = useState({ q:"", pos:"ALL", league:"ALL", club:"ALL", sort:"ovr_desc", ageMin:16, ageMax:45, priceMin:0, priceMax:250 });
   const [toast, setToast] = useState("");
+  const [halfSimulation, setHalfSimulation] = useState(null);
   const [dragPos, setDragPos] = useState(null);
   const [hoverSlot, setHoverSlot] = useState(null);
   const dragMeta = useRef(null);
@@ -141,7 +143,7 @@ export default function App(){
     const identity=aiTactics(club);
     setState(s => {
       const selected={...s,myClubId:clubId,budget:club.budget,formation:club.preferredFormation||s.formation,lineup:autoLineup(FORMATIONS[club.preferredFormation||s.formation],club.players),tacticalStyle:identity.style,defensiveLine:identity.line,defensiveAggression:identity.aggression,offsideTrap:identity.trap,stage:"mode"};
-      const withEurope=!selected.ucl?{...selected,ucl:createUclCampaign(selected,roundRobin,initTable)}:selected;
+      const withEurope=!selected.ucl?{...selected,ucl:createUclCampaign(selected,roundRobin,initTable),uel:createEuropaCampaign(selected,roundRobin,initTable)}:selected;
       return attachSeasonSchedule(ensureFixtures(withEurope));
     });
   }
@@ -169,7 +171,7 @@ export default function App(){
     try{setState(transform(state));}catch(error){flashToast(error.message);}
   }
 
-  function nextSeason(){commitGame(s=>{const next=startNextSeason(s);return next.stage==="game-over"?next:ensureFixtures({...next,scheduleMigrationDone:true,ucl:createUclCampaign(next,roundRobin,initTable)});});}
+  function nextSeason(){commitGame(s=>{const next=startNextSeason(s);return next.stage==="game-over"?next:ensureFixtures({...next,scheduleMigrationDone:true,ucl:createUclCampaign(next,roundRobin,initTable),uel:createEuropaCampaign(next,roundRobin,initTable)});});}
   function downloadSave(){
     const url=URL.createObjectURL(new Blob([exportGame(state)],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download="football-manager-save.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -180,7 +182,21 @@ export default function App(){
     catch(error){flashToast(error.message);}event.target.value="";
   }
 
-  function beginMatchday(half){ commitGame(s=>s.simMode==="half"?simulateScheduledHalf(s,half):prepareNextFixture({...s,midSeasonDone:half===2||s.midSeasonDone})); }
+  function beginMatchday(half){
+    if(state.simMode!=="half"){
+      commitGame(s=>prepareNextFixture({...s,midSeasonDone:half===2||s.midSeasonDone}));
+      return;
+    }
+    // Yield once before the synchronous simulation so the loading presentation
+    // can paint instead of making the browser appear unresponsive.
+    const started=performance.now();
+    setHalfSimulation({half,league:leagueCompetition(state.league,state.division)});
+    window.requestAnimationFrame(()=>window.setTimeout(()=>{
+      try{setState(current=>simulateScheduledHalf(current,half));}
+      catch(error){flashToast(error.message);}
+      finally{window.setTimeout(()=>setHalfSimulation(null),Math.max(0,900-(performance.now()-started)));}
+    },80));
+  }
   function playRound(){commitGame(s=>playLeagueRound(s));}
 
   function playCupMatch(comp, round){commitGame(s=>playDomesticCup(s, comp, round));}
@@ -195,14 +211,17 @@ export default function App(){
   function finalizeSeason(){ commitGame(s => ({ ...s, stage: "summary" })); }
 
   function uclGoToPrep(){commitGame(prepareNextFixture);}
-  function uclPlayLeagueMatch(){commitGame(playEuropeanLeague);}
+  function uclPlayLeagueMatch(){commitGame(s=>playEuropeanLeague(s,"UCL"));}
+  function uelPlayLeagueMatch(){commitGame(s=>playEuropeanLeague(s,"UEL"));}
   function uclFinishLiveMatch(){
     commitGame(s => {
       const map = { "match-live":"match-result", "knockout-live":"knockout-result" };
       return { ...s, ucl: { ...s.ucl, stage: map[s.ucl.stage] || s.ucl.stage } };
     });
   }
-  function uclContinueAfterMatch(){commitGame(advanceEuropeanLeague);}
+  function uelFinishLiveMatch(){commitGame(s=>({...s,uel:{...s.uel,stage:s.uel.stage==="match-live"?"match-result":s.uel.stage}}));}
+  function uclContinueAfterMatch(){commitGame(s=>advanceEuropeanLeague(s,"UCL"));}
+  function uelContinueAfterMatch(){commitGame(s=>advanceEuropeanLeague(s,"UEL"));}
   // Knockout Playoff, Round of 16, Quarter-Final and Semi-Final are all two-legged (aggregate score,
   // penalties if level after the second leg) — only the Final is a single match, same as the real competition.
   function uclContinueAfterPhaseSummary(){commitGame(startEuropeanKnockout);}
@@ -213,13 +232,14 @@ export default function App(){
   function uclBackToSeason(){commitGame(prepareNextFixture);}
   const uclActions = { uclGoToPrep, uclPlayLeagueMatch, uclFinishLiveMatch, uclContinueAfterMatch, uclContinueAfterPhaseSummary,
     uclPlayKnockout, uclContinueAfterKnockout, uclBackToSeason };
+  const uelActions = { ...uclActions, uclPlayLeagueMatch:uelPlayLeagueMatch, uclFinishLiveMatch:uelFinishLiveMatch, uclContinueAfterMatch:uelContinueAfterMatch };
 
   const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
-  else if (state.stage === "select") stageEl = <TeamSelect clubs={state.clubs} league={state.league} onSelect={selectClub} />;
-  else if (state.stage === "mode") stageEl = <ModeSelect onPick={pickMode} />;
+  else if (state.stage === "select") stageEl = <TeamSelect clubs={state.clubs} league={state.league} gameState={state} onSelect={selectClub} onBack={()=>setState(s=>({...s,league:null,division:1,clubs:s.plClubs,stage:"league-select"}))} />;
+  else if (state.stage === "mode") stageEl = <ModeSelect onPick={pickMode} onBack={()=>setState(s=>({...s,myClubId:null,ucl:null,uel:null,roundsHalf1:null,roundsHalf2:null,tableRaw:null,fixtureResults:[],seasonSchedule:[],scheduleVersion:null,stage:"select"}))} />;
   else if (state.stage === "squad" && myClub) stageEl = <SquadScreen {...squadCommonProps}
     onSimulate={()=>beginMatchday(1)}
     simulateLabel="Start Season" />;
@@ -268,11 +288,11 @@ export default function App(){
     const r = state.lastResult;
     stageEl=<PostMatchSummary result={r} myClub={myClub} opponent={findClubAnywhere(state,r.opponentId)} competition={leagueCompetition(state.league,state.division)} onContinue={nextMatch} continueLabel={isLast ? (state.half===1?"View half-season table →":"View final table →") : "Continue calendar →"}/>;
   }
-  else if (state.stage === "half-results") stageEl = <ResultsScreen title="First Half of the Season" results={state.results1} table={state.table1} clubs={state.clubs} myClubId={state.myClubId} onContinue={goToMidWindow} continueLabel="Go to Transfer Window →" cupStatus={state.cupStatus} league={state.league} division={state.division} />;
-  else if (state.stage === "full-results") stageEl = <ResultsScreen title="Final Season Results" results={state.results2} table={state.tableFinal} clubs={state.clubs} myClubId={state.myClubId} onContinue={finalizeSeason} continueLabel="Finalise Season →" projectedTable={state.table1} cupStatus={state.cupStatus} league={state.league} division={state.division} />;
-  else if (state.stage === "summary") stageEl = <SummaryScreen state={state} myClub={myClub} onNextSeason={nextSeason} onOpenCups={()=>setSelectedCup("UCL")} />;
+  else if (state.stage === "half-results") stageEl = <ResultsScreen title="First Half of the Season" results={state.results1} table={state.table1} clubs={state.clubs} myClubId={state.myClubId} onContinue={goToMidWindow} continueLabel="Go to Transfer Window →" cupStatus={state.cupStatus} league={state.league} division={state.division} ucl={state.ucl} uel={state.uel} onOpenCup={setSelectedCup} />;
+  else if (state.stage === "full-results") stageEl = <ResultsScreen title="Final Season Results" results={state.results2} table={state.tableFinal} clubs={state.clubs} myClubId={state.myClubId} onContinue={finalizeSeason} continueLabel="Finalise Season →" projectedTable={state.table1} cupStatus={state.cupStatus} league={state.league} division={state.division} ucl={state.ucl} uel={state.uel} onOpenCup={setSelectedCup} />;
+  else if (state.stage === "summary") stageEl = <SummaryScreen state={state} myClub={myClub} onNextSeason={nextSeason} onOpenCup={setSelectedCup} />;
   else if (state.stage === "game-over") stageEl = <div style={{maxWidth:620,margin:"54px auto",padding:36,textAlign:"center",border:"1px solid #703b3e",borderRadius:18,background:"linear-gradient(145deg,#251416,#100b0c)"}}><div style={{fontSize:34}}>⌁</div><h1 style={{margin:"10px 0",fontSize:30}}>Managerial contract ended</h1><p style={{color:"#d6a1a4",lineHeight:1.6}}>{state.movement||"Relegation from the second division"}. The board has dismissed you, ending this career.</p><p style={{color:"#879589",fontSize:12}}>Your save remains available to export from this screen.</p></div>;
-  else if (state.stage === "ucl" && state.ucl) stageEl = <UclPage state={state} myClub={myClub} squadCommonProps={squadCommonProps} actions={uclActions} />;
+  else if (state.stage === "ucl" && (state.activeEuropeanCompetition==="UEL"?state.uel:state.ucl)) stageEl = <UclPage state={state} myClub={myClub} squadCommonProps={squadCommonProps} actions={state.activeEuropeanCompetition==="UEL"?uelActions:uclActions} competition={state.activeEuropeanCompetition||"UCL"}/>;
 
   return (
     <div style={{ fontFamily:"'Inter','Segoe UI',system-ui,sans-serif", background:"#0a0e0a", minHeight:"100vh", width:"100%", color:"#e8ede8" }}>
@@ -321,10 +341,11 @@ export default function App(){
           onClose={()=>setMarketOpen(false)} onBuy={buyPlayer} onLoanIn={loanIn} />
       )}
       {selectedCup && myClub && <CupDetail state={state} competition={selectedCup} onClose={()=>setSelectedCup(null)}
-        renderStandings={()=>state.ucl?<UclTable table={computeTableArray(state.ucl.tableRaw,state.ucl.clubs)} myClubId={state.myClubId}/>:null}
+        renderStandings={()=>{const campaign=selectedCup==="UEL"?state.uel:state.ucl;return campaign?<UclTable table={computeTableArray(campaign.tableRaw,campaign.clubs)} myClubId={state.myClubId} competition={selectedCup}/>:null;}}
         renderBracket={()=>state.ucl?.knockoutBracket?<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>:null}/>}
       {calendarOpen && myClub && <CalendarHub state={state} onClose={()=>setCalendarOpen(false)} />}
       {mailOpen && myClub && <MailHub state={state} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} />}
+      {halfSimulation ? <HalfSeasonLoading half={halfSimulation.half} league={halfSimulation.league}/> : null}
       {tacticsOpen && myClub && (
         <TacticsModal state={state} onClose={()=>setTacticsOpen(false)} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} />
       )}
@@ -357,41 +378,18 @@ function SeasonStatus({ state, myClub }){
   const condition=Math.round(myClub.players.reduce((sum,p)=>sum+(p.condition??100),0)/Math.max(1,myClub.players.length));
   const energy=Math.round(myClub.players.reduce((sum,p)=>sum+(p.energy??100),0)/Math.max(1,myClub.players.length));
   const form=[...state.results1,...state.results2].slice(-5).map(r=>r.result);
-  const loans=state.loans.filter(l=>l.borrowerId===state.myClubId).length;
   const conditionTone=condition>=90?"good":condition>=82?"okay":"low";
+  const competition=leagueCompetition(state.league,state.division);
+  const brand=competitionBrand(competition);
   return (
-    <section className="season-status" aria-label="Club overview">
-      <div className="overview-card">
-        <div className="overview-label">Season</div>
-        <div className="overview-value">{state.season}</div>
-        <div className="overview-note">{seasonLabel(state)}</div>
+    <section className="season-command-deck" aria-label="Season command deck" style={{"--season-accent":brand.color}}>
+      <div className="season-command-identity">
+        <CompetitionMark id={competition} size="sm"/>
+        <div><span>{brand.name} · Season {state.season}</span><strong>{seasonLabel(state)}</strong></div>
       </div>
-      <div className="overview-card">
-        <div className="overview-label">Transfer budget</div>
-        <div className="overview-value overview-money">{fmtM(state.budget)}</div>
-        <div className="overview-note">Available funds</div>
-      </div>
-      <div className="overview-card">
-        <div className="overview-label">Squad fitness</div>
-        <div className="overview-value">{condition}%</div>
-        <div className="condition-track"><span className={`condition-fill ${conditionTone}`} style={{width:`${condition}%`}}/></div>
-        <div className="overview-note">Average energy {energy}%</div>
-      </div>
-      <div className="overview-card">
-        <div className="overview-label">Recent form</div>
-        <div className="form-row">
-          {[0,1,2,3,4].map(i=>{
-            const result=form[i];
-            return <span key={i} className={`form-badge ${result?`form-${result.toLowerCase()}`:"form-empty"}`}>{result||"–"}</span>;
-          })}
-        </div>
-        <div className="overview-note">Last five league matches</div>
-      </div>
-      <div className="overview-card">
-        <div className="overview-label">Loans in</div>
-        <div className="overview-value">{loans}<span className="overview-muted"> / 3</span></div>
-        <div className="overview-note">Squad limit</div>
-      </div>
+      <div className="season-command-metric"><span>Available budget</span><strong>{fmtM(state.budget)}</strong><small>Transfer Centre</small></div>
+      <div className="season-command-fitness"><div><span>Squad readiness</span><strong>{condition}%</strong><small>Energy {energy}%</small></div><div className="condition-track"><span className={`condition-fill ${conditionTone}`} style={{width:`${condition}%`}}/></div></div>
+      <div className="season-command-form"><span>League form</span><div className="form-row">{[0,1,2,3,4].map(i=>{const result=form[i];return <b key={i} className={`form-badge ${result?`form-${result.toLowerCase()}`:"form-empty"}`}>{result||"–"}</b>;})}</div><small>Last five matches</small></div>
     </section>
   );
 }
@@ -431,7 +429,7 @@ function ClubBadge({club,size="sm",className=""}){
 }
 function Header({ myClub, league, division=1, onRestart }){
   const brand=competitionBrand(leagueCompetition(league,division));
-  const label = `${brand.name.toUpperCase()} MANAGER`;
+  const label = "FOOTBALL MANAGER";
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, paddingBottom:14, borderBottom:"1px solid #1c2b1c", flexWrap:"wrap", gap:10 }}>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -448,12 +446,12 @@ function Header({ myClub, league, division=1, onRestart }){
   );
 }
 
-function PostMatchSummary({result,myClub,opponent,competition,onContinue,continueLabel}){
+function PostMatchSummary({result,myClub,opponent,competition,onContinue,continueLabel,statusText}){
   const brand=competitionBrand(competition),home=result.homeA??result.isHome,
     homeClub=home?myClub:opponent,awayClub=home?opponent:myClub,
     homeGoals=home?result.myGoals:result.oppGoals,awayGoals=home?result.oppGoals:result.myGoals,
     resultCode=result.result||(result.won?"W":"L");
-  const status=result.won===true?(result.round==="Final"?"Champions":"Through to the next round"):result.won===false?(result.round==="Final"?"Runners-up":"Campaign ended"):(resultCode==="W"?"Three points secured":resultCode==="D"?"Points shared":"Defeat");
+  const status=statusText|| (result.won===true?(result.round==="Final"?"Champions":"Through to the next round"):result.won===false?(result.round==="Final"?"Runners-up":"Campaign ended"):(resultCode==="W"?"Three points secured":resultCode==="D"?"Points shared":"Defeat"));
   return <section className="post-match" style={competitionTheme(competition)}>
     <div className="post-match-brand"><CompetitionMark id={competition}/><span>{brand.name}</span><i>FULL TIME</i>{result.round&&<b>{result.round}</b>}{result.gw&&<b>MATCHWEEK {result.gw}</b>}</div>
     <div className="post-match-score">
@@ -464,87 +462,105 @@ function PostMatchSummary({result,myClub,opponent,competition,onContinue,continu
     {result.scorerStr&&<div className="post-match-events"><span>GOALS</span><p>{result.scorerStr}</p></div>}
     {result.wentToPens&&<div className="post-match-note">Decided on penalties · {result.shootout?.mine}–{result.shootout?.opp} · {result.wonPens?"you held your nerve":"the opponents progress"}</div>}
     <div className="post-match-foot"><div><strong>{status}</strong>{result.manOfTheMatch&&<span>★ {result.manOfTheMatch.name} · {result.manOfTheMatch.rating.toFixed(1)} MOTM</span>}</div><button onClick={onContinue}>{continueLabel}</button></div>
-    {(result.redCard||result.injuries?.length)&&<div className="post-match-alerts">{result.redCard&&<span>🟥 {result.redCard.name} is suspended for the next domestic match</span>}{result.injuries?.map(injury=><span key={injury.playerId}>🩹 {injury.name} · {injury.severity} · {injury.matches} match{injury.matches===1?"":"es"}</span>)}</div>}
+    {(result.redCard||(result.injuries?.length||0)>0)&&<div className="post-match-alerts">{result.redCard&&<span>🟥 {result.redCard.name} is suspended for the next domestic match</span>}{result.injuries?.map(injury=><span key={injury.playerId}>🩹 {injury.name} · {injury.severity} · {injury.matches} match{injury.matches===1?"":"es"}</span>)}</div>}
   </section>;
 }
 
+function HalfSeasonLoading({half,league}){
+  const brand=competitionBrand(league);
+  return <div className="half-sim-overlay" role="status" aria-live="polite">
+    <section className="half-sim-card" style={competitionTheme(league)}>
+      <div className="half-sim-orbit"><CompetitionMark id={league}/><i/><b/><em/></div>
+      <span>{brand.name} · SEASON ENGINE</span>
+      <h2>{half===1?"Building the first half":"Completing the run-in"}</h2>
+      <p>Updating every scheduled fixture, cup draw, form line and player record.</p>
+      <div className="half-sim-steps"><b>CALENDAR</b><i/><b>COMPETITIONS</b><i/><b>SEASON RECORDS</b></div>
+    </section>
+  </div>;
+}
+
 function LeagueSelect({ onPick }){
-  const cardStyle = { background:"#111a11", border:"1px solid #2a3a2a", borderRadius:14, padding:24, width:260, textAlign:"left", color:"#e8ede8" };
+  const leagues=[
+    {id:"PL",country:"England",clubs:"20 clubs",cups:"FA Cup · Carabao Cup",note:"A high-tempo calendar with a deep domestic cup run."},
+    {id:"LALIGA",country:"Spain",clubs:"20 clubs",cups:"Copa del Rey",note:"Technical football, elite rivalries and European nights."},
+    {id:"SERIEA",country:"Italy",clubs:"20 clubs",cups:"Coppa Italia",note:"A tactical title race with a demanding knockout path."},
+    {id:"BUNDES",country:"Germany",clubs:"18 clubs",cups:"DFB-Pokal",note:"Fast transition football and a compact league season."},
+    {id:"LIGUE1",country:"France",clubs:"18 clubs",cups:"Coupe de France",note:"A modern, athletic league with cup pressure built in."},
+  ];
   return (
-    <div style={{ textAlign:"center", padding:"20px 0 40px" }}>
-      <h2 style={{ fontSize:18, marginBottom:16 }}>Choose your league</h2>
-      <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" }}>
-        <button onClick={()=>onPick("PL")} style={cardStyle}>
-          <div style={{ fontSize:26, marginBottom:8 }}>🏴󠁧󠁢󠁥󠁮󠁧󠁿</div>
-          <div style={{ fontWeight:700, marginBottom:4, fontSize:15 }}>Premier League</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>England · 20 clubs · FA Cup, Carabao Cup and Champions League all in play.</div>
-        </button>
-        <button onClick={()=>onPick("LALIGA")} style={cardStyle}>
-          <div style={{ fontSize:26, marginBottom:8 }}>🇪🇸</div>
-          <div style={{ fontWeight:700, marginBottom:4, fontSize:15 }}>La Liga</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>Spain · 20 clubs · Copa del Rey and Champions League.</div>
-        </button>
-        <button onClick={()=>onPick("SERIEA")} style={cardStyle}>
-          <div style={{ fontSize:26, marginBottom:8 }}>🇮🇹</div>
-          <div style={{ fontWeight:700, marginBottom:4, fontSize:15 }}>Serie A</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>Italy · 20 clubs · Champions League available. Domestic cups not yet modelled.</div>
-        </button>
-        <button onClick={()=>onPick("BUNDES")} style={cardStyle}>
-          <div style={{ fontSize:26, marginBottom:8 }}>🇩🇪</div>
-          <div style={{ fontWeight:700, marginBottom:4, fontSize:15 }}>Bundesliga</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>Germany · 18 clubs · Champions League available. Domestic cups not yet modelled.</div>
-        </button>
-        <button onClick={()=>onPick("LIGUE1")} style={cardStyle}>
-          <div style={{ fontSize:26, marginBottom:8 }}>🇫🇷</div>
-          <div style={{ fontWeight:700, marginBottom:4, fontSize:15 }}>Ligue 1</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>France · 18 clubs · Champions League available. Domestic cups not yet modelled.</div>
-        </button>
+    <section className="league-launchpad">
+      <header className="league-launchpad-heading">
+        <span>CAREER SETUP · 2026/27</span>
+        <h2>Choose your league</h2>
+        <p>Every competition has its own identity, calendar and cup route. Pick the country where your story begins.</p>
+      </header>
+      <div className="league-choice-grid">
+        {leagues.map((league,index)=><button key={league.id} className="league-choice" style={{...competitionTheme(league.id),"--choice-delay":`${index*55}ms`}} onClick={()=>onPick(league.id)}>
+          <span className="league-choice-glow"/>
+          <span className="league-choice-watermark"><CompetitionMark id={league.id} size="xl"/></span>
+          <span className="league-choice-top"><CompetitionMark id={league.id} size="md"/><i>{league.country.toUpperCase()}</i></span>
+          <strong>{competitionBrand(league.id).name}</strong>
+          <small>{league.clubs} · {league.cups}</small>
+          <p>{league.note}</p>
+          <b>Explore clubs <em>→</em></b>
+        </button>)}
       </div>
-    </div>
+    </section>
   );
 }
-function TeamSelect({ clubs, league, onSelect }){
+function TeamSelect({ clubs, league, gameState, onSelect, onBack }){
   const LEAGUE_NAMES = { LALIGA:"La Liga", SERIEA:"Serie A", BUNDES:"Bundesliga", LIGUE1:"Ligue 1" };
   const leagueName = LEAGUE_NAMES[league] || "Premier League";
+  const [preview,setPreview]=useState(null);
+  const champions=new Set(selectUclField(gameState).map(club=>club.id));
+  const europa=new Set(selectEuropaField(gameState).map(club=>club.id));
+  const domestic=cupCompetitions(league).map(id=>competitionBrand(id).name);
+  const competitions=preview?[...cupCompetitions(league),...(champions.has(preview.id)?["UCL"]:[]),...(europa.has(preview.id)?["UEL"]:[])]:[];
   return (
-    <div>
-      <p style={{ color:"#9ab89a", fontSize:13, marginBottom:16 }}>
-        Pick your club for the 2026/27 {leagueName} season. Included squads and game transfer values — build your XI, work the market, then simulate.
-      </p>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:12 }}>
+    <section className="club-choice-page">
+      <header className="club-choice-heading"><button className="club-choice-back" onClick={onBack}>← All leagues</button><CompetitionMark id={league} size="lg"/><div><span>MANAGER APPOINTMENT</span><h2>{leagueName} clubs</h2><p>Open a club dossier to see its funds and first-season competition commitments.</p></div></header>
+      <div className="club-choice-grid">
         {clubs.map(c => (
-          <button key={c.id} onClick={()=>onSelect(c.id)} style={{
-            background:"#111a11", border:"1px solid #223322", borderRadius:12, padding:"16px 10px", textAlign:"center",
-            display:"flex", flexDirection:"column", alignItems:"center", gap:8
-          }}>
+          <button key={c.id} onClick={()=>setPreview(c)} className="club-choice-card" style={{"--club-choice-color":c.color||"#4c8b61"}}>
             <ClubBadge club={c} size="md"/>
-            <div style={{ fontSize:13, fontWeight:600 }}>{c.name}</div>
-            <div style={{ fontSize:11, color:"#6a8a6a" }}>Budget {fmtM(c.budget)} · {c.players.length} players</div>
+            <strong>{c.name}</strong>
+            <small>{fmtM(c.budget)} budget · {c.players.length} players</small>
           </button>
         ))}
       </div>
-    </div>
+      {preview&&<div className="club-confirm-overlay" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setPreview(null);}}>
+        <section className="club-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="club-confirm-title" style={{"--club-choice-color":preview.color||"#4c8b61"}}>
+          <button className="club-confirm-close" onClick={()=>setPreview(null)} aria-label="Close club dossier">×</button>
+          <div className="club-confirm-watermark"><ClubBadge club={preview} size="xl"/></div>
+          <div className="club-confirm-kicker">CLUB DOSSIER · {leagueName.toUpperCase()}</div>
+          <div className="club-confirm-identity"><ClubBadge club={preview} size="xl"/><div><h2 id="club-confirm-title">{preview.name}</h2><span>Ready to appoint you for 2026/27</span></div></div>
+          <div className="club-confirm-stats"><div><span>TRANSFER BUDGET</span><strong>{fmtM(preview.budget)}</strong></div><div><span>FIRST-TEAM SQUAD</span><strong>{preview.players.length} players</strong></div></div>
+          <div className="club-confirm-competitions"><span>COMPETITIONS ENTERED</span><div>{competitions.map(id=><b key={id} className="club-confirm-competition-mark" title={competitionBrand(id).name}><CompetitionMark id={id} size="sm"/><i>{competitionBrand(id).name}</i></b>)}</div></div>
+          <footer><button onClick={()=>setPreview(null)} className="quiet-button">Keep browsing</button><button className="club-confirm-continue" onClick={()=>onSelect(preview.id)}>Take the job <b>→</b></button></footer>
+        </section>
+      </div>}
+    </section>
   );
 }
 
-function ModeSelect({ onPick }){
-  const cardStyle = { background:"#111a11", border:"1px solid #2a3a2a", borderRadius:14, padding:20, width:230, textAlign:"left", color:"#e8ede8" };
+function ModeSelect({ onPick, onBack }){
   return (
-    <div style={{ textAlign:"center", padding:"10px 0 30px" }}>
-      <h2 style={{ fontSize:17, marginBottom:16 }}>How do you want to play the season?</h2>
-      <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" }}>
-        <button onClick={()=>onPick("match")} style={cardStyle}>
-          <div style={{ fontSize:24, marginBottom:8 }}>🎮</div>
-          <div style={{ fontWeight:700, marginBottom:4 }}>Match by Match</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>See each fixture, tweak your XI before kickoff, then simulate one game at a time.</div>
+    <section className="mode-choice-page">
+      <button className="mode-back" onClick={onBack}>← Back to clubs</button>
+      <header><span>SEASON FORMAT</span><h2>How do you want to play?</h2><p>You can still manage the squad, transfers and every competition either way.</p></header>
+      <div className="mode-choice-grid">
+        <button onClick={()=>onPick("match")} className="mode-choice-card mode-choice-match">
+          <div className="mode-choice-symbol">⌁</div>
+          <div><strong>Match by Match</strong><p>Review every next fixture, set your XI and play European nights in the right order.</p></div>
+          <b>Manager control <em>→</em></b>
         </button>
-        <button onClick={()=>onPick("half")} style={cardStyle}>
-          <div style={{ fontSize:24, marginBottom:8 }}>⚡</div>
-          <div style={{ fontWeight:700, marginBottom:4 }}>Instant Half-Season</div>
-          <div style={{ fontSize:12, color:"#9ab89a" }}>Simulate the half-season, including scheduled cup matches and your match plan.</div>
+        <button onClick={()=>onPick("half")} className="mode-choice-card mode-choice-half">
+          <div className="mode-choice-symbol">ϟ</div>
+          <div><strong>Instant Half-Season</strong><p>Fast-forward to a richer mid-season review with league, domestic cup and Europe all updated.</p></div>
+          <b>Fast track <em>→</em></b>
         </button>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -559,7 +575,7 @@ function LineupSheet({club,formation,style,players,caption}){
     <div className="prematch-sheet-head"><ClubBadge club={club} size="xl"/><div><span>{caption}</span><strong>{club.name}</strong><small>{formation} <i/> {STYLES[style]?.name||"Balanced"}</small></div><b>{average}<small>XI AVG</small></b></div>
     <div className="prematch-column-labels"><span>STARTING XI</span><span>ENERGY</span><span>FITNESS</span><span>OVR</span></div>
     <div className="prematch-roster">{slots.map((slot,i)=>{const player=players[i];const energy=clamp(Math.round(player?.energy??100),0,100);const fitness=clamp(Math.round(player?.condition??100),0,100);return <div className="prematch-roster-row" key={i} style={{"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
-      <span className="prematch-role">{slot.role}</span><strong title={player?.name}>{player?.name||"Vacant"}</strong>
+      <span className="prematch-role">{slot.role}</span><strong title={player?.name}>{player?pitchPlayerName(player.name):"Vacant"}</strong>
       <div className="prematch-energy" title={`Energy ${energy}%`}><i style={{width:`${energy}%`}}/><small>{energy}%</small></div>
       <span className={`prematch-fitness ${fitness>=90?"good":fitness>=75?"mid":"low"}`} title={`Fitness ${fitness}%`}><FitnessGem condition={fitness}/>{fitness}%</span>
       <b className="prematch-rating">{player?Math.round(matchOvr(player)):"—"}</b>
@@ -571,7 +587,7 @@ function FormationBoard({club,formation,style,players,caption}){
   return <section className="prematch-formation-board" style={{"--team-color":club.color||"#4d9d62"}}>
     <header><ClubBadge club={club} size="sm"/><div><span>{caption}</span><strong>{club.name}</strong><small>{formation} · {STYLES[style]?.name||"Balanced"}</small></div></header>
     <div className="prematch-formation-pitch"><div className="prematch-formation-lines"/>{slots.map((slot,i)=>{const player=players[i];const energy=clamp(Math.round(player?.energy??100),0,100);return <div key={i} className="prematch-formation-slot" style={{left:`${slot.x}%`,top:`${slot.y}%`,"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
-      <div className="prematch-formation-card"><div><b>{player?Math.round(matchOvr(player)):"—"}</b><span>{slot.role}</span></div><strong title={player?.name}>{player?.name||"Vacant"}</strong><div className="prematch-formation-vitals"><FitnessGem condition={player?.condition}/><i><span style={{width:`${energy}%`}}/></i><small>{energy}%</small></div></div>
+      <div className="prematch-formation-card"><div><b>{player?Math.round(matchOvr(player)):"—"}</b><span>{slot.role}</span></div><strong title={player?.name}>{player?pitchPlayerName(player.name):"Vacant"}</strong><div className="prematch-formation-vitals"><FitnessGem condition={player?.condition}/><i><span style={{width:`${energy}%`}}/></i><small>{energy}%</small></div></div>
     </div>;})}</div>
     <footer><span><FitnessGem condition={100}/> Fitness</span><span><i/> Energy</span></footer>
   </section>;
@@ -786,6 +802,11 @@ function MailPanel({items,compact=false}){const list=items.slice(0,compact?3:20)
 
 function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
+  useEffect(()=>{
+    if(workspaceTab!=="mail")return;
+    onOpenMail?.();
+    setWorkspaceTab("squad");
+  },[workspaceTab,onOpenMail]);
   const suspendedSet = new Set(suspendedIds || []);
   const usedIds = new Set(Object.values(state.lineup).filter(Boolean));
   const issue = lineupIssue(state,state.stage==="ucl"?"ucl":"domestic");
@@ -794,13 +815,14 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
   const sorted = [...myClub.players].sort((a,b)=> order.indexOf(a.group)-order.indexOf(b.group) || matchOvr(b)-matchOvr(a));
   const hasSeasonData=state.clubs.some(c=>c.players.some(p=>(p.ratedMatches||0)>0));
   const formationNotes=formationProfile(state.formation);
+  const incomingLoans=state.loans.filter(loan=>loan.borrowerId===state.myClubId).length;
 
   return (
     <div className="squad-command">
       <section className="manager-command-bar">
         <div className="command-copy"><span>MANAGER WORKSPACE</span><strong>Build the match plan</strong><small>Set the XI, read the season data and act in the market from one place.</small></div>
         <div className="command-actions">
-          {showMarketBar&&<button className="command-tile transfer-command" onClick={onOpenMarket} disabled={!windowOpen}><ArrowLeftRight size={18}/><span><strong>Transfer Centre</strong><small>{windowOpen?"Scout all leagues & negotiate":"Window closed"}</small></span></button>}
+          {showMarketBar&&<button className="command-tile transfer-command" onClick={onOpenMarket} disabled={!windowOpen}><ArrowLeftRight size={18}/><span><strong>Transfer Centre</strong><small>{windowOpen?`${incomingLoans}/3 incoming loans · Market open`:"Window closed"}</small></span></button>}
           {showMarketBar&&onOpenCups&&<button className="command-tile" onClick={()=>setWorkspaceTab("cups")}><Trophy size={17}/><span><strong>Cup Hub</strong><small>Draws and competitions</small></span></button>}
           {showMarketBar&&onOpenCalendar&&<button className="command-tile" onClick={onOpenCalendar}><CalendarDays size={17}/><span><strong>Calendar</strong><small>Season schedule</small></span></button>}
           {showMarketBar&&onOpenMail&&<button className="command-tile" onClick={onOpenMail}><Mail size={17}/><span><strong>Mail</strong><small>{(state.mail||[]).filter(item=>!item.read).length?`${(state.mail||[]).filter(item=>!item.read).length} unread`:"Staff inbox"}</small></span></button>}
@@ -816,7 +838,7 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
         <button className={workspaceTab==="fixtures"?"active":""} onClick={()=>setWorkspaceTab("fixtures")}>Fixtures</button>
         <button className={workspaceTab==="cups"?"active":""} onClick={()=>setWorkspaceTab("cups")}>Cup hub</button>
         <button className={workspaceTab==="calendar"?"active":""} onClick={()=>setWorkspaceTab("calendar")}>Calendar</button>
-        <button className={workspaceTab==="mail"?"active":""} onClick={()=>setWorkspaceTab("mail")}>Mail {(state.mail||[]).filter(item=>!item.read).length>0&&<span>NEW</span>}</button>
+        <button className={workspaceTab==="mail"?"active":""} onClick={onOpenMail}>Mail {(state.mail||[]).filter(item=>!item.read).length>0&&<span>NEW</span>}</button>
       </div>
 
       {workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="fixtures" ? <FixturesPanel state={state}/> : workspaceTab==="cups" ? <CupWorkspace state={state} onOpen={onOpenCups}/> : workspaceTab==="calendar" ? <CalendarPanel state={state}/> : workspaceTab==="mail" ? <MailPanel items={state.mail||[]} /> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
@@ -855,7 +877,7 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onEditNumber,
                   <div className={`squad-ovr ${matchOvr(p)>=88?"elite":matchOvr(p)>=84?"high":""}`} title={`${matchOvr(p)} match OVR · ${p.ovr} base · ${p.confidence>0?"+":""}${p.confidence||0} confidence`}><strong>{matchOvr(p)}</strong><FormTrend confidence={p.confidence}/><small>OVR</small></div>
                   <div className="squad-player-copy">
                     <div className="squad-player-name"><strong>{p.name}</strong>{p.loan&&<span className="squad-loan-tag">LOAN</span>}{usedIds.has(p.id)&&!unavailable&&<span className="squad-starting-tag">STARTING</span>}{suspended&&<span className="squad-suspended-tag">SUSPENDED</span>}{injury&&<span className="squad-suspended-tag">INJURED · {injury.matches} MATCH{injury.matches===1?"":"ES"}</span>}</div>
-                    <div className="squad-player-facts"><b>{p.role}</b><span>Age {p.age}</span><span>{fmtM(p.value)}</span>{p.confidence?<span className={p.confidence>0?"form-up":"form-down"}>{p.confidence>0?"+":""}{p.confidence} confidence</span>:null}</div>
+                    <div className="squad-player-facts"><b>{p.role}</b>{p.secondaryRoles?.length?<span title="Secondary positions">Also {p.secondaryRoles.join(" / ")}</span>:null}<span>Age {p.age}</span><span>{fmtM(p.value)}</span>{p.confidence?<span className={p.confidence>0?"form-up":"form-down"}>{p.confidence>0?"+":""}{p.confidence} confidence</span>:null}</div>
                     <div className="squad-player-vitals"><FitnessGem condition={p.condition}/><EnergyBar energy={p.energy}/></div>
                     {(p.ratedMatches||0)>0&&<div className="squad-player-season"><span><b>{playerSeasonAverage(p).toFixed(2)}</b> AVG</span><span><b>{p.bestRating?.toFixed(1)}</b> BEST</span><span><b>{p.seasonGoals||0}</b> G</span><span><b>{p.seasonAssists||0}</b> A</span><span><b>{p.motm||0}</b> MOTM</span></div>}
                   </div>
@@ -877,12 +899,17 @@ function Legend({ color, label }){
   return <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{width:8,height:8,borderRadius:"50%",background:color,display:"inline-block"}}/>{label}</span>;
 }
 
-function CupProgressStrip({ cupStatus, league }){
-  const label = (cs) => cs.outcome ? cs.outcome : cs.playedRounds.length ? `Alive — last won ${cs.playedRounds[cs.playedRounds.length-1]}` : "Not yet started";
-  const color = (cs) => cs.outcome === "CHAMPION" ? "#7fd88f" : cs.outcome ? "#e08a8a" : cs.playedRounds.length ? "#7fd88f" : "#6a8a6a";
-  return <div className="results-cup-strip">{cupCompetitions(league).map(id=>{const key={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe"}[id],status=cupStatus[key];return <div key={id} style={competitionTheme(id)}><CompetitionMark id={id} size="sm"/><span>{competitionBrand(id).name}</span><b style={{color:color(status)}}>{label(status)}</b></div>;})}</div>;
+function SeasonCompetitionReview({cupStatus,league,division,ucl,uel,onOpenCup}){
+  const [view,setView]=useState("league");
+  const cups=cupCompetitions(league);
+  const keyFor={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe"};
+  const cupCopy=(status)=>status?.outcome?status.outcome==="CHAMPION"?"Champions":"Campaign ended":status?.playedRounds?.length?`Through ${status.playedRounds.at(-1)}`:"Draw pending";
+  return <section className="season-review">
+    <header><div><span>COMPETITION REVIEW</span><strong>League and cup campaign</strong></div><nav>{<button className={view==="league"?"active":""} onClick={()=>setView("league")}>League</button>}{cups.map(id=><button className={view===id?"active":""} onClick={()=>setView(id)} key={id}>{competitionBrand(id).name}</button>)}{division===1&&<button className={view==="UCL"?"active":""} onClick={()=>setView("UCL")}>Champions League</button>}{division===1&&<button className={view==="UEL"?"active":""} onClick={()=>setView("UEL")}>Europa League</button>}</nav></header>
+    {view==="league"?<div className="season-review-league"><CompetitionMark id={leagueCompetition(league,division)} size="sm"/><div><b>{competitionBrand(leagueCompetition(league,division)).name}</b><span>Live season standings and promotion/relegation picture</span></div><strong>League table below</strong></div>:["UCL","UEL"].includes(view)?<button className="season-review-ucl season-review-open" style={competitionTheme(view)} onClick={()=>onOpenCup?.(view)}><CompetitionMark id={view} size="sm"/><div><b>{competitionBrand(view).name}</b><span>{(view==="UCL"?ucl:uel)?.outcome||((view==="UCL"?ucl:uel)?.stage==="final")?"European campaign complete":(view==="UCL"?ucl:uel)?"League phase and qualification route continue on the calendar.":"European results remain available for every club."}</span></div><strong>Open competition ↗</strong></button>:(()=>{const status=cupStatus?.[keyFor[view]];return <button className="season-review-cup season-review-open" style={competitionTheme(view)} onClick={()=>onOpenCup?.(view)}><CompetitionMark id={view}/><div><span>{competitionBrand(view).name.toUpperCase()}</span><b>{cupCopy(status)}</b><small>{status?.playedRounds?.length?`Rounds played: ${status.playedRounds.join(" · ")}`:"No cup fixture has been played yet."}</small></div><strong>{status?.outcome||"OPEN ↗"}</strong></button>;})()}
+  </section>;
 }
-function ResultsScreen({ title, results, table, clubs, myClubId, onContinue, continueLabel, projectedTable, cupStatus, league, division=1 }){
+function ResultsScreen({ title, results, table, clubs, myClubId, onContinue, continueLabel, projectedTable, cupStatus, league, division=1, ucl, uel, onOpenCup }){
   const myRow = table.find(r=>r.id===myClubId);
   const myRank = table.findIndex(r=>r.id===myClubId)+1;
   const projRank = projectedTable ? projectedTable.findIndex(r=>r.id===myClubId)+1 : null;
@@ -895,7 +922,7 @@ function ResultsScreen({ title, results, table, clubs, myClubId, onContinue, con
         <button className="results-continue" onClick={onContinue}>{continueLabel}</button>
       </div>
 
-      {cupStatus && <CupProgressStrip cupStatus={cupStatus} league={league} />}
+      {cupStatus && <SeasonCompetitionReview cupStatus={cupStatus} league={league} division={division} ucl={ucl} uel={uel} onOpenCup={onOpenCup}/>}
 
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:20 }}>
         <StatBox label="Position" value={`${myRank}${ord(myRank)}`} />
@@ -953,7 +980,38 @@ function MatchAward({ motm }){
   return <div className="result-motm"><span>★</span><strong>{motm.name}</strong><small>Man of the Match</small><b>{motm.rating.toFixed(1)}</b></div>;
 }
 
-function SummaryScreen({ state, myClub, onNextSeason, onOpenCups }){
+function SeasonCampaignReport({state,onOpenCup}){
+  const domestic=cupCompetitions(state.league);
+  const cupKeys={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe"};
+  const reportFor=id=>{
+    if(id==="UCL"||id==="UEL"){
+      const campaign=id==="UCL"?state.ucl:state.uel;
+      const qualified=campaign?.clubs?.some(club=>club.id===state.myClubId);
+      if(!qualified)return {eligible:false,stage:"Not qualified",detail:"European results available in the Competition Centre."};
+      const record=campaign?.campaignRecord;
+      const stage=campaign?.outcome||campaign?.qualification||campaign?.stage||"Campaign complete";
+      return {eligible:true,stage:typeof stage==="string"?stage.replaceAll("-"," "):"Campaign complete",detail:record?`${record.w||0}W · ${record.d||0}D · ${record.l||0}L in Europe`:"Review your European campaign."};
+    }
+    const cup=state.cupStatus?.[cupKeys[id]];
+    const round=cup?.playedRounds?.at(-1);
+    return {eligible:true,stage:cup?.outcome==="CHAMPION"?"Champions":cup?.outcome|| (round?`Reached ${round}`:"Draw pending"),detail:round?`Last completed round: ${round}`:"No fixture played in this cup."};
+  };
+  const competitions=[...domestic,"UCL","UEL"];
+  return <section className="season-campaign-report">
+    <header><div><span>SEASON REPORT</span><h2>Every competition, one story</h2><p>Domestic cups and European nights are tracked alongside your league finish.</p></div><Trophy size={25}/></header>
+    <div className="season-campaign-grid">{competitions.map(id=>{
+      const report=reportFor(id),brand=competitionBrand(id);
+      return <button key={id} className={`season-campaign-card ${report.eligible?"":"is-muted"}`} style={competitionTheme(id)} disabled={!report.eligible} onClick={()=>report.eligible&&onOpenCup?.(id)}>
+        <CompetitionMark id={id} size="md"/><CompetitionMark id={id} size="xl" className="season-campaign-watermark"/>
+        <span>{id==="UCL"||id==="UEL"?"EUROPEAN NIGHT":"DOMESTIC CUP"}</span>
+        <strong>{brand.name}</strong><b>{report.stage}</b><small>{report.detail}</small>
+        <i>{report.eligible?"Open report ↗":"Unavailable"}</i>
+      </button>;
+    })}</div>
+  </section>;
+}
+
+function SummaryScreen({ state, myClub, onNextSeason, onOpenCup }){
   const finalRank = state.tableFinal.findIndex(r=>r.id===state.myClubId)+1;
   const halfRank = state.table1.findIndex(r=>r.id===state.myClubId)+1;
   const lineupPlayers = myClub.players.filter(p => Object.values(state.lineup).includes(p.id));
@@ -977,17 +1035,11 @@ function SummaryScreen({ state, myClub, onNextSeason, onOpenCups }){
         <StatBox label="Trend" value={trend.split(" ")[0]} sub={trend} />
       </div>
 
-      {uclUnlocked && (
-        <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontSize:12, color:"#7fd88f", marginBottom:8 }}>Top 4 finish — Champions League qualification secured ⭐</div>
-          <button onClick={onOpenCups} style={{ ...primaryBtnStyle, background:"#3d3410", border:"1px solid #e8b84b", color:"#e8d09a" }}>🏆 Play Cup Competitions</button>
-        </div>
-      )}
-      {!uclUnlocked && (
-        <div style={{ textAlign:"center", marginBottom:20 }}>
-          <button onClick={onOpenCups} style={{ ...primaryBtnStyle, background:"#1c1a12", border:"1px solid #6b5a2d", color:"#e8d09a" }}>🏆 View Cup Competitions</button>
-        </div>
-      )}
+      <div className={`season-qualification ${uclUnlocked?"is-secured":""}`}>
+        <span>{uclUnlocked?"Champions League qualification secured":"European qualification depends on your final placement"}</span>
+      </div>
+
+      <SeasonCampaignReport state={state} onOpenCup={onOpenCup}/>
 
       {state.movement&&<div style={{textAlign:"center",color:state.division===2?"#e8c46b":"#7fd88f",fontSize:13,fontWeight:700,marginBottom:16}}>↕ {state.movement}</div>}
 
@@ -1126,8 +1178,8 @@ function UclBracket({bracket,clubs,myClubId}){
   </section>;
 }
 
-function UclTable({ table, myClubId }){
-  return <CompetitionStandings table={table} myClubId={myClubId} brandId="UCL" title="Champions League league phase table" zone/>;
+function UclTable({ table, myClubId, competition="UCL" }){
+  return <CompetitionStandings table={table} myClubId={myClubId} brandId={competition} title={`${competitionBrand(competition).name} league phase table`} zone/>;
 }
 
 function UclMatchPrep({ state, myClub, squadCommonProps, onPlay }){
@@ -1144,6 +1196,8 @@ function UclMatchPrep({ state, myClub, squadCommonProps, onPlay }){
   </div>;
 }
 
+// Kept as a compatibility renderer for older deep-linked saves; new results use PostMatchSummary.
+// eslint-disable-next-line no-unused-vars
 function UclMatchResult({ myClub, result, onContinue }){
   return (
     <div style={{ textAlign:"center", padding:"20px 0" }}>
@@ -1182,6 +1236,8 @@ function UclPhaseSummary({ state, onContinue }){
   );
 }
 
+// Kept as a compatibility renderer for older deep-linked saves; new results use PostMatchSummary.
+// eslint-disable-next-line no-unused-vars
 function UclSingleMatchResult({ myClub, result, roundLabel, isCampaignOver, aggregate, isLeg1, onContinue }){
   const redCardLine = result.redCard ? <div style={{ fontSize:12, color:"#e08a8a", marginTop:6 }}>🟥 {result.redCard.name} sent off — suspended for your next Champions League match</div> : null;
   if (isLeg1){
@@ -1258,14 +1314,16 @@ function UclFinal({ myClub, rec, onBack, bracket, clubs }){
   );
 }
 
-function UclPage({ state, myClub, squadCommonProps, actions }){
-  const u = state.ucl;
+function UclPage({ state, myClub, squadCommonProps, actions, competition="UCL" }){
+  const campaignKey=competition==="UEL"?"uel":"ucl",u=state[campaignKey];
+  const displayState=competition==="UEL"?{...state,ucl:u}:state;
+  const competitionName=competitionBrand(competition).name;
   if (!u) return null;
-  if (u.stage === "hub") return <UclMatchPrep state={state} myClub={myClub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayLeagueMatch}/>;
-  if (u.stage === "match-prep") return <UclMatchPrep state={state} myClub={myClub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayLeagueMatch} />;
+  if (u.stage === "hub") return <UclMatchPrep state={displayState} myClub={myClub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayLeagueMatch}/>;
+  if (u.stage === "match-prep") return <UclMatchPrep state={displayState} myClub={myClub} squadCommonProps={squadCommonProps} onPlay={actions.uclPlayLeagueMatch} />;
   if (u.stage === "match-live") return <LiveMatchScreen {...u.liveContext} onDone={actions.uclFinishLiveMatch} banner={<UclBanner text="Kick-Off" sub={`League Phase · vs ${u.lastMatch.opponent}`} />} />;
-  if (u.stage === "match-result") return <UclMatchResult myClub={myClub} result={u.lastMatch} onContinue={actions.uclContinueAfterMatch} />;
-  if (u.stage === "phase-summary") return <UclPhaseSummary state={state} onContinue={actions.uclContinueAfterPhaseSummary} />;
+  if (u.stage === "match-result") return <PostMatchSummary result={u.lastMatch} myClub={myClub} opponent={u.clubs.find(club=>club.id===u.lastMatch.opponentId)} competition={competition} onContinue={actions.uclContinueAfterMatch} continueLabel={`Return to ${competitionName} →`} statusText={u.lastMatch.result==="W"?"Three points secured":u.lastMatch.result==="D"?"Points shared":"Defeat"}/>;
+  if (u.stage === "phase-summary") return <UclPhaseSummary state={displayState} onContinue={actions.uclContinueAfterPhaseSummary} />;
   if (u.stage === "knockout-prep"){
     const opp = u.clubs.find(c=>c.id===u.currentKnockoutOpponentId);
     const roundName = u.knockoutRounds[u.knockoutRoundIndex];
@@ -1290,9 +1348,8 @@ function UclPage({ state, myClub, squadCommonProps, actions }){
     const isDecidingLeg = isFinal || leg===2;
     const isCampaignOver = isDecidingLeg && (!u.lastMatch.won || isFinal);
     const label = isFinal ? "Final" : `${roundName} — Leg ${leg}`;
-    return <UclSingleMatchResult myClub={myClub} result={u.lastMatch} roundLabel={label}
-      aggregate={isFinal?null:u.aggregate} isLeg1={!isFinal && leg===1}
-      isCampaignOver={isCampaignOver} onContinue={actions.uclContinueAfterKnockout} />;
+    const statusText=!isDecidingLeg?"First leg complete · second leg to come":u.lastMatch.won?(isFinal?"Champions of Europe":"Through to the next round"):(isFinal?"Runners-up":"Knocked out");
+    return <PostMatchSummary result={{...u.lastMatch,round:label,result:u.lastMatch.won?"W":"L"}} myClub={myClub} opponent={u.clubs.find(club=>club.id===u.lastMatch.opponentId)} competition="UCL" onContinue={actions.uclContinueAfterKnockout} continueLabel={(!u.lastMatch.won||isCampaignOver)?"View campaign summary →":"Continue →"} statusText={statusText}/>;
   }
   if (u.stage === "final") return <UclFinal myClub={myClub} rec={{ results:u.campaignResults, record:u.campaignRecord, outcome:u.outcome }} onBack={actions.uclBackToSeason} bracket={u.knockoutBracket} clubs={u.clubs} />;
   return null;
@@ -1385,6 +1442,24 @@ function playerAttributes(player){
   const offsets=role==="FWD"?[5,4,0,4,-18,1]:role==="MID"?[1,-3,5,4,-5,0]:[0,-18,-1,-4,6,5];
   return [...["PAC","SHO","PAS","DRI","DEF","PHY"].map((key,i)=>[key,clampStat(base+offsets[i]+jitter(i))]),["STA",player.stamina??80]];
 }
+function DualRange({label,min,max,low,high,onLow,onHigh,format}){
+  const [active,setActive]=useState("high");
+  const safeLow=clamp(Number(low),min,max),safeHigh=clamp(Number(high),min,max);
+  const span=Math.max(1,max-min),lowPct=((safeLow-min)/span)*100,highPct=((safeHigh-min)/span)*100;
+  const activate=which=>()=>setActive(which);
+  return <div className="market-range">
+    <span>{label}</span>
+    <div className="dual-range" style={{"--range-start":`${lowPct}%`,"--range-end":`${highPct}%`}}>
+      <input className={active==="low"?"is-active":""} aria-label={`Minimum ${label}`} type="range" min={min} max={max} value={safeLow}
+        onPointerDown={activate("low")} onFocus={activate("low")}
+        onChange={event=>onLow(Math.min(Number(event.target.value),safeHigh))}/>
+      <input className={active==="high"?"is-active":""} aria-label={`Maximum ${label}`} type="range" min={min} max={max} value={safeHigh}
+        onPointerDown={activate("high")} onFocus={activate("high")}
+        onChange={event=>onHigh(Math.max(Number(event.target.value),safeLow))}/>
+    </div>
+    <strong>{format(safeLow)} – {format(safeHigh)}</strong>
+  </div>;
+}
 function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLoanIn }){
   const [screen,setScreen]=useState("browse");
   const [selected,setSelected]=useState(null);
@@ -1395,6 +1470,7 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
   const [dealKind,setDealKind]=useState("Permanent transfer");
   const [negotiationEnded,setNegotiationEnded]=useState(false);
   const [page,setPage]=useState(0);
+  const incomingLoans=state.loans.filter(loan=>loan.borrowerId===state.myClubId).length;
   const pools=[
     ["PL",state.plClubs],["LALIGA",state.laligaClubs],["SERIEA",state.serieaClubs],
     ["BUNDES",state.bundesligaClubs],["LIGUE1",state.ligue1Clubs],["CHAMP",state.championshipClubs],
@@ -1441,7 +1517,7 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
       <header className="transfer-header">
         <button className="transfer-back" onClick={goBack}><ChevronLeft size={18}/><span>{screen==="browse"?"Close":"Back"}</span></button>
         <div className="transfer-brand"><span>GLOBAL RECRUITMENT</span><strong>Transfer Centre</strong></div>
-        <div className="transfer-budget"><small>AVAILABLE BUDGET</small><strong>{fmtM(state.budget)}</strong></div>
+        <div className="transfer-budget"><small>AVAILABLE BUDGET · LOANS {incomingLoans}/3</small><strong>{fmtM(state.budget)}</strong></div>
       </header>
 
       <main className={`transfer-stage transfer-screen-${screen}`} key={screen}>
@@ -1455,8 +1531,8 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
             <label><span>Club</span><select value={filter.club} onChange={e=>setFilter(f=>({...f,club:e.target.value}))}><option value="ALL">All clubs</option>{visibleClubs.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label>
             <label><span>Position</span><select value={filter.pos} onChange={e=>setFilter(f=>({...f,pos:e.target.value}))}><option value="ALL">All positions</option><option value="GK">Goalkeepers</option><option value="DEF">Defenders</option><option value="MID">Midfielders</option><option value="FWD">Forwards</option></select></label>
             <label><span>Sort</span><select value={filter.sort} onChange={e=>setFilter(f=>({...f,sort:e.target.value}))}><option value="ovr_desc">Highest rated</option><option value="value_desc">Highest value</option><option value="value_asc">Lowest value</option><option value="age_asc">Youngest</option></select></label>
-            <div className="market-range"><span>Age range</span><div><input aria-label="Minimum age" type="range" min="16" max={Math.max(16,ageMax)} value={Math.min(ageMin,ageMax)} onChange={event=>setFilter(f=>({...f,ageMin:Number(event.target.value)}))}/><input aria-label="Maximum age" type="range" min={Math.min(ageMin,ageMax)} max="45" value={Math.max(ageMin,ageMax)} onChange={event=>setFilter(f=>({...f,ageMax:Number(event.target.value)}))}/></div><strong>{Math.min(ageMin,ageMax)} – {Math.max(ageMin,ageMax)}</strong></div>
-            <div className="market-range"><span>Market value</span><div><input aria-label="Minimum market value" type="range" min="0" max={priceCeiling} value={priceFloor} onChange={event=>setFilter(f=>({...f,priceMin:Number(event.target.value)}))}/><input aria-label="Maximum market value" type="range" min={priceFloor} max={maxPrice} value={priceCeiling} onChange={event=>setFilter(f=>({...f,priceMax:Number(event.target.value)}))}/></div><strong>{fmtM(priceFloor)} – {fmtM(priceCeiling)}</strong></div>
+            <DualRange label="Age range" min={16} max={45} low={Math.min(ageMin,ageMax)} high={Math.max(ageMin,ageMax)} onLow={value=>setFilter(f=>({...f,ageMin:value}))} onHigh={value=>setFilter(f=>({...f,ageMax:value}))} format={value=>value}/>
+            <DualRange label="Market value" min={0} max={maxPrice} low={priceFloor} high={priceCeiling} onLow={value=>setFilter(f=>({...f,priceMin:value}))} onHigh={value=>setFilter(f=>({...f,priceMax:value}))} format={fmtM}/>
           </div>
           <div className="market-browser">
             <aside className="club-directory">

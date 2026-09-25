@@ -2,12 +2,35 @@ import { ROLE_GROUP, ROLE_COMPAT, FORMATIONS, EUROPEAN_CLUBS, CARABAO_SCHEDULE, 
 import { buildClubs, buildChampionshipClubs, buildLaLigaClubs, buildSerieAClubs, buildBundesligaClubs, buildLigue1Clubs, buildLaLiga2Clubs, buildSerieBClubs, buildBundes2Clubs, buildLigue2Clubs } from "../data/players.js";
 import { buildEuropeanGuestClubs } from "./uclSelection.js";
 import { attachSeasonSchedule } from "./seasonSchedule.js";
+import { firstSeasonLeagueOrder } from "./firstSeasonFixtures.js";
 export function slotAccepts(slotRole, player){
   if (!player) return false;
   if (player.role === slotRole) return true;
   return (ROLE_COMPAT[slotRole] || []).includes(player.role);
 }
 const WIDE_ROLES = new Set(["LW", "LM", "RW", "RM"]);
+const CENTRAL_MIDS = new Set(["CDM","CM","CAM"]);
+const WIDE_DEFENDERS = new Set(["LB","RB"]);
+const rolePenalty=(natural,slotRole)=>{
+  if(natural===slotRole)return 0;
+  if(natural==="GK"||slotRole==="GK")return 40;
+  if(WIDE_ROLES.has(natural)&&WIDE_ROLES.has(slotRole))return natural[0]===slotRole[0]?1:3;
+  if(CENTRAL_MIDS.has(natural)&&CENTRAL_MIDS.has(slotRole)){
+    if((natural==="CDM"&&slotRole==="CAM")||(natural==="CAM"&&slotRole==="CDM"))return 5;
+    return 2;
+  }
+  if(natural==="CAM"&&slotRole==="ST")return 5;
+  if(natural==="ST"&&slotRole==="CAM")return 6;
+  if((WIDE_ROLES.has(natural)&&slotRole==="ST")||(natural==="ST"&&WIDE_ROLES.has(slotRole)))return 6;
+  if((WIDE_ROLES.has(natural)&&CENTRAL_MIDS.has(slotRole))||(CENTRAL_MIDS.has(natural)&&WIDE_ROLES.has(slotRole)))return 5;
+  if(WIDE_DEFENDERS.has(natural)&&WIDE_DEFENDERS.has(slotRole))return 4;
+  if((WIDE_DEFENDERS.has(natural)&&WIDE_ROLES.has(slotRole))||(WIDE_ROLES.has(natural)&&WIDE_DEFENDERS.has(slotRole)))return 8;
+  if((natural==="CB"&&slotRole==="CDM")||(natural==="CDM"&&slotRole==="CB"))return 7;
+  if(ROLE_GROUP[natural]===ROLE_GROUP[slotRole])return 8;
+  if((ROLE_GROUP[natural]==="MID"&&ROLE_GROUP[slotRole]==="DEF")||(ROLE_GROUP[natural]==="DEF"&&ROLE_GROUP[slotRole]==="MID"))return 11;
+  if((ROLE_GROUP[natural]==="MID"&&ROLE_GROUP[slotRole]==="FWD")||(ROLE_GROUP[natural]==="FWD"&&ROLE_GROUP[slotRole]==="MID"))return 9;
+  return 18;
+};
 // Every outfield player can be selected in every outfield slot. Their match
 // level then reflects how close that assignment is to their real role. This is
 // deliberately separate from slotAccepts, which remains the AI's conservative
@@ -15,24 +38,18 @@ const WIDE_ROLES = new Set(["LW", "LM", "RW", "RM"]);
 export function positionFit(slotRole, player){
   if(!player)return 0;
   const natural=player.role;
-  if(natural===slotRole)return 1;
-  if(natural==="GK"||slotRole==="GK")return .42;
-  if(WIDE_ROLES.has(natural)&&WIDE_ROLES.has(slotRole)){
-    return natural[0]===slotRole[0]?1:.91;
-  }
-  const centralMid=new Set(["CDM","CM","CAM"]);
-  if(centralMid.has(natural)&&centralMid.has(slotRole)){
-    if((natural==="CDM"&&slotRole==="CAM")||(natural==="CAM"&&slotRole==="CDM"))return .86;
-    return .94;
-  }
-  const sameGroup=ROLE_GROUP[natural]===ROLE_GROUP[slotRole];
-  if(sameGroup)return ROLE_GROUP[natural]==="DEF"?.84:.87;
-  const adjacent=(ROLE_GROUP[natural]==="MID"&&ROLE_GROUP[slotRole]==="FWD")||(ROLE_GROUP[natural]==="FWD"&&ROLE_GROUP[slotRole]==="MID")||(ROLE_GROUP[natural]==="MID"&&ROLE_GROUP[slotRole]==="DEF")||(ROLE_GROUP[natural]==="DEF"&&ROLE_GROUP[slotRole]==="MID");
-  return adjacent?.72:.60;
+  const secondary=(player.secondaryRoles||[]).includes(slotRole);
+  const penalty=secondary?0:rolePenalty(natural,slotRole);
+  // Translate an OVR deduction into the multiplier used throughout simulation.
+  // This avoids a flat 20+ point crash for a midfielder used as a forward.
+  return clamp((matchOvr(player)-penalty)/Math.max(1,matchOvr(player)),.42,1);
 }
 export function positionFitLabel(slotRole,player){
-  const fit=positionFit(slotRole,player);
-  return fit>=.995?"Natural position":fit>=.93?"Secondary position":fit>=.84?"Adapted position":"Out of position";
+  if(!player)return "Unavailable";
+  if(player.role===slotRole)return "Natural position";
+  if((player.secondaryRoles||[]).includes(slotRole))return "Secondary position";
+  const penalty=Math.round(matchOvr(player)*(1-positionFit(slotRole,player)));
+  return penalty<=5?`Adapted role (-${penalty} OVR)`:penalty<=10?`Unfamiliar role (-${penalty} OVR)`:`Out of position (-${penalty} OVR)`;
 }
 // Tactics: each formation is reduced to zone counts (wide defenders, central defenders, central midfielders,
 // wide midfielders, wide attackers, central strikers) computed directly from its slot list. A team's tactical
@@ -680,7 +697,10 @@ export function simulateRound(s, round, gw){
 }
 export function ensureFixtures(s){
   if (s.roundsHalf1) return attachSeasonSchedule(s);
-  const ids = s.clubs.map(c=>c.id);
+  // Season one starts from the published opening matchday.  A permutation of
+  // the circle-method order preserves a complete home/away round robin; future
+  // seasons deliberately return to a fresh generated order.
+  const ids = s.season===1&&s.division===1?firstSeasonLeagueOrder(s.clubs.map(c=>c.id),s.league):s.clubs.map(c=>c.id);
   const r1 = roundRobin(ids);
   const r2 = r1.map(round => round.map(([h,a]) => [a,h]));
   return attachSeasonSchedule({ ...s, roundsHalf1:r1, roundsHalf2:r2, tableRaw: initTable(ids), fixtureResults:s.fixtureResults||[] });
@@ -944,7 +964,10 @@ export function buildLiveMatchContext(s, userResult, oppClub, competition="UCL")
   return { timeline, homeName, awayName, homeClubId:userResult.isHome?myClubObj.id:oppClub.id,
     awayClubId:userResult.isHome?oppClub.id:myClubObj.id, homeColor:userResult.isHome?myClubObj.color:oppClub.color, awayColor:userResult.isHome?oppClub.color:myClubObj.color, competition,
     myName: myClubObj.name, oppName: oppClub.name, stats, analysis,
-    playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,shootout,myTacStyle: myTac.style, oppTacStyle: oppTac.style };
+    playerRatings:match?.playerRatings,manOfTheMatch:match?.manOfTheMatch,shootout,
+    homeFormation:userResult.isHome?myTac.formation:oppTac.formation,
+    awayFormation:userResult.isHome?oppTac.formation:myTac.formation,
+    myTacStyle: myTac.style, oppTacStyle: oppTac.style };
 }
 
 export function freshState(){
@@ -964,7 +987,7 @@ export function freshState(){
     results1: [], results2: [], fixtureResults: [], seasonSchedule: [], mail:[], table1: null, tableFinal: null,
     clubForm: {},
     cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus(), coppa:emptyCupStatus(), dfb:emptyCupStatus(), coupe:emptyCupStatus() }, lastCupResult: null,
-    cups: { ucl: null }, ucl: null,
+    cups: { ucl: null, uel: null }, ucl: null, uel: null,
   };
 }
 

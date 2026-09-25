@@ -10,16 +10,25 @@ function weekday(date,day){return addDays(date,(day-new Date(dateValue(date)).ge
 export function seasonStart(season=1){return weekday(seasonDate(season,8,15),6);}
 export function buildLeagueSchedule({season=1,league,division=1,roundsHalf1=[],roundsHalf2=[]}){
  const competition=leagueCompetition(league,division),rounds=[...roundsHalf1,...roundsHalf2];
- const dates=[];for(let date=seasonStart(season);date<=seasonDate(season,5,23);date=addDays(date,7))dates.push(date);
+ const publishedStarts={PL:"2026-08-21",LALIGA:"2026-08-15",SERIEA:"2026-08-23",BUNDES:"2026-08-28",LIGUE1:"2026-08-21"};
+ const start=season===1&&division===1?(publishedStarts[league]||seasonStart(season)):seasonStart(season);
+ const dates=[];for(let date=start;date<=seasonDate(season,5,23);date=addDays(date,7))dates.push(date);
  const weekends=[...dates];let i=2;
  while(dates.length<rounds.length){dates.push(addDays(weekends[i],3));i+=4;}
  dates.sort();
- return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`league-${competition}:${r+1}:${j}`,competition,kind:"league",round:r+1,date:dates[r],homeId,awayId,status:"scheduled"})));
+ const firstRoundDates={
+  "ars:cov":"2026-08-21","hul:mun":"2026-08-22","eve:cry":"2026-08-22","ips:sun":"2026-08-22","not:lee":"2026-08-22","bre:tot":"2026-08-22","bri:ast":"2026-08-23","man:afc":"2026-08-23","new:liv":"2026-08-23","ful:che":"2026-08-24",
+ };
+ return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`league-${competition}:${r+1}:${j}`,competition,kind:"league",round:r+1,date:season===1&&league==="PL"&&r===0?(firstRoundDates[`${homeId}:${awayId}`]||dates[r]):dates[r],publishedDate:season===1&&league==="PL"&&r===0,homeId,awayId,status:"scheduled"})));
 }
 // UEFA's published 2026/27 match windows; subsequent seasons retain weekdays.
 const UCL_DATES=[[9,8],[10,13],[10,20],[11,3],[11,24],[12,8],[1,19],[1,27]];
 export function uclDate(season,index){const [m,d]=UCL_DATES[Math.min(index,7)];return weekday(seasonDate(season,m,d),index===7?3:2);}
 export function buildUclSchedule({season=1,rounds=[]}){return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`ucl:${r+1}:${j}`,competition:"UCL",kind:"europe",round:r+1,date:uclDate(season,r),homeId,awayId,status:"scheduled"})));}
+// Europa nights deliberately run on Thursdays, never the UCL Tuesday/Wednesday
+// windows. The calendar resolver then protects recovery around both tournaments.
+const UEL_DATES=[[9,16],[10,15],[10,22],[11,5],[11,26],[12,10],[1,21],[1,28]];
+export function buildUelSchedule({season=1,rounds=[]}){return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`uel:${r+1}:${j}`,competition:"UEL",kind:"europe",round:r+1,date:weekday(seasonDate(season,...UEL_DATES[Math.min(r,UEL_DATES.length-1)]),4),homeId,awayId,status:"scheduled"})));}
 const POOLS={PL:["plClubs","championshipClubs"],LALIGA:["laligaClubs","laliga2Clubs"],SERIEA:["serieaClubs","serieBClubs"],BUNDES:["bundesligaClubs","bundes2Clubs"],LIGUE1:["ligue1Clubs","ligue2Clubs"]};
 const CUP_DATES={FA:[[1,9],[1,30],[2,17],[3,13],[4,17],[5,15]],CARABAO:[[8,25],[9,22],[10,27],[12,15],[2,2],[3,7]],COPA:[[12,2],[12,16],[1,13],[2,3],[3,3],[4,24]],COPPA:[[8,12],[9,16],[12,2],[1,13],[3,3],[5,19]],DFB:[[8,12],[10,27],[12,1],[2,9],[4,20],[5,22]],COUPE:[[12,16],[1,6],[1,27],[2,24],[4,7],[5,22]]};
 export function cupCompetitions(league){return league==="PL"?["FA","CARABAO"]:[{LALIGA:"COPA",SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE"}[league]].filter(Boolean);}
@@ -87,6 +96,10 @@ export function resolveCalendarConflicts(schedule){
  let previous=null;
  for(const round of [...groups.keys()].sort((a,b)=>a-b)){
   const group=groups.get(round);let date=group[0].date;
+  // The published opening Premier League weekend spans Friday to Monday.
+  // Keep those individual dates rather than collapsing the whole round to its
+  // first kickoff; simulation can still resolve the round as one gameweek.
+  if(group.every(e=>e.publishedDate)){previous=group.reduce((latest,e)=>latest>e.date?latest:e.date,group[0].date);continue;}
   if(group.every(e=>e.status==="completed")){previous=date;continue;}
   if(previous&&dateValue(date)-dateValue(previous)<3*DAY)date=addDays(previous,3);
   const ids=new Set(group.flatMap(e=>[e.homeId,e.awayId]));
@@ -99,7 +112,7 @@ export function resolveCalendarConflicts(schedule){
  }
  return events.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
 }
-export function createSeasonSchedule(state){return resolveCalendarConflicts([...buildLeagueSchedule(state),...buildCupSchedule(state),...buildUclSchedule({season:state.season,rounds:state.ucl?.rounds||[]})]);}
+export function createSeasonSchedule(state){return resolveCalendarConflicts([...buildLeagueSchedule(state),...buildCupSchedule(state),...buildUclSchedule({season:state.season,rounds:state.ucl?.rounds||[]}),...buildUelSchedule({season:state.season,rounds:state.uel?.rounds||[]})]);}
 export function attachSeasonSchedule(state){
  if(!state.roundsHalf1||state.scheduleVersion===2)return state;
  let schedule=createSeasonSchedule(state);
