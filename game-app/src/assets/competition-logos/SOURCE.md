@@ -2,3 +2,12 @@ Competition logo PNGs for the domestic cups and second divisions were downloaded
 
 Liga Portugal and the Portugal club crests, together with crests for the corrected
 2026/27 promoted clubs, were downloaded from the same source on 2026-09-26.
+
+The UEFA Conference League logo (`uecl.png`) was downloaded from
+https://football-logos.cc/tournaments/uefa-conference-league/ on 2026-09-26.
+The available 2026/27 Conference League guest-club crests in
+`../club-logos/eu-*.png` were downloaded from their respective club pages on
+the same source.
+
+The Taça de Portugal logo (`taca.png`) was downloaded from
+https://football-logos.cc/portugal/taca-de-portugal/ on 2026-09-26.

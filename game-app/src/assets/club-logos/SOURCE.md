@@ -2,4 +2,4 @@ Club crest PNGs were downloaded from https://football-logos.cc/ on 2026-09-21 fo
 
 European guest-club crests (`eu-*.png`) were added from the same source on 2026-09-25 and are bundled only for this fan-made simulation.
 
-Second-division crest coverage is keyed to the club IDs used by the five domestic league pools (`es2-*`, `it2-*`, `de2-*`, and `fr2-*`). Newly resolved transparent crest assets are bundled locally so fixtures, tables and match panels never depend on a remote image request at runtime.
+Second-division crest coverage is keyed to the club IDs used by the five domestic league pools (`es2-*`, `it2-*`, `de2-*`, and `fr2-*`). The outstanding Spanish, Italian, German and French assets were resolved from Football Logos on 2026-09-27, including a corrected transparent Palermo crest. Reserve sides Celta Fortuna and Real Sociedad B use their parent-club crest, as supplied by Football Logos for their La Liga 2 listings. All assets are bundled locally so fixtures, tables and match panels never depend on a remote image request at runtime.

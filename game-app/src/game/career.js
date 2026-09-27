@@ -21,7 +21,15 @@ function commitClubs(s,clubs){
   const updatedPools=Object.fromEntries(POOLS.map(k=>[k,(s[k]||[]).map(c=>byId.get(c.id)||c)]));
   return Object.assign({},s,updatedPools,{clubs:s.clubs.map(c=>byId.get(c.id)||c)});
 }
-export function marketOpen(s){return s.stage==='squad'||s.stage==='squad2';}
+// The summer window stays live while the first league fixtures are being
+// played, then closes at the start of 1 September. The January/mid-season
+// window remains available through the existing squad2 stage.
+export function marketOpen(s){
+  if(s.stage==='squad'||s.stage==='squad2')return true;
+  if(!s.currentDate)return true;
+  const cutoff=`${2025+(s.season||1)}-09-01`;
+  return s.currentDate<cutoff;
+}
 export function projectedPotential(p){
   if(Number.isFinite(p.potential))return clamp(p.potential,p.ovr,96);
   const growth=p.age<=18?7:p.age<=20?5:p.age<=22?4:p.age<=24?2:p.age===25?1:0;
@@ -158,7 +166,7 @@ export function evaluateOffer(s,{sellerId,playerId,offer,round=1},rng=Math.rando
   return {...terms,status:'counter',counter,message:`The club wants ${counter}m to complete the deal.`};
 }
 export function transfer(s,{type,playerId,sellerId,fee}){
-  if(!marketOpen(s))throw new Error('Transfers are available in the preseason and midseason windows.');
+  if(!marketOpen(s))throw new Error('The transfer window is closed. You can still scout and shortlist players.');
   const clubs=allClubs(s),me=clubs.find(c=>c.id===s.myClubId);
   const outgoing=type==='sell'||type==='loan-out';
   const seller=outgoing?me:clubs.find(c=>c.id===sellerId);
@@ -191,6 +199,7 @@ export function transfer(s,{type,playerId,sellerId,fee}){
   return {...next,budget:s.budget+(outgoing?price:-price),
     lineup:outgoing?Object.fromEntries(Object.entries(s.lineup).filter(([,id])=>id!==player.id)):s.lineup,
     loans:isLoan?[...s.loans,{playerId:player.id,ownerId:seller.id,borrowerId:buyer.id,endsSeason:s.season}]:s.loans,
+    shortlist:(s.shortlist||[]).filter(id=>id!==player.id),
     finances:[...s.finances,{season:s.season,type,player:player.name,amount:outgoing?price:-price}].slice(-100)};
 }
 function promotionAndRelegation(league,topTable,secondTable,season){
@@ -217,7 +226,7 @@ function promotionAndRelegation(league,topTable,secondTable,season){
 
 export function startNextSeason(s){
   if(!s.tableFinal)throw new Error('Finish the league season first.');
-  if(s.ucl&&s.ucl.stage!=='final')throw new Error('Finish your Champions League campaign first.');
+  for(const [key,label] of [['ucl','Champions League'],['uel','Europa League'],['uecl','Conference League']])if(s[key]&&s[key].stage!=='final')throw new Error(`Finish your ${label} campaign first.`);
   let clubs=allClubs(s).map(c=>({...c,players:c.players.map(p=>({...p}))}));
   for(const loan of s.loans){
     const owner=clubs.find(c=>c.id===loan.ownerId),borrower=clubs.find(c=>c.id===loan.borrowerId);
@@ -269,7 +278,7 @@ export function startNextSeason(s){
     half:1,roundIndex:0,roundsHalf1:null,roundsHalf2:null,tableRaw:null,table1:null,tableFinal:null,
     results1:[],results2:[],clubForm:{},lastResult:null,lastCupResult:null,lastLiveContext:null,
     scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:null,midSeasonDone:false,activeFixtureId:null,
-    cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,uel:null,qualificationTables,suspensions:fresh.suspensions,
+    cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,uel:null,uecl:null,qualificationTables,suspensions:fresh.suspensions,
     injuries:{},lineup:autoLineup(FORMATIONS[s.formation],me.players),development:development.rows,retirements,movement,
     history:[...s.history,{season:s.season,rank,club:me.name,division:previousTier,ucl:s.cups.ucl?.outcome||null,movement}],
     finances:[...s.finances,{season:s.season+1,type:'Season funding',amount:grant}].slice(-100),

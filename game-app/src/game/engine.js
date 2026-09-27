@@ -944,7 +944,7 @@ export function cleanLineupOfSuspended(formation, players, lineup, suspendedIds)
 }
 export function buildLiveMatchContext(s, userResult, oppClub, competition="UCL"){
   const myClubObj = s.clubs.find(c=>c.id===s.myClubId);
-  const competitionKey=competition==="UCL"?"ucl":"domestic";
+  const competitionKey=["UCL","UEL","UECL"].includes(competition)?"ucl":"domestic";
   const lineupPlayers = getMatchPlayers(s, competitionKey);
   const oppPlayers = topXI(oppClub.players,oppClub.preferredFormation);
   const homeName = userResult.isHome ? myClubObj.name : oppClub.name;
@@ -979,7 +979,7 @@ export function freshState(){
   const portugalClubs = buildPortugalClubs();
   return {
     stage: "league-select", league: null, division:1, clubs: plClubs,
-    season:1, history:[], loans:[], finances:[], halftimeStyle:"keep", autoSubs:true,
+    season:1, history:[], loans:[], finances:[], shortlist:[], halftimeStyle:"keep", autoSubs:true,
     plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, portugalClubs, championshipClubs: buildChampionshipClubs(), laliga2Clubs:buildLaLiga2Clubs(), serieBClubs:buildSerieBClubs(), bundes2Clubs:buildBundes2Clubs(), ligue2Clubs:buildLigue2Clubs(), europeanGuestClubs:buildEuropeanGuestClubs(),
     myClubId: null, simMode: null,
     formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, defensiveAggression: 50, offsideTrap: false,
@@ -987,8 +987,8 @@ export function freshState(){
     half: 1, roundIndex: 0, roundsHalf1: null, roundsHalf2: null, tableRaw: null, lastResult: null,
     results1: [], results2: [], fixtureResults: [], seasonSchedule: [], mail:[], table1: null, tableFinal: null,
     clubForm: {},
-    cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus(), coppa:emptyCupStatus(), dfb:emptyCupStatus(), coupe:emptyCupStatus() }, lastCupResult: null,
-    cups: { ucl: null, uel: null }, ucl: null, uel: null,
+    cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus(), coppa:emptyCupStatus(), dfb:emptyCupStatus(), coupe:emptyCupStatus(), taca:emptyCupStatus() }, lastCupResult: null,
+    cups: { ucl: null, uel: null, uecl: null }, ucl: null, uel: null, uecl: null,
   };
 }
 

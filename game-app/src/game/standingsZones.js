@@ -1,5 +1,5 @@
 export function standingsZone(league,rank,total){
-  if(league==='UCL'||league==='UEL')return rank<=8?{key:'direct',label:'Round of 16',color:'blue'}:rank<=24?{key:'playoff',label:'Knockout playoff',color:'cyan'}:{key:'out',label:'Eliminated',color:'red'};
+  if(['UCL','UEL','UECL'].includes(league))return rank<=8?{key:'direct',label:'Round of 16',color:'blue'}:rank<=24?{key:'playoff',label:'Knockout playoff',color:'cyan'}:{key:'out',label:'Eliminated',color:'red'};
   // Second tiers have their own route out of the division. They must never
   // inherit top-flight European qualification colours or labels.
   if(league==='CHAMPIONSHIP'){
@@ -40,11 +40,13 @@ export function standingsZone(league,rank,total){
   if(league==='PORTUGAL'){
     if(rank<=2)return {key:'champions',label:'Champions League places',color:'blue'};
     if(rank===3)return {key:'europa',label:'Europa League place',color:'orange'};
+    if(rank===4)return {key:'conference',label:'Conference League place',color:'green'};
     if(rank>total-3)return {key:'relegation',label:'Relegation places',color:'red'};
     return null;
   }
   if(rank<=4)return {key:'champions',label:'Champions League places',color:'blue'};
   if(rank<=6)return {key:'europa',label:'Europa League places',color:'orange'};
+  if(rank===7)return {key:'conference',label:'Conference League place',color:'green'};
   if((league==='BUNDES'||league==='LIGUE1')&&rank===total-2)return {key:'relegation-playoff',label:'Relegation playoff',color:'amber'};
   const relegation=league==='BUNDES'||league==='LIGUE1'?2:3;
   if(rank>total-relegation)return {key:'relegation',label:'Relegation places',color:'red'};
@@ -52,13 +54,13 @@ export function standingsZone(league,rank,total){
 }
 export function standingsLegend(league,total){
   const ranksByCompetition={
-    UCL:[1,9,25],UEL:[1,9,25],
+    UCL:[1,9,25],UEL:[1,9,25],UECL:[1,9,25],
     CHAMPIONSHIP:[1,3,22],
     BUNDES2:[1,3,16,17],
     LALIGA2:[1,3,total-3],
     SERIEB:[1,3,16,18],
     LIGUE2:[1,3,total-2],
-    PORTUGAL:[1,2,3,total-2],
+    PORTUGAL:[1,2,3,4,total-2],
   };
   const ranks=ranksByCompetition[league]||[1,2,5,total-(league==='BUNDES'||league==='LIGUE1'?2:3)+1,...((league==='BUNDES'||league==='LIGUE1')?[total-2]:[])];
   return ranks.map(rank=>standingsZone(league,rank,total)).filter((zone,index,array)=>zone&&array.findIndex(item=>item?.key===zone.key)===index);

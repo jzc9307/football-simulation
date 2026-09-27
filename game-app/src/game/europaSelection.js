@@ -26,8 +26,12 @@ export function selectEuropaField(state){
   // Fifth/sixth are the primary qualification places; seventh/eighth only
   // backfill a slot when a higher club is already in Champions League.
   const domestic=Object.entries(LEAGUE_KEYS).flatMap(([league,key])=>ordered(state,league,key).slice(league==="PORTUGAL"?2:4,league==="PORTUGAL"?3:6)).filter(club=>!uclIds.has(club.id));
+  // The Conference champion earns a Europa League place the following season.
+  // Resolve it against domestic and guest worlds, then de-duplicate it before
+  // backfilling from the usual league positions and guests.
+  const conferenceWinner=state.uecl?.championId?[...domesticMap(state).values(),...guests].find(club=>club.id===state.uecl.championId):null;
   const guestPool=stable(guests.filter(club=>!uclIds.has(club.id)),`uel-${state.season}`);
-  return [...domestic,...guestPool].slice(0,36);
+  return [...new Map([...domestic,conferenceWinner,...guestPool].filter(Boolean).map(club=>[club.id,club])).values()].slice(0,36);
 }
 export function europaQualified(state){return selectEuropaField(state).some(club=>club.id===state.myClubId);}
 export function createEuropaCampaign(state,roundRobin,initTable){

@@ -2,8 +2,8 @@
 const DAY=86400000;
 export const dateValue=date=>Date.parse(`${date}T12:00:00Z`);
 export const addDays=(date,days)=>new Date(dateValue(date)+days*DAY).toISOString().slice(0,10);
-export const CUP_KEYS={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe"};
-export function competitionForCup(league,comp){return Object.keys(CUP_KEYS).find(id=>CUP_KEYS[id]===comp)||({SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE"}[league]||"FA");}
+export const CUP_KEYS={FA:"fa",CARABAO:"carabao",COPA:"copa",COPPA:"coppa",DFB:"dfb",COUPE:"coupe",TACA:"taca"};
+export function competitionForCup(league,comp){return Object.keys(CUP_KEYS).find(id=>CUP_KEYS[id]===comp)||({SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE",PORTUGAL:"TACA"}[league]||"FA");}
 export function leagueCompetition(league,division=1){return division===2?({PL:"CHAMPIONSHIP",LALIGA:"LALIGA2",SERIEA:"SERIEB",BUNDES:"BUNDES2",LIGUE1:"LIGUE2"}[league]||league):league;}
 export function seasonDate(season,month,day){return `${2025+season+(month<7?1:0)}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;}
 function weekday(date,day){return addDays(date,(day-new Date(dateValue(date)).getUTCDay()+7)%7);}
@@ -29,9 +29,13 @@ export function buildUclSchedule({season=1,rounds=[]}){return rounds.flatMap((pa
 // windows. The calendar resolver then protects recovery around both tournaments.
 const UEL_DATES=[[9,16],[10,15],[10,22],[11,5],[11,26],[12,10],[1,21],[1,28]];
 export function buildUelSchedule({season=1,rounds=[]}){return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`uel:${r+1}:${j}`,competition:"UEL",kind:"europe",round:r+1,date:weekday(seasonDate(season,...UEL_DATES[Math.min(r,UEL_DATES.length-1)]),4),homeId,awayId,status:"scheduled"})));}
-const POOLS={PL:["plClubs","championshipClubs"],LALIGA:["laligaClubs","laliga2Clubs"],SERIEA:["serieaClubs","serieBClubs"],BUNDES:["bundesligaClubs","bundes2Clubs"],LIGUE1:["ligue1Clubs","ligue2Clubs"]};
-const CUP_DATES={FA:[[1,9],[1,30],[2,17],[3,13],[4,17],[5,15]],CARABAO:[[8,25],[9,22],[10,27],[12,15],[2,2],[3,7]],COPA:[[12,2],[12,16],[1,13],[2,3],[3,3],[4,24]],COPPA:[[8,12],[9,16],[12,2],[1,13],[3,3],[5,19]],DFB:[[8,12],[10,27],[12,1],[2,9],[4,20],[5,22]],COUPE:[[12,16],[1,6],[1,27],[2,24],[4,7],[5,22]]};
-export function cupCompetitions(league){return league==="PL"?["FA","CARABAO"]:[{LALIGA:"COPA",SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE"}[league]].filter(Boolean);}
+// Conference League shares UEFA's Thursday windows with Europa League. The
+// field selectors guarantee no club is in both competitions, while the
+// calendar resolver protects domestic recovery around the shared nights.
+export function buildUeclSchedule({season=1,rounds=[]}){return rounds.flatMap((pairs,r)=>pairs.map(([homeId,awayId],j)=>({id:`uecl:${r+1}:${j}`,competition:"UECL",kind:"europe",round:r+1,date:weekday(seasonDate(season,...UEL_DATES[Math.min(r,UEL_DATES.length-1)]),4),homeId,awayId,status:"scheduled"})));}
+const POOLS={PL:["plClubs","championshipClubs"],LALIGA:["laligaClubs","laliga2Clubs"],SERIEA:["serieaClubs","serieBClubs"],BUNDES:["bundesligaClubs","bundes2Clubs"],LIGUE1:["ligue1Clubs","ligue2Clubs"],PORTUGAL:["portugalClubs"]};
+const CUP_DATES={FA:[[1,9],[1,30],[2,17],[3,13],[4,17],[5,15]],CARABAO:[[8,25],[9,22],[10,27],[12,15],[2,2],[3,7]],COPA:[[12,2],[12,16],[1,13],[2,3],[3,3],[4,24]],COPPA:[[8,12],[9,16],[12,2],[1,13],[3,3],[5,19]],DFB:[[8,12],[10,27],[12,1],[2,9],[4,20],[5,22]],COUPE:[[12,16],[1,6],[1,27],[2,24],[4,7],[5,22]],TACA:[[9,27],[10,18],[12,6],[1,10],[2,7],[5,22]]};
+export function cupCompetitions(league){return league==="PL"?["FA","CARABAO"]:[{LALIGA:"COPA",SERIEA:"COPPA",BUNDES:"DFB",LIGUE1:"COUPE",PORTUGAL:"TACA"}[league]].filter(Boolean);}
 function seed(text){let n=2166136261;for(const c of text)n=Math.imul(n^c.charCodeAt(0),16777619);return n>>>0;}
 export function buildCupSchedule(state){
  const clubs=[...new Map((POOLS[state.league]||[]).flatMap(key=>state[key]||[]).map(c=>[c.id,c])).values()];
@@ -112,7 +116,7 @@ export function resolveCalendarConflicts(schedule){
  }
  return events.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
 }
-export function createSeasonSchedule(state){return resolveCalendarConflicts([...buildLeagueSchedule(state),...buildCupSchedule(state),...buildUclSchedule({season:state.season,rounds:state.ucl?.rounds||[]}),...buildUelSchedule({season:state.season,rounds:state.uel?.rounds||[]})]);}
+export function createSeasonSchedule(state){return resolveCalendarConflicts([...buildLeagueSchedule(state),...buildCupSchedule(state),...buildUclSchedule({season:state.season,rounds:state.ucl?.rounds||[]}),...buildUelSchedule({season:state.season,rounds:state.uel?.rounds||[]}),...buildUeclSchedule({season:state.season,rounds:state.uecl?.rounds||[]})]);}
 export function attachSeasonSchedule(state){
  if(!state.roundsHalf1||state.scheduleVersion===2)return state;
  let schedule=createSeasonSchedule(state);
@@ -120,7 +124,8 @@ export function attachSeasonSchedule(state){
   const old=(state.seasonSchedule||[]).find(e=>e.competition===event.competition&&e.round===event.round&&e.homeId===event.homeId&&e.awayId===event.awayId&&e.status==="completed");
   const result=(state.fixtureResults||[]).find(r=>r.round===event.round&&r.homeId===event.homeId&&r.awayId===event.awayId&&event.kind==="league");
   const own=event.kind==="league"&&isMyFixture(state,event)?[...(state.results1||[]),...(state.results2||[])].find(r=>r.gw===event.round):null;
-  const europe=event.kind==="europe"&&isMyFixture(state,event)?state.ucl?.campaignResults?.find(r=>r.opponentId===(event.homeId===state.myClubId?event.awayId:event.homeId)&&r.stage==="League Phase"):null;
+  const campaign=event.competition==="UEL"?state.uel:event.competition==="UECL"?state.uecl:state.ucl;
+  const europe=event.kind==="europe"&&isMyFixture(state,event)?campaign?.campaignResults?.find(r=>r.opponentId===(event.homeId===state.myClubId?event.awayId:event.homeId)&&r.stage==="League Phase"):null;
   if(result)return {...event,status:"completed",result};
   if(own||europe){const r=own||europe;return {...event,status:"completed",result:{homeGoals:r.isHome?r.myGoals:r.oppGoals,awayGoals:r.isHome?r.oppGoals:r.myGoals}};}
   return old?{...event,status:"completed",result:old.result}:event;

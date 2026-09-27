@@ -3,7 +3,7 @@ import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
-const SAVE_VERSION=6;
+const SAVE_VERSION=7;
 const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
 const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
@@ -57,7 +57,7 @@ function restoreCompactState(input, defaults){
 export function validateSave(raw){
   const input=raw?.version&&raw?.state?raw.state:raw;
   requireValid(input&&typeof input==='object'&&!Array.isArray(input),'invalid format.');
-  requireValid(!raw.version||[1,2,3,4,5,SAVE_VERSION].includes(raw.version),'unsupported save version.');
+  requireValid(!raw.version||[1,2,3,4,5,6,SAVE_VERSION].includes(raw.version),'unsupported save version.');
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
@@ -65,15 +65,18 @@ export function validateSave(raw){
   if(!Array.isArray(restored.clubs))s.clubs=restored.league? s[LEAGUE_POOL[restored.league]] : defaults.clubs;
   const allPools=POOL_KEYS.map(key=>s[key]).filter(Array.isArray);
   const byId=new Map(allPools.flat().map(club=>[club.id,club]));
-  if(Array.isArray(s.ucl?.clubIds)&&!Array.isArray(s.ucl.clubs)){
-    requireValid(s.ucl.clubIds.every(id=>byId.has(id)),"invalid European club list.");
-    s.ucl={...s.ucl,clubs:s.ucl.clubIds.map(id=>byId.get(id))};
+  for(const key of ['ucl','uel','uecl'])if(Array.isArray(s[key]?.clubIds)&&!Array.isArray(s[key].clubs)){
+    requireValid(s[key].clubIds.every(id=>byId.has(id)),"invalid European club list.");
+    s[key]={...s[key],clubs:s[key].clubIds.map(id=>byId.get(id))};
   }
   const hydrateTable=(rows,pool)=>Array.isArray(rows)?rows.map(row=>row?.club?row:{...row,club:pool.find(club=>club.id===row.id)}):rows;
   s.table1=hydrateTable(s.table1,s.clubs);
   s.tableFinal=hydrateTable(s.tableFinal,s.clubs);
-  if(s.ucl?.clubs)s.ucl={...s.ucl,phaseTable:hydrateTable(s.ucl.phaseTable,s.ucl.clubs)};
+  for(const key of ['ucl','uel','uecl'])if(s[key]?.clubs)s[key]={...s[key],phaseTable:hydrateTable(s[key].phaseTable,s[key].clubs)};
   s=repairUclField(s);
+  // A shortlist is intentionally lightweight and survives save/export cycles.
+  // Discard malformed legacy values rather than blocking an otherwise valid save.
+  s.shortlist=[...new Set(Array.isArray(s.shortlist)?s.shortlist.filter(id=>typeof id==='string'):[])].slice(0,150);
   requireValid(STYLES[s.tacticalStyle]&&Number.isFinite(s.defensiveLine)&&s.defensiveLine>=0&&s.defensiveLine<=100&&Number.isFinite(s.defensiveAggression)&&s.defensiveAggression>=0&&s.defensiveAggression<=100,'invalid tactics.');
   requireValid(s.halftimeStyle==='keep'||STYLES[s.halftimeStyle],'invalid halftime plan.');
   const playerIds=new Set();
@@ -141,7 +144,7 @@ export function validateSave(raw){
     requireValid(Array.isArray(s.ucl.clubs)&&Array.isArray(s.ucl.rounds)&&s.ucl.tableRaw&&Array.isArray(s.ucl.campaignResults),'invalid European campaign.');
     if(s.ucl.stage.endsWith('-live')&&!s.ucl.liveContext?.timeline?.every(e=>typeof e.isGoal==='boolean'||!['goal','penalty','freekick','corner'].includes(e.type)))s.ucl.stage=s.ucl.stage.replace('-live','-result');
   }
-  if(s.stage==='ucl')requireValid(s.ucl,'missing European campaign.');
+  if(s.stage==='ucl')requireValid(s[s.activeEuropeanCompetition==='UEL'?'uel':s.activeEuropeanCompetition==='UECL'?'uecl':'ucl'],'missing European campaign.');
   // Version 1 used a cumulative fatigue formula that could strand a squad near
   // 30% condition. Version 2 uses next-fixture readiness, whose valid floor is
   // 82%, so repair older saves as they are loaded.
@@ -182,8 +185,8 @@ function compactState(state){
   for(const key of POOL_KEYS.filter(key=>key!=='clubs'))out[key]=compactPool(state[key]||[],defaults[key],players);
   if(state.cupStatus)out.cupStatus=Object.fromEntries(Object.entries(state.cupStatus).map(([key,cup])=>[key,{...cup,results:cup.results.map(compactResult)}]));
   if(state.cups)out.cups=Object.fromEntries(Object.entries(state.cups).map(([key,cup])=>[key,cup?.results?{...cup,results:cup.results.map(compactResult)}:cup]));
-  if(state.ucl)out.ucl={...state.ucl,clubIds:state.ucl.clubs.map(club=>club.id),clubs:undefined,
-    phaseTable:compactTable(state.ucl.phaseTable),campaignResults:state.ucl.campaignResults.map(compactResult)};
+  for(const key of ['ucl','uel','uecl'])if(state[key])out[key]={...state[key],clubIds:state[key].clubs.map(club=>club.id),clubs:undefined,
+    phaseTable:compactTable(state[key].phaseTable),campaignResults:state[key].campaignResults.map(compactResult)};
   return out;
 }
 export function saveGame(storage,state){

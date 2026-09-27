@@ -1,3 +1,4 @@
+// Portugal 2026/27 squads — Liga Portugal.
 // FC27 roster data imported from FCCareer on 2026-09-26.
 // FCCareer has no FC27 Nacional page, so Nacional uses the club's official current squad with game ratings calibrated to its league peers.
 // Clubs match the supplied 2026/27 Liga Portugal list.
