@@ -9,7 +9,7 @@ import { formatDate } from "./components/calendarFormat.js";
 import { standingsZone, standingsLegend } from "./game/standingsZones.js";
 import { playEuropeanLeague, advanceEuropeanLeague, startEuropeanKnockout, playLeagueRound, playDomesticCup, playEuropeanKnockout, advanceEuropeanKnockout } from "./game/actions.js";
 import { ROLE_GROUP, GROUP_COLOR, FORMATIONS } from "./game/config.js";
-import { marketOpen, loanFee, loanTerms, transfer, transferTerms, evaluateOffer, allClubs, startNextSeason } from "./game/career.js";
+import { marketOpen, loanFee, loanTerms, transfer, transferTerms, evaluateOffer, allClubs, listPlayerForSale, respondToSaleOffer, counterSaleOffer, startNextSeason } from "./game/career.js";
 import { validateSave, loadGame, saveGame, exportGame } from "./game/storage.js";
 import LiveMatchScreen from "./components/LiveMatchScreen.jsx";
 import { GUEST_CRESTS } from "./game/guestAssets.js";
@@ -28,6 +28,7 @@ export default function App(){
   const [selectedCup, setSelectedCup] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
+  const [offersOpen, setOffersOpen] = useState(false);
   const [tacticsOpen, setTacticsOpen] = useState(false);
   const [marketFilter, setMarketFilter] = useState({ q:"", pos:"ALL", league:"ALL", club:"ALL", sort:"ovr_desc", ageMin:16, ageMax:45, priceMin:0, priceMax:250 });
   const [toast, setToast] = useState("");
@@ -85,7 +86,7 @@ export default function App(){
       Object.keys(lineup).forEach(key=>{if(lineup[key]===playerId)delete lineup[key];});
       const target=slots.map((slot,index)=>({slot,index,current:club.players.find(p=>p.id===lineup[index]),fit:positionFit(slot.role,player)}))
         .sort((a,b)=>{
-          if(!a.current!==!b.current)return a.current?1:-1;
+        if(Boolean(a.current)!==Boolean(b.current))return a.current?1:-1;
           if(b.fit!==a.fit)return b.fit-a.fit;
           const aScore=a.current?matchOvr(a.current)*positionFit(a.slot.role,a.current):0;
           const bScore=b.current?matchOvr(b.current)*positionFit(b.slot.role,b.current):0;
@@ -97,6 +98,17 @@ export default function App(){
   },[]);
   const benchPlayer=useCallback(playerId=>{
     setState(s=>{const lineup={...s.lineup};Object.keys(lineup).forEach(key=>{if(lineup[key]===playerId)delete lineup[key];});return {...s,lineup};});
+  },[]);
+  const swapStudioPlayer=useCallback((slotIndex,playerId)=>{
+    setState(s=>{
+      const lineup={...s.lineup};
+      Object.keys(lineup).forEach(key=>{if(lineup[key]===playerId)delete lineup[key];});
+      lineup[slotIndex]=playerId;
+      return {...s,lineup};
+    });
+  },[]);
+  const benchStudioSlot=useCallback(slotIndex=>{
+    setState(s=>{const lineup={...s.lineup};delete lineup[slotIndex];return {...s,lineup};});
   },[]);
   const dragging=!!dragPos;
 
@@ -187,7 +199,29 @@ export default function App(){
     try{setState(transfer(state,action));flashToast("Transfer completed");return true;}
     catch(error){flashToast(error.message);return false;}
   }
-  function sellPlayer(playerId){doTransfer({type:"sell",playerId});}
+  function sellPlayer(playerId){
+    try{setState(listPlayerForSale(state,playerId));flashToast("Player listed — an opening offer is waiting in Transfer activity.");}
+    catch(error){flashToast(error.message);}
+  }
+  function acceptSaleOffer(offerId){
+    try{setState(respondToSaleOffer(state,offerId,"accept"));flashToast("Sale completed and budget updated.");}
+    catch(error){flashToast(error.message);}
+  }
+  function rejectSaleOffer(offerId){
+    try{setState(respondToSaleOffer(state,offerId,"reject"));flashToast("Offer rejected.");}
+    catch(error){flashToast(error.message);}
+  }
+  function negotiateSaleOffer(offerId,ask){
+    try{
+      const result=counterSaleOffer(state,{offerId,ask});
+      setState(result.state);
+      flashToast(result.message);
+      return result;
+    }catch(error){
+      flashToast(error.message);
+      return {status:"error",message:error.message};
+    }
+  }
   function loanOut(playerId){doTransfer({type:"loan-out",playerId});}
   function buyPlayer(seller,player,fee){return doTransfer({type:"buy",sellerId:seller.id,playerId:player.id,fee});}
   function loanIn(seller,player){return doTransfer({type:"loan-in",sellerId:seller.id,playerId:player.id});}
@@ -271,7 +305,7 @@ export default function App(){
   const uelActions = { ...uclActions, uclPlayLeagueMatch:uelPlayLeagueMatch, uclFinishLiveMatch:uelFinishLiveMatch, uclContinueAfterMatch:uelContinueAfterMatch };
   const ueclActions = { ...uclActions, uclPlayLeagueMatch:ueclPlayLeagueMatch, uclFinishLiveMatch:ueclFinishLiveMatch, uclContinueAfterMatch:ueclContinueAfterMatch };
 
-  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onStartPlayer:startPlayer, onBenchPlayer:benchPlayer, onEditNumber: editNumber, onSell: sellPlayer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
+  const squadCommonProps = { state, myClub, onSetFormation: setFormation, onDragStart: startDrag, onStartPlayer:startPlayer, onBenchPlayer:benchPlayer, onEditNumber: editNumber, onSell: sellPlayer, onAcceptSaleOffer:acceptSaleOffer, onRejectSaleOffer:rejectSaleOffer, onCounterSaleOffer:negotiateSaleOffer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenOffers: ()=>setOffersOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
@@ -283,6 +317,7 @@ export default function App(){
   else if (state.stage === "squad2" && myClub) stageEl = <SquadScreen {...squadCommonProps}
     onSimulate={()=>beginMatchday(2)}
     simulateLabel="Continue Season" />;
+  else if(state.stage === "calendar-event" && myClub) stageEl=<CalendarEventScreen state={state} myClub={myClub} onContinue={nextMatch} onOpenOffers={()=>setOffersOpen(true)}/>;
   else if (state.stage === "matchday-prep" && myClub){
     const scheduled=nextFixture(state);
     const cupSlot=scheduled?.kind==="cup"?scheduled:null;
@@ -375,16 +410,18 @@ export default function App(){
 
       {marketOpen && myClub && (
         <TransferMarket state={state} myClub={myClub} filter={marketFilter} setFilter={setMarketFilter}
-          onClose={()=>setMarketOpen(false)} onBuy={buyPlayer} onLoanIn={loanIn} onToggleShortlist={toggleShortlist} />
+          onClose={()=>setMarketOpen(false)} onBuy={buyPlayer} onLoanIn={loanIn} onToggleShortlist={toggleShortlist}
+          onAcceptSaleOffer={acceptSaleOffer} onRejectSaleOffer={rejectSaleOffer} onCounterSaleOffer={negotiateSaleOffer} />
       )}
       {selectedCup && myClub && <CupDetail state={state} competition={selectedCup} onClose={()=>setSelectedCup(null)}
         renderStandings={()=>{const campaign=selectedCup==="UEL"?state.uel:selectedCup==="UECL"?state.uecl:state.ucl;return campaign?<UclTable table={computeTableArray(campaign.tableRaw,campaign.clubs)} myClubId={state.myClubId} competition={selectedCup}/>:null;}}
         renderBracket={()=>state.ucl?.knockoutBracket?<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>:null}/>}
       {calendarOpen && myClub && <CalendarHub state={state} onClose={()=>setCalendarOpen(false)} />}
-      {mailOpen && myClub && <MailHub state={state} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} />}
+      {mailOpen && myClub && <MailHub state={state} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} onOpenTransfer={()=>{setMailOpen(false);setMarketOpen(true);}} />}
+      {offersOpen && myClub && <TransferOffersHub state={state} myClub={myClub} onClose={()=>setOffersOpen(false)} onAccept={acceptSaleOffer} onReject={rejectSaleOffer} onCounter={negotiateSaleOffer}/>} 
       {halfSimulation ? <HalfSeasonLoading half={halfSimulation.half} league={halfSimulation.league}/> : null}
       {tacticsOpen && myClub && (
-        <MatchdayStudio state={state} myClub={myClub} onClose={()=>setTacticsOpen(false)} onSetFormation={setFormation} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} />
+        <StudioCommandOverlay state={state} myClub={myClub} onClose={()=>setTacticsOpen(false)} onSetFormation={setFormation} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} onDragStart={startDrag} draggingPlayer={dragMeta.current?.player} hoverSlot={hoverSlot} />
       )}
     </div>
   );
@@ -703,7 +740,7 @@ function pitchPlayerName(name=""){
   const surname=familyParticle>1?parts[familyParticle-1]:parts.at(-1);
   return parts.length>1 ? `${parts[0][0]}. ${surname}` : name;
 }
-function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverSlot, interactive=true }){
+function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverSlot, interactive=true, onSelectPlayer, selectedSlot }){
   const slots=FORMATIONS[formation];
   return <div className={`squad-pitch ${draggingPlayer?"is-dragging":""}`} data-bench="false" aria-label={`${formation} starting lineup`}>
     <div className="pitch-markings"><span/><i/></div>
@@ -713,10 +750,10 @@ function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverS
       const fit=draggingPlayer?positionFit(slot.role,draggingPlayer):0;
       const eligible=!!draggingPlayer;
       const active=hoverSlot===i&&!!draggingPlayer;
-      return <div key={i} data-slot-index={i} data-slot-role={slot.role}
-        className={`pitch-position ${active?(fit>=.84?"drop-valid":"drop-risky"):""} ${eligible?"drop-eligible":""}`}
+      return <div key={i} data-slot-index={i} data-slot-role={slot.role} role={onSelectPlayer?"button":undefined} tabIndex={onSelectPlayer?0:undefined} aria-label={player&&onSelectPlayer?`Change ${player.name} in the ${slot.role} position`:undefined} onClick={onSelectPlayer?()=>onSelectPlayer(i):undefined} onKeyDown={onSelectPlayer?event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelectPlayer(i);}}:undefined}
+        className={`pitch-position ${active?(fit>=.84?"drop-valid":"drop-risky"):""} ${eligible?"drop-eligible":""} ${selectedSlot===i?"is-selected":""} ${onSelectPlayer?"is-selectable":""}`}
         style={{left:`${slot.x}%`,top:`${slot.y}%`,"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
-        {player?<><div className="pitch-player-card" onPointerDown={interactive&&onDragStart?e=>onDragStart(e,player,{source:"slot",slotIndex:i}):undefined} title={`${player.name} · ${Math.round(matchOvr(player)*positionFit(slot.role,player))} match OVR (${player.ovr} base) · ${slot.role} · ${positionFitLabel(slot.role,player)}`}>
+        {player?<><div className="pitch-player-card" role={onSelectPlayer?"button":undefined} tabIndex={onSelectPlayer?0:undefined} onClick={onSelectPlayer?()=>onSelectPlayer(i):undefined} onKeyDown={onSelectPlayer?event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelectPlayer(i);}}:undefined} onPointerDown={interactive&&onDragStart?e=>onDragStart(e,player,{source:"slot",slotIndex:i}):undefined} title={`${player.name} · ${Math.round(matchOvr(player)*positionFit(slot.role,player))} match OVR (${player.ovr} base) · ${slot.role} · ${positionFitLabel(slot.role,player)}`}>
           <div className="pitch-card-top"><span className="pitch-card-ovr"><span className="ovr-value">{Math.round(matchOvr(player)*positionFit(slot.role,player))}</span><FormTrend confidence={player.confidence}/></span><span className={`pitch-card-role ${positionFit(slot.role,player)<1?"is-adapted":""}`}>{slot.role}</span></div>
           <div className="pitch-card-icon">{player.number}</div>
           <strong>{pitchPlayerName(player.name)}</strong><div className="pitch-card-vitals"><FitnessGem condition={player.condition}/><EnergyBar energy={player.energy}/></div>
@@ -869,7 +906,23 @@ function SquadPentagon({players,lineup}){
   return <section className="studio-pentagon"><div className="studio-section-label">SQUAD PROFILE</div><svg viewBox="0 0 100 100" aria-label="Squad strength pentagon" role="img"><polygon points={polygon(1)} className="radar-grid"/><polygon points={polygon(.66)} className="radar-grid"/><polygon points={polygon(.33)} className="radar-grid"/>{ratings.map((_,index)=><line key={index} x1="50" y1="50" x2={point(100,index).split(",")[0]} y2={point(100,index).split(",")[1]} className="radar-axis"/>)}<polygon points={ratings.map((value,index)=>point(value,index)).join(" ")} className="radar-value"/>{ratings.map((value,index)=>{const coords=point(100,index,1.2).split(",");return <text key={labels[index]} x={coords[0]} y={Number(coords[1])+2} className="radar-label">{labels[index]} {value}</text>;})}</svg><div className="studio-profile-note"><b>{Math.round(average(starters)) || "—"}</b><span>XI AVG</span></div></section>;
 }
 
-function SquadScreen({ state, myClub, onSetFormation, onDragStart, onStartPlayer, onBenchPlayer, onEditNumber, onSell, onLoanOut, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
+function TransferActivity({state,myClub,onAccept,onReject,onCounter}){
+  const offers=(state.saleOffers||[]).filter(offer=>offer.status==='pending');
+  const [negotiatingId,setNegotiatingId]=useState(null);
+  const [askingPrice,setAskingPrice]=useState("");
+  const [feedback,setFeedback]=useState("");
+  const negotiating=offers.find(offer=>offer.id===negotiatingId);
+  const openNegotiation=offer=>{setNegotiatingId(offer.id);setAskingPrice(String(offer.amount));setFeedback("");};
+  const submitCounter=()=>{
+    if(!negotiating)return;
+    const result=onCounter(negotiating.id,askingPrice);
+    setFeedback(result?.message||"");
+    if(result?.status==='accepted'||result?.status==='withdrawn')setNegotiatingId(null);
+  };
+  if(!offers.length)return null;
+  return <section className="transfer-activity"><header><span>TRANSFER ACTIVITY</span><strong>Incoming offers <b>{offers.length}</b></strong><small>Your listed players remain usable until you accept an offer.</small></header><div>{offers.map(offer=>{const player=myClub.players.find(candidate=>candidate.id===offer.playerId),buyer=findClubAnywhere(state,offer.buyerId);if(!player||!buyer)return null;return <article key={offer.id}><ClubBadge club={buyer} size="sm"/><span><b>{buyer.name}</b><small>{player.name} · {offer.round>1?`counter round ${offer.round}`:"opening proposal"}</small></span><strong>{fmtM(offer.amount)}</strong><button onClick={()=>openNegotiation(offer)}>Negotiate</button><button className="transfer-offer-decline" onClick={()=>onReject(offer.id)}>Decline</button></article>;})}</div>{negotiating&&(()=>{const player=myClub.players.find(candidate=>candidate.id===negotiating.playerId),buyer=findClubAnywhere(state,negotiating.buyerId);if(!player||!buyer)return null;const low=Math.max(1,Math.round(player.value*.95)),high=Math.max(low,Math.round(player.value*1.16));return <div className="sale-negotiation-backdrop" role="presentation"><section className="sale-negotiation" role="dialog" aria-modal="true" aria-label={`Negotiate sale of ${player.name}`}><button className="sale-negotiation-close" onClick={()=>setNegotiatingId(null)} aria-label="Close negotiation"><X size={16}/></button><span>OUTGOING TRANSFER TALKS</span><h3>{player.name}</h3><p>{buyer.name} opened at <b>{fmtM(negotiating.amount)}</b>. Your staff believe a sensible sale is between <b>{fmtM(low)}</b> and <b>{fmtM(high)}</b>.</p><label>YOUR COUNTER-OFFER <div><span>£</span><input type="number" min="1" value={askingPrice} onChange={event=>setAskingPrice(event.target.value)}/><em>m</em></div></label><small>Buyer capacity and the size of your counter determine whether they accept, counter or walk away.</small>{feedback&&<strong className="sale-negotiation-feedback">{feedback}</strong>}<footer><button className="transfer-offer-decline" onClick={()=>{onReject(negotiating.id);setNegotiatingId(null);}}>Reject offer</button><button onClick={submitCounter}>Send counter-offer →</button></footer></section></div>;})()}</section>;
+}
+function SquadScreen({ state, myClub, onSetFormation, onDragStart, onStartPlayer, onBenchPlayer, onEditNumber, onSell, onAcceptSaleOffer, onRejectSaleOffer, onCounterSaleOffer, onLoanOut, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenOffers, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
   useEffect(()=>{
     if(workspaceTab!=="mail")return;
@@ -887,33 +940,30 @@ function SquadScreen({ state, myClub, onSetFormation, onDragStart, onStartPlayer
 
   return (
     <div className="squad-command">
-      <section className="manager-command-bar">
-        <div className="command-copy"><span>MANAGER WORKSPACE</span><strong>Build the match plan</strong><small>Set the XI, read the season data and act in the market from one place.</small></div>
+      <section className="squad-command-deck">
+        <div className="squad-command-identity"><span>FIRST-TEAM DESK</span><strong>{myClub.name}</strong><small>{state.formation} · squad, analysis and club operations</small></div>
         <div className="command-actions">
           {showMarketBar&&<button className="command-tile transfer-command" onClick={onOpenMarket}><ArrowLeftRight size={18}/><span><strong>Transfer Centre</strong><small>{windowOpen?`${incomingLoans}/3 incoming loans · Market open`:"Scouting & shortlist available"}</small></span></button>}
           {showMarketBar&&onOpenCups&&<button className="command-tile" onClick={()=>setWorkspaceTab("cups")}><Trophy size={17}/><span><strong>Cup Hub</strong><small>Draws and competitions</small></span></button>}
           {showMarketBar&&onOpenCalendar&&<button className="command-tile" onClick={onOpenCalendar}><CalendarDays size={17}/><span><strong>Calendar</strong><small>Season schedule</small></span></button>}
           {showMarketBar&&onOpenMail&&<button className="command-tile" onClick={onOpenMail}><Mail size={17}/><span><strong>Mail</strong><small>{(state.mail||[]).filter(item=>!item.read).length?`${(state.mail||[]).filter(item=>!item.read).length} unread`:"Staff inbox"}</small></span></button>}
           {onOpenTactics&&<button className="command-tile matchday-studio-command" onClick={onOpenTactics}><SlidersHorizontal size={17}/><span><strong>Matchday Studio</strong><small>{state.formation} · {STYLES[state.tacticalStyle||"balanced"].name}</small></span><b>Open →</b></button>}
+          {(state.saleOffers||[]).some(offer=>offer.status==="pending")&&<button className="command-tile received-offers-command" onClick={onOpenOffers}><HandCoins size={17}/><span><strong>Received offers</strong><small>{(state.saleOffers||[]).filter(offer=>offer.status==="pending").length} transfer decision{(state.saleOffers||[]).filter(offer=>offer.status==="pending").length===1?"":"s"} waiting</small></span><b>Review →</b></button>}
           {showSimulate&&<button className="kickoff-command" onClick={onSimulate} disabled={!!issue}><span>{simulateLabel}</span><small>{issue||"Lineup ready"}</small></button>}
         </div>
       </section>
 
       <div className="workspace-tabs" role="tablist">
-        <button className={workspaceTab==="squad"?"active":""} onClick={()=>setWorkspaceTab("squad")}>Squad board</button>
-        <button className={workspaceTab==="performance"?"active":""} onClick={()=>setWorkspaceTab("performance")}>Performance centre {hasSeasonData&&<span>LIVE</span>}</button>
-        <button className={workspaceTab==="table"?"active":""} onClick={()=>setWorkspaceTab("table")}>League table</button>
-        <button className={workspaceTab==="fixtures"?"active":""} onClick={()=>setWorkspaceTab("fixtures")}>Fixtures</button>
-        <button className={workspaceTab==="cups"?"active":""} onClick={()=>setWorkspaceTab("cups")}>Cup hub</button>
-        <button className={workspaceTab==="calendar"?"active":""} onClick={()=>setWorkspaceTab("calendar")}>Calendar</button>
-        <button className={workspaceTab==="mail"?"active":""} onClick={onOpenMail}>Mail {(state.mail||[]).filter(item=>!item.read).length>0&&<span>NEW</span>}</button>
+        <button className={workspaceTab==="squad"?"active":""} onClick={()=>setWorkspaceTab("squad")}><b>Squad</b><small>XI & bench</small></button>
+        <button className={workspaceTab==="performance"?"active":""} onClick={()=>setWorkspaceTab("performance")}><b>Performance</b><small>Ratings & form</small>{hasSeasonData&&<em>LIVE</em>}</button>
+        <button className={workspaceTab==="table"?"active":""} onClick={()=>setWorkspaceTab("table")}><b>Table</b><small>League race</small></button>
+        <button className={workspaceTab==="fixtures"?"active":""} onClick={()=>setWorkspaceTab("fixtures")}><b>Fixtures</b><small>Results & schedule</small></button>
+        <button className={workspaceTab==="cups"?"active":""} onClick={()=>setWorkspaceTab("cups")}><b>Competitions</b><small>Cups & Europe</small></button>
+        <button className={workspaceTab==="calendar"?"active":""} onClick={()=>setWorkspaceTab("calendar")}><b>Calendar</b><small>Season view</small></button>
+        <button className={workspaceTab==="mail"?"active":""} onClick={onOpenMail}><b>Mail</b><small>Club inbox</small>{(state.mail||[]).filter(item=>!item.read).length>0&&<em>NEW</em>}</button>
       </div>
 
       {workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="fixtures" ? <FixturesPanel state={state}/> : workspaceTab==="cups" ? <CupWorkspace state={state} onOpen={onOpenCups}/> : workspaceTab==="calendar" ? <CalendarPanel state={state}/> : workspaceTab==="mail" ? <MailPanel items={state.mail||[]} /> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
-      <button className="squad-studio-banner" onClick={onOpenTactics}>
-        <span className="studio-banner-mark">▱</span><span><b>Build your Matchday Plan</b><small>Formation, tactics, squad profile and live strengths in one place.</small></span><em>{state.formation} <i/> {STYLES[state.tacticalStyle||"balanced"].name}</em><strong>Open studio →</strong>
-      </button>
-
       <div className="grid-2col">
         <div>
           <Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} onDragStart={onDragStart} draggingPlayer={draggingPlayer} hoverSlot={hoverSlot} />
@@ -1418,7 +1468,7 @@ function UclPage({ state, myClub, squadCommonProps, actions, competition="UCL" }
   if (u.stage === "final") return <UclFinal myClub={myClub} rec={{ results:u.campaignResults, record:u.campaignRecord, outcome:u.outcome }} onBack={actions.uclBackToSeason} bracket={u.knockoutBracket} clubs={u.clubs} />;
   return null;
 }
-function MailHub({state,onClose,onRead}){
+function MailHub({state,onClose,onRead,onOpenTransfer}){
   const items=state.mail||[],[selectedId,setSelectedId]=useState(items[0]?.id||null),selected=items.find(item=>item.id===selectedId)||items[0];
   const open=item=>{setSelectedId(item.id);onRead(item.id);};
   const icon=item=>item.type==="medical"?"✚":item.type==="discipline"?"!":item.type==="fixture"?"↻":item.type==="cup"?"★":"•";
@@ -1426,60 +1476,32 @@ function MailHub({state,onClose,onRead}){
     <header><div><span>CLUB CORRESPONDENCE</span><strong>Inbox</strong><small>{items.filter(item=>!item.read).length} unread · {items.length} messages</small></div><button onClick={onClose} aria-label="Close mail"><X size={18}/></button></header>
     {!items.length?<div className="mail-empty">No staff updates yet. Your medical team, match analyst and secretary will write here as the season develops.</div>:<div className="mail-reader-layout">
       <nav className="mail-reader-list" aria-label="Messages">{items.map(item=><button key={item.id} className={`${item.id===selected?.id?"is-selected":""} ${!item.read?"is-unread":""}`} onClick={()=>open(item)}><i>{icon(item)}</i><span><small>{item.competition?competitionBrand(item.competition).name:"CLUB STAFF"} · {formatDate(item.date,{day:"numeric",month:"short"})}</small><strong>{item.subject}</strong><em>{item.body}</em></span></button>)}</nav>
-      <article className="mail-reader-message" key={selected.id}><div className="mail-message-top"><span className={`mail-type mail-${selected.type||"update"}`}>{icon(selected)}</span><div><small>{selected.competition?competitionBrand(selected.competition).name:"CLUB STAFF"}</small><h2>{selected.subject}</h2><p>{formatDate(selected.date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p></div></div><div className="mail-message-rule"/><p className="mail-message-greeting">Manager,</p><p className="mail-message-body">{selected.body}</p><p className="mail-message-signoff">Keep this message in mind when choosing your next XI and planning the coming fixture.</p><footer><span>Club Operations</span><b>{selected.type==="medical"?"Medical department":selected.type==="discipline"?"Head of football":selected.type==="fixture"?"Fixture secretary":"First-team staff"}</b></footer></article>
+      <article className="mail-reader-message" key={selected.id}><div className="mail-message-top"><span className={`mail-type mail-${selected.type||"update"}`}>{icon(selected)}</span><div><small>{selected.competition?competitionBrand(selected.competition).name:"CLUB STAFF"}</small><h2>{selected.subject}</h2><p>{formatDate(selected.date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p></div></div><div className="mail-message-rule"/><p className="mail-message-greeting">Manager,</p><p className="mail-message-body">{selected.body}</p>{selected.type==="transfer"&&<button className="mail-transfer-cta" onClick={onOpenTransfer}>Open Transfer Centre →</button>}<p className="mail-message-signoff">Keep this message in mind when choosing your next XI and planning the coming fixture.</p><footer><span>Club Operations</span><b>{selected.type==="medical"?"Medical department":selected.type==="discipline"?"Head of football":selected.type==="fixture"?"Fixture secretary":"First-team staff"}</b></footer></article>
     </div>}
   </section></div>;
 }
 
-function MatchdayStudio({state,myClub,onClose,onSetFormation,onSetStyle,onSetLine,onSetAggression,onSetTrap,onSetPlan}){
-  const styleList=Object.entries(STYLES).map(([key,value])=>({key,...value}));
-  const activeStyle=state.tacticalStyle||"balanced";
-  const line=state.defensiveLine??50;
-  const aggression=state.defensiveAggression??50;
-  const notes=formationProfile(state.formation);
-  const starters=Object.values(state.lineup).map(id=>myClub.players.find(player=>player.id===id)).filter(Boolean);
+function MatchdayStudio({state,myClub,onClose,onSetFormation,onSetStyle,onSetLine,onSetAggression,onSetTrap,onSetPlan,onSwapPlayer,onBenchSlot}){
+  const [consoleTab,setConsoleTab]=useState("tactics"),[selectedSlot,setSelectedSlot]=useState(null);
+  const styles=Object.entries(STYLES).map(([key,value])=>({key,...value})),activeStyle=state.tacticalStyle||"balanced",line=state.defensiveLine??50,aggression=state.defensiveAggression??50,notes=formationProfile(state.formation);
+  const starters=Object.values(state.lineup).map(id=>myClub.players.find(player=>player.id===id)).filter(Boolean),unavailable=new Set(Object.keys(state.injuries||{})),categories=squadGroups(myClub.players,state.lineup,unavailable);
+  const activeSlot=selectedSlot===null?null:(FORMATIONS[state.formation]||[])[selectedSlot],selectedPlayer=activeSlot?myClub.players.find(player=>player.id===state.lineup[selectedSlot]):null;
+  const replacements=activeSlot?[...categories.bench,...categories.available].filter(player=>player.id!==selectedPlayer?.id&&!unavailable.has(player.id)).sort((a,b)=>positionFit(activeSlot.role,b)-positionFit(activeSlot.role,a)||matchOvr(b)-matchOvr(a)):[];
   const unit=group=>{const groupPlayers=starters.filter(player=>player.group===group);return groupPlayers.length?Math.round(groupPlayers.reduce((sum,player)=>sum+matchOvr(player),0)/groupPlayers.length):0;};
-  const attack=unit("FWD"),midfield=unit("MID"),defence=Math.round((unit("DEF")+unit("GK"))/2);
-  const strongest=[{label:"Attack",value:attack},{label:"Midfield",value:midfield},{label:"Defence",value:defence}].sort((a,b)=>b.value-a.value)[0];
-  const concern=notes?.risk||"Keep the bench balanced for late-game changes.";
-  return <div className="matchday-studio" role="dialog" aria-modal="true" aria-label="Matchday Studio">
-    <div className="studio-aurora"/>
-    <header className="studio-topbar">
-      <button className="studio-back" onClick={onClose}><ChevronLeft size={19}/> Squad hub</button>
-      <div className="studio-title"><span>MATCHDAY STUDIO</span><strong>Build the plan</strong></div>
-      <button className="studio-save" onClick={onClose}>Save &amp; return <span>→</span></button>
-    </header>
-    <main className="studio-scroll">
-      <section className="studio-hero">
-        <ClubBadge club={myClub} size="lg" className="studio-club-badge"/>
-        <div className="studio-hero-copy"><span>FIRST TEAM · {myClub.league}</span><h1>{myClub.name}</h1><p>{starters.length}/11 selected · {STYLES[activeStyle].name} blueprint</p></div>
-        <div className="studio-hero-numbers"><div><small>XI AVG</small><b>{starters.length?Math.round(starters.reduce((sum,player)=>sum+matchOvr(player),0)/starters.length):"—"}</b></div><div><small>FORMATION</small><b>{state.formation}</b></div><div><small>READINESS</small><b>{starters.length?Math.round(starters.reduce((sum,player)=>sum+(player.energy??100),0)/starters.length):"—"}%</b></div></div>
-      </section>
-      <div className="studio-layout">
-        <section className="studio-card studio-formation-card">
-          <header><div><span className="studio-section-label">FORMATION LAB</span><h2>Shape the starting XI</h2><p>Choose a structure, then preview exactly how your players fit it.</p></div></header>
-          <div className="studio-formation-buttons">{Object.keys(FORMATIONS).map(formation=><button key={formation} className={formation===state.formation?"active":""} onClick={()=>onSetFormation(formation)}><b>{formation}</b><span>{formation===state.formation?"Selected":"Preview"}</span></button>)}</div>
-          <Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} interactive={false}/>
-          <div className="studio-formation-note"><i>✦</i><span><b>{notes?.strength||"Balanced setup"}</b><small>{notes?.risk||"Your selected XI will adapt to this shape."}</small></span></div>
-        </section>
-        <aside className="studio-side">
-          <section className="studio-card studio-profile-card"><SquadPentagon players={myClub.players} lineup={state.lineup}/><div className="studio-intel-list"><div><span>Strongest unit</span><b>{strongest.label} <em>{strongest.value}</em></b></div><div><span>Formation read</span><b>{notes?.title||state.formation}</b></div><div><span>Watch</span><b className="studio-warning">{concern}</b></div></div></section>
-          <section className="studio-card studio-bench-rule"><span className="studio-section-label">BENCH POLICY</span><b>Coverage before overall</b><p>One keeper, then defensive, midfield and attacking cover. Any remaining places go to the highest-rated players.</p></section>
-        </aside>
-        <section className="studio-card studio-plan-card">
-          <header><span className="studio-section-label">MATCH PLAN</span><h2>Give the XI an identity</h2><p>Every choice is saved straight into the next simulation.</p></header>
-          <div className="studio-style-grid">{styleList.map(style=>{const active=style.key===activeStyle;return <button key={style.key} className={active?"active":""} onClick={()=>onSetStyle(style.key)}><span>{active?"ACTIVE":"STYLE"}</span><b>{style.name}</b><small>{style.desc}</small></button>;})}</div>
-          <div className="studio-controls-grid">
-            <label className="studio-range"><span><b>Defensive line</b><em>{line}</em></span><input type="range" min="0" max="100" value={line} onChange={event=>onSetLine(Number(event.target.value))}/><small>Deep block <i/> high press</small></label>
-            <label className="studio-range"><span><b>Defensive aggression</b><em>{aggression<25?"Cautious":aggression<50?"Measured":aggression<75?"Assertive":"Full contact"}</em></span><input type="range" min="0" max="100" step="5" value={aggression} onChange={event=>onSetAggression(Number(event.target.value))}/><small>Cautious <i/> aggressive</small></label>
-            <label className="studio-select"><b>Half-time response</b><select value={state.halftimeStyle||"keep"} onChange={event=>onSetPlan({halftimeStyle:event.target.value})}><option value="keep">Keep current style</option>{styleList.map(style=><option key={style.key} value={style.key}>{style.name}</option>)}</select></label>
-            <div className="studio-switch-row"><span><b>Offside trap</b><small>Push the line and catch runners.</small></span><button aria-pressed={!!state.offsideTrap} className={state.offsideTrap?"active":""} onClick={()=>onSetTrap(!state.offsideTrap)}><i/></button></div>
-            <label className="studio-check"><input type="checkbox" checked={state.autoSubs!==false} onChange={event=>onSetPlan({autoSubs:event.target.checked})}/><span><b>Automatic substitutions</b><small>Use up to five changes when fatigue demands it.</small></span></label>
-          </div>
-        </section>
-      </div>
-    </main>
-  </div>;
+  const strongest=[{label:"Attack",value:unit("FWD")},{label:"Midfield",value:unit("MID")},{label:"Defence",value:Math.round((unit("DEF")+unit("GK"))/2)}].sort((a,b)=>b.value-a.value)[0],concern=notes?.risk||"Keep the bench balanced for late-game changes.";
+  return <div className="matchday-studio" role="dialog" aria-modal="true" aria-label="Matchday Studio"><div className="studio-aurora"/><header className="studio-topbar"><button className="studio-back" onClick={onClose}><ChevronLeft size={19}/> Squad hub</button><div className="studio-title"><span>MATCHDAY STUDIO</span><strong>{myClub.name}</strong></div><button className="studio-save" onClick={onClose}>Save &amp; return <span>→</span></button></header><main className="studio-scroll"><section className="studio-hero"><ClubBadge club={myClub} size="lg" className="studio-club-badge"/><div className="studio-hero-copy"><span>FIRST TEAM CONTROL</span><h1>Matchday Studio</h1><p>{starters.length}/11 selected · Click a pitch player to make a change.</p></div><div className="studio-hero-numbers"><div><small>XI AVG</small><b>{starters.length?Math.round(starters.reduce((sum,player)=>sum+matchOvr(player),0)/starters.length):"—"}</b></div><div><small>FORMATION</small><b>{state.formation}</b></div><div><small>READINESS</small><b>{starters.length?Math.round(starters.reduce((sum,player)=>sum+(player.energy??100),0)/starters.length):"—"}%</b></div></div></section><div className="studio-layout studio-workbench"><section className="studio-card studio-formation-card"><header className="studio-formation-header"><div><span className="studio-section-label">FORMATION LAB</span><h2>{state.formation}</h2></div><p>{notes?.strength||"Shape your XI and make changes directly on the pitch."}</p></header><div className="studio-formation-buttons">{Object.keys(FORMATIONS).map(formation=><button key={formation} className={formation===state.formation?"active":""} onClick={()=>{onSetFormation(formation);setSelectedSlot(null);}}><b>{formation}</b><span>{formation===state.formation?"Selected":"Preview"}</span></button>)}</div><Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} interactive={false} selectedSlot={selectedSlot} onSelectPlayer={slotIndex=>{setSelectedSlot(slotIndex);setConsoleTab("selection");}}/><div className="studio-formation-note"><i>✦</i><span><b>{notes?.strength||"Balanced setup"}</b><small>{notes?.risk||"Your selected XI will adapt to this shape."}</small></span></div></section><aside className="studio-console"><section className="studio-card studio-profile-card"><SquadPentagon players={myClub.players} lineup={state.lineup}/><div className="studio-intel-list"><div><span>Strongest unit</span><b>{strongest.label} <em>{strongest.value}</em></b></div><div><span>Watch</span><b className="studio-warning">{concern}</b></div></div></section><section className="studio-card studio-console-card"><nav className="studio-console-tabs"><button className={consoleTab==="tactics"?"active":""} onClick={()=>setConsoleTab("tactics")}>Tactics</button><button className={consoleTab==="selection"?"active":""} onClick={()=>setConsoleTab("selection")}>XI changes <b>{categories.bench.length}</b></button></nav><div className="studio-console-body">{consoleTab==="tactics"?<><div className="studio-console-heading"><span className="studio-section-label">MATCH PLAN</span><h2>How should this XI play?</h2></div><div className="studio-style-grid">{styles.map(style=>{const active=style.key===activeStyle;return <button key={style.key} className={active?"active":""} onClick={()=>onSetStyle(style.key)}><span>{active?"ACTIVE":"STYLE"}</span><b>{style.name}</b><small>{style.desc}</small></button>;})}</div><div className="studio-controls-grid"><label className="studio-range"><span><b>Defensive line</b><em>{line}</em></span><input type="range" min="0" max="100" value={line} onChange={event=>onSetLine(Number(event.target.value))}/><small>Deep block <i/> high press</small></label><label className="studio-range"><span><b>Defensive aggression</b><em>{aggression<25?"Cautious":aggression<50?"Measured":aggression<75?"Assertive":"Full contact"}</em></span><input type="range" min="0" max="100" step="5" value={aggression} onChange={event=>onSetAggression(Number(event.target.value))}/><small>Cautious <i/> aggressive</small></label><label className="studio-select"><b>Half-time response</b><select value={state.halftimeStyle||"keep"} onChange={event=>onSetPlan({halftimeStyle:event.target.value})}><option value="keep">Keep current style</option>{styles.map(style=><option key={style.key} value={style.key}>{style.name}</option>)}</select></label><div className="studio-switch-row"><span><b>Offside trap</b><small>Push the line and catch runners.</small></span><button aria-pressed={!!state.offsideTrap} className={state.offsideTrap?"active":""} onClick={()=>onSetTrap(!state.offsideTrap)}><i/></button></div><label className="studio-check"><input type="checkbox" checked={state.autoSubs!==false} onChange={event=>onSetPlan({autoSubs:event.target.checked})}/><span><b>Automatic substitutions</b><small>Use up to five changes when fatigue demands it.</small></span></label></div></>:<><div className="studio-console-heading"><span className="studio-section-label">XI CHANGES</span><h2>{selectedPlayer?selectedPlayer.name:"Choose a player on the pitch"}</h2><p>{selectedPlayer?`${activeSlot.role} · ${matchOvr(selectedPlayer)} OVR · choose a replacement below.`:"Click a starting player and its best positional replacements appear here."}</p></div>{selectedPlayer&&<button className="studio-bench-current" onClick={()=>{onBenchSlot(selectedSlot);setSelectedSlot(null);}}><span>Move {selectedPlayer.name} to bench</span><b>Bench →</b></button>}<div className="studio-replacement-list">{replacements.map(player=><button key={player.id} onClick={()=>{onSwapPlayer(selectedSlot,player.id);setSelectedSlot(null);}}><span className="studio-replacement-ovr">{matchOvr(player)}</span><span><b>{player.name}</b><small>{player.role}{player.secondaryRoles?.length?` · ${player.secondaryRoles.join("/")}`:""}</small></span><em>{positionFitLabel(activeSlot?.role,player)}</em><strong>Swap →</strong></button>)}{selectedPlayer&&!replacements.length&&<p className="studio-empty-replacements">No eligible replacement is available.</p>}</div></>}</div></section></aside></div></main></div>;
+}
+function StudioCommandOverlay({state,myClub,onClose,onSetFormation,onSetStyle,onSetLine,onSetAggression,onSetTrap,onSetPlan,onDragStart,draggingPlayer,hoverSlot}){
+  const [screen,setScreen]=useState("home");
+  const starters=Object.values(state.lineup).map(id=>myClub.players.find(player=>player.id===id)).filter(Boolean);
+  const unavailable=new Set(Object.keys(state.injuries||{}));
+  const groups=squadGroups(myClub.players,state.lineup,unavailable);
+  const styles=Object.entries(STYLES).map(([key,value])=>({key,...value}));
+  const active=state.tacticalStyle||"balanced",line=state.defensiveLine??50,aggression=state.defensiveAggression??50;
+  const notes=formationProfile(state.formation),average=starters.length?Math.round(starters.reduce((sum,player)=>sum+matchOvr(player),0)/starters.length):"—";
+  if(screen==="selection")return <div className="studio-workspace-overlay" role="dialog" aria-modal="true" aria-label="Squad selection"><header className="studio-workspace-top"><button onClick={()=>setScreen("home")}><ChevronLeft size={18}/> Matchday Studio</button><div><span>SQUAD SELECTION</span><strong>Pick the starting XI</strong></div><button className="studio-save" onClick={()=>setScreen("home")}>Done <span>→</span></button></header><main className="studio-selection-workspace"><section className="studio-selection-pitch"><Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} onDragStart={onDragStart} draggingPlayer={draggingPlayer} hoverSlot={hoverSlot}/><p>Drag a player from the squad onto a position. Drop a pitch card outside the pitch to bench them.</p></section><section className="studio-selection-list"><header><span>FIRST TEAM</span><strong>Squad <b>{myClub.players.length}</b></strong><small>Drag cards onto the pitch to replace a starter.</small></header>{[{title:"Starting XI",players:groups.starting},{title:"Bench",players:groups.bench},{title:"Available",players:groups.available}].map(group=><section key={group.title}><h3>{group.title} <b>{group.players.length}</b></h3>{group.players.map(player=><button key={player.id} className="studio-selection-player" onPointerDown={event=>onDragStart(event,player,{source:"squad"})}><span className="studio-selection-ovr">{matchOvr(player)}</span><span><strong>{player.name}</strong><small>{player.role}{player.secondaryRoles?.length?` · ${player.secondaryRoles.join("/")}`:""} · {Math.round(player.energy??100)}% energy</small></span><em>Drag →</em></button>)}</section>)}</section></main></div>;
+  if(screen==="tactics")return <div className="studio-workspace-overlay" role="dialog" aria-modal="true" aria-label="Tactics lab"><header className="studio-workspace-top"><button onClick={()=>setScreen("home")}><ChevronLeft size={18}/> Matchday Studio</button><div><span>TACTICS LAB</span><strong>Set the match plan</strong></div><button className="studio-save" onClick={()=>setScreen("home")}>Save plan <span>→</span></button></header><main className="studio-tactics-workspace"><section><header><span>PLAYING STYLE</span><h2>How should your team play?</h2><p>Choose the football identity. This is separate from defensive instructions below.</p></header><div className="studio-style-grid">{styles.map(style=><button key={style.key} className={style.key===active?"active":""} onClick={()=>onSetStyle(style.key)}><span>{style.key===active?"ACTIVE STYLE":"STYLE"}</span><b>{style.name}</b><small>{style.desc}</small></button>)}</div></section><section className="studio-instructions-card"><header><span>MATCH INSTRUCTIONS</span><h2>Defensive approach &amp; game management</h2></header><div className="studio-controls-grid"><label className="studio-range"><span><b>Defensive line</b><em>{line}</em></span><input type="range" min="0" max="100" value={line} onChange={event=>onSetLine(Number(event.target.value))}/><small>Deep block <i/> high press</small></label><label className="studio-range"><span><b>Defensive aggression</b><em>{aggression<25?"Cautious":aggression<50?"Measured":aggression<75?"Assertive":"Full contact"}</em></span><input type="range" min="0" max="100" step="5" value={aggression} onChange={event=>onSetAggression(Number(event.target.value))}/><small>Cautious <i/> aggressive</small></label><label className="studio-select"><b>Half-time response</b><select value={state.halftimeStyle||"keep"} onChange={event=>onSetPlan({halftimeStyle:event.target.value})}><option value="keep">Keep current style</option>{styles.map(style=><option key={style.key} value={style.key}>{style.name}</option>)}</select></label><div className="studio-switch-row"><span><b>Offside trap</b><small>Push the line and catch runners.</small></span><button aria-pressed={!!state.offsideTrap} className={state.offsideTrap?"active":""} onClick={()=>onSetTrap(!state.offsideTrap)}><i/></button></div><label className="studio-check"><input type="checkbox" checked={state.autoSubs!==false} onChange={event=>onSetPlan({autoSubs:event.target.checked})}/><span><b>Automatic substitutions</b><small>Use up to five changes when fatigue demands it.</small></span></label></div></section></main></div>;
+  return <div className="matchday-studio studio-command-home" role="dialog" aria-modal="true" aria-label="Matchday Studio"><div className="studio-aurora"/><header className="studio-topbar"><button className="studio-back" onClick={onClose}><ChevronLeft size={19}/> Squad hub</button><div className="studio-title"><span>MATCHDAY STUDIO</span><strong>{myClub.name}</strong></div><button className="studio-save" onClick={onClose}>Save &amp; return <span>→</span></button></header><main className="studio-scroll"><section className="studio-hero"><ClubBadge club={myClub} size="lg" className="studio-club-badge"/><div className="studio-hero-copy"><span>FIRST TEAM CONTROL</span><h1>Matchday Studio</h1><p>{starters.length}/11 selected · Build your plan in two focused workspaces.</p></div><div className="studio-hero-numbers"><div><small>XI AVG</small><b>{average}</b></div><div><small>FORMATION</small><b>{state.formation}</b></div><div><small>READINESS</small><b>{starters.length?Math.round(starters.reduce((sum,player)=>sum+(player.energy??100),0)/starters.length):"—"}%</b></div></div></section><section className="studio-command-grid"><article className="studio-command-card"><div><span>SQUAD SELECTION</span><h2>Set your Starting XI</h2><p>Open the full pitch, drag players from your squad and see Starting, Bench and Available groups at once.</p><b>{groups.bench.length} players on the bench</b></div><button onClick={()=>setScreen("selection")}>Open squad selection <span>→</span></button></article><article className="studio-command-card tactics"><div><span>TACTICS LAB</span><h2>Set the match plan</h2><p>Choose your playing style, then separately tune defensive instructions and game management.</p><b>{STYLES[active].name} · {state.formation}</b></div><button onClick={()=>setScreen("tactics")}>Open tactics lab <span>→</span></button></article></section><section className="studio-command-snapshot"><div><Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} interactive={false}/></div><div><SquadPentagon players={myClub.players} lineup={state.lineup}/><p><b>{notes?.strength||"Balanced setup"}</b><span>{notes?.risk||"Your selected XI will adapt to this shape."}</span></p></div></section></main></div>;
 }
 const MARKET_LEAGUES={PL:"Premier League",LALIGA:"La Liga",SERIEA:"Serie A",BUNDES:"Bundesliga",LIGUE1:"Ligue 1",PORTUGAL:"Liga Portugal",CHAMP:"Championship",LALIGA2:"LaLiga Hypermotion",SERIEB:"Serie B",BUNDES2:"2. Bundesliga",LIGUE2:"Ligue 2",EUROPE:"European guests"};
 function playerAttributes(player){
@@ -1509,7 +1531,7 @@ function DualRange({label,min,max,low,high,onLow,onHigh,format}){
     <strong>{format(safeLow)} – {format(safeHigh)}</strong>
   </div>;
 }
-function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLoanIn, onToggleShortlist }){
+function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLoanIn, onToggleShortlist, onAcceptSaleOffer, onRejectSaleOffer, onCounterSaleOffer }){
   const [screen,setScreen]=useState("browse");
   const [selected,setSelected]=useState(null);
   const [round,setRound]=useState(1);

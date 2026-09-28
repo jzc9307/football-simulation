@@ -165,7 +165,89 @@ export function evaluateOffer(s,{sellerId,playerId,offer,round=1},rng=Math.rando
   const counter=Math.max(terms.minimumPrice,Math.round(terms.askingPrice*concession));
   return {...terms,status:'counter',counter,message:`The club wants ${counter}m to complete the deal.`};
 }
-export function transfer(s,{type,playerId,sellerId,fee}){
+export function listPlayerForSale(s,playerId){
+  if(!marketOpen(s))throw new Error('The transfer window is closed. You can scout, but cannot list players.');
+  const clubs=allClubs(s),seller=clubs.find(club=>club.id===s.myClubId),player=seller?.players.find(candidate=>candidate.id===playerId);
+  if(!seller||!player)throw new Error('This player is no longer at your club.');
+  if(player.loan||s.loans.some(loan=>loan.playerId===playerId))throw new Error('A loan player cannot be listed for sale.');
+  if(!canRelease(seller,player))throw new Error('You must retain a playable squad before listing this player.');
+  if((s.saleListings||[]).includes(playerId))return s;
+  const viable=clubs.filter(club=>club.id!==seller.id&&club.players.length<30&&(club.budget||0)>=Math.max(1,Math.round(player.value*.72)));
+  if(!viable.length)throw new Error('No realistic buying club can currently fund a move for this player.');
+  const seed=stableFraction(`sale:${s.season}:${playerId}:${s.currentDate||'opening'}`);
+  const ranked=viable.map(club=>{
+    const roleNeed=club.players.filter(candidate=>candidate.group===player.group).sort((a,b)=>b.ovr-a.ovr)[0]?.ovr||55;
+    return {club,score:(club.budget||0)/4+(player.ovr-roleNeed)*3+stableFraction(`${club.id}:${playerId}`)*16};
+  }).sort((a,b)=>b.score-a.score);
+  const buyer=ranked[Math.min(ranked.length-1,Math.floor(seed*Math.min(3,ranked.length)))].club;
+  const amount=Math.min(buyer.budget||0,Math.max(1,Math.round(player.value*(.82+seed*.20))));
+  const offer={id:`sale:${s.season}:${playerId}:${buyer.id}`,playerId,buyerId:buyer.id,amount,date:s.currentDate||null,status:'pending',round:1};
+  const mail={id:`mail:sale:${s.season}:${playerId}:${buyer.id}`,type:'transfer',subject:`Offer received for ${player.name}`,body:`${buyer.name} have opened with ${amount}m. Review the proposal in Transfer activity.`,date:s.currentDate||null,read:false};
+  const dates=[...new Set((s.seasonSchedule||[]).map(event=>event.date).filter(date=>date&&( !s.currentDate||date>s.currentDate)))].sort();
+  const dueDate=dates[Math.min(1,Math.max(0,dates.length-1))]||null;
+  const followUp=dueDate?{id:`sale-followup:${s.season}:${playerId}:${dueDate}`,playerId,date:dueDate}:null;
+  return {...s,saleListings:[...(s.saleListings||[]),playerId],saleOffers:[...(s.saleOffers||[]),offer],saleFollowUps:followUp?[...(s.saleFollowUps||[]),followUp]:(s.saleFollowUps||[]),mail:[mail,...(s.mail||[])].slice(0,80)};
+}
+export function advanceSaleOffers(s,throughDate){
+  const due=(s.saleFollowUps||[]).filter(event=>event.date&&event.date<=throughDate);
+  if(!due.length)return {state:s,arrived:false};
+  let next={...s,saleFollowUps:(s.saleFollowUps||[]).filter(event=>!due.some(item=>item.id===event.id))},arrived=false,mail=[];
+  const clubs=allClubs(next),seller=clubs.find(club=>club.id===next.myClubId);
+  for(const event of due){
+    const player=seller?.players.find(candidate=>candidate.id===event.playerId);
+    if(!player||!(next.saleListings||[]).includes(player.id))continue;
+    const existing=new Set((next.saleOffers||[]).filter(offer=>offer.playerId===player.id).map(offer=>offer.buyerId));
+    const buyers=clubs.filter(club=>club.id!==seller.id&&!existing.has(club.id)&&club.players.length<30&&(club.budget||0)>=Math.round(player.value*.76));
+    if(!buyers.length)continue;
+    const seed=stableFraction(`follow:${next.season}:${event.id}`),buyer=buyers.sort((a,b)=>(b.budget||0)-(a.budget||0))[Math.min(buyers.length-1,Math.floor(seed*Math.min(4,buyers.length)))];
+    const amount=Math.min(buyer.budget||0,Math.max(1,Math.round(player.value*(.86+seed*.19))));
+    const offer={id:`sale:${next.season}:${player.id}:${buyer.id}:${event.date}`,playerId:player.id,buyerId:buyer.id,amount,date:event.date,status:'pending',round:1};
+    next={...next,saleOffers:[...(next.saleOffers||[]),offer]};arrived=true;
+    mail.push({id:`mail:${offer.id}`,type:'transfer',subject:`New offer received for ${player.name}`,body:`${buyer.name} have submitted ${amount}m. Transfer activity is waiting for your decision.`,date:event.date,read:false});
+  }
+  if(mail.length)next={...next,mail:[...mail,...(next.mail||[])].slice(0,80)};
+  return {state:next,arrived,date:due.map(event=>event.date).sort()[0]};
+}
+export function respondToSaleOffer(s,offerId,decision){
+  const offer=(s.saleOffers||[]).find(item=>item.id===offerId&&item.status==='pending');
+  if(!offer)throw new Error('That offer is no longer available.');
+  if(decision==='reject'){
+    const remaining=(s.saleOffers||[]).filter(item=>item.id!==offerId);
+    const stillListed=remaining.some(item=>item.playerId===offer.playerId);
+    return {...s,saleOffers:remaining,saleListings:stillListed?(s.saleListings||[]):(s.saleListings||[]).filter(id=>id!==offer.playerId)};
+  }
+  const next=transfer(s,{type:'sell',playerId:offer.playerId,buyerId:offer.buyerId,fee:offer.amount});
+  return {...next,saleOffers:(next.saleOffers||[]).filter(item=>item.playerId!==offer.playerId),saleListings:(next.saleListings||[]).filter(id=>id!==offer.playerId),mail:[{id:`mail:sale-complete:${offer.id}`,type:'transfer',subject:'Transfer completed',body:`The agreed sale has been completed for ${offer.amount}m.`,date:next.currentDate||null,read:false},...(next.mail||[])].slice(0,80)};
+}
+export function counterSaleOffer(s,{offerId,ask}){
+  const offer=(s.saleOffers||[]).find(item=>item.id===offerId&&item.status==='pending');
+  if(!offer)throw new Error('That offer is no longer available.');
+  const clubs=allClubs(s),seller=clubs.find(club=>club.id===s.myClubId),buyer=clubs.find(club=>club.id===offer.buyerId),player=seller?.players.find(candidate=>candidate.id===offer.playerId);
+  if(!seller||!buyer||!player)throw new Error('This transfer can no longer be negotiated.');
+  const amount=Math.max(1,Math.round(Number(ask)||0));
+  if(amount<=offer.amount){
+    const state=respondToSaleOffer(s,offerId,'accept');
+    return {state,status:'accepted',message:`${buyer.name} accepted ${amount}m for ${player.name}.`};
+  }
+  const seed=stableFraction(`sale-counter:${offer.id}:${amount}:${offer.round||1}`);
+  const round=offer.round||1;
+  const ceiling=Math.min(buyer.budget||0,Math.max(1,Math.round(player.value*(1.04+seed*.18+round*.025))));
+  const nearEnough=amount<=ceiling&&amount<=offer.amount*(1.04+round*.035);
+  if(nearEnough&&seed<.70){
+    const state=transfer(s,{type:'sell',playerId:player.id,buyerId:buyer.id,fee:amount});
+    return {state:{...state,saleOffers:(state.saleOffers||[]).filter(item=>item.playerId!==player.id),saleListings:(state.saleListings||[]).filter(id=>id!==player.id),mail:[{id:`mail:sale-complete:${offer.id}`,type:'transfer',subject:'Transfer completed',body:`${buyer.name} accepted your ${amount}m counter-offer for ${player.name}.`,date:state.currentDate||null,read:false},...(state.mail||[])].slice(0,80)},status:'accepted',message:`${buyer.name} accepted your counter-offer — ${fmtFee(amount)} secured.`};
+  }
+  if(round>=3||amount>ceiling*1.14){
+    const state={...s,saleOffers:(s.saleOffers||[]).filter(item=>item.id!==offerId),mail:[{id:`mail:sale-withdrawn:${offer.id}`,type:'transfer',subject:'Buyer withdraws from talks',body:`${buyer.name} will not meet the requested ${amount}m for ${player.name}. The player remains listed.`,date:s.currentDate||null,read:false},...(s.mail||[])].slice(0,80)};
+    return {state,status:'withdrawn',message:`${buyer.name} withdrew from negotiations. The player remains listed.`};
+  }
+  const counter=Math.max(offer.amount,Math.min(ceiling,Math.round((offer.amount+Math.min(amount,ceiling))/2)));
+  const replacement={...offer,amount:counter,round:round+1,date:s.currentDate||offer.date};
+  const state={...s,saleOffers:(s.saleOffers||[]).map(item=>item.id===offerId?replacement:item),mail:[{id:`mail:sale-counter:${offer.id}:${round}`,type:'transfer',subject:`Counter-offer from ${buyer.name}`,body:`${buyer.name} can move to ${counter}m for ${player.name}.`,date:s.currentDate||null,read:false},...(s.mail||[])].slice(0,80)};
+  return {state,status:'counter',counter,message:`${buyer.name} countered at ${fmtFee(counter)}.`};
+}
+function fmtFee(amount){return `£${amount}m`;}
+export function transfer(s,{type,playerId,sellerId,buyerId,fee}){
   if(!marketOpen(s))throw new Error('The transfer window is closed. You can still scout and shortlist players.');
   const clubs=allClubs(s),me=clubs.find(c=>c.id===s.myClubId);
   const outgoing=type==='sell'||type==='loan-out';
@@ -182,11 +264,12 @@ export function transfer(s,{type,playerId,sellerId,fee}){
   const terms=!outgoing&&!isLoan?transferTerms(s,seller.id,player.id):null;
   const agreedFee=Number.isFinite(fee)?Math.round(fee):terms?.askingPrice;
   if(terms&&agreedFee<terms.minimumPrice)throw new Error(`The selling club will not accept less than £${terms.minimumPrice}m.`);
-  const price=isLoan?loanFee(player):outgoing?Math.max(1,Math.round(player.value*0.9)):agreedFee;
+  const price=isLoan?loanFee(player):outgoing?Math.max(1,Math.round(Number.isFinite(fee)?fee:player.value*.9)):agreedFee;
   let buyer=me;
   if(outgoing){
-    buyer=clubs.filter(c=>c.id!==me.id&&c.players.length<30&&(c.budget||0)>=price&&
+    buyer=buyerId?clubs.find(club=>club.id===buyerId):clubs.filter(c=>c.id!==me.id&&c.players.length<30&&(c.budget||0)>=price&&
       (!isLoan||s.loans.filter(l=>l.borrowerId===c.id).length<3)).sort((a,b)=>b.budget-a.budget)[0];
+    if(buyer&&(buyer.players.length>=30||(buyer.budget||0)<price))buyer=null;
     if(!buyer)throw new Error('No club can currently afford this deal.');
   }
   if(isLoan&&s.loans.filter(l=>l.borrowerId===buyer.id).length>=3)throw new Error('A club can have at most three incoming loans.');

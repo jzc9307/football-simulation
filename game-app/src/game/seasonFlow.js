@@ -8,6 +8,7 @@ import { autoLineup, unavailablePlayerIds } from "./engine.js";
 import { FORMATIONS } from "./config.js";
 import { playLeagueRound, playDomesticCup, playEuropeanLeague, advanceEuropeanLeague, startEuropeanKnockout, playEuropeanKnockout, advanceEuropeanKnockout } from "./actions.js";
 import { nextFixture, syncKnockoutSchedule, recordScheduledResult, isMyFixture, addMail, advanceCupDraws, CUP_KEYS, buildUclSchedule, buildUelSchedule, buildUeclSchedule, resolveCalendarConflicts } from "./seasonSchedule.js";
+import { advanceSaleOffers } from "./career.js";
 
 function advanceEuropeanWorld(state,round){
  const {updates,performanceUpdates,fixtures}=simulateUclRound({...state,ucl:{...state.ucl,roundIndex:round-1}},state.ucl.clubs,state.ucl.rounds[round-1]);
@@ -108,7 +109,17 @@ export function prepareNextFixture(input){
   if(!pending)break;
   s=advanceCupWorld(s,limit);
  }
- const event=nextFixture(s);
+ // The calendar only advances to meaningful moments.  A queued approach is a
+ // first-class event, so it interrupts progression before the next fixture
+ // rather than disappearing behind an instant simulation.
+ const upcoming=nextFixture(s);
+ if(upcoming){
+  const saleProgress=advanceSaleOffers(s,upcoming.date);
+  if(saleProgress.arrived){
+   return {...saleProgress.state,currentDate:saleProgress.date||upcoming.date,activeFixtureId:null,activeEuropeanCompetition:null,stage:s.midSeasonDone?"squad2":"squad",transferNotice:"A new transfer offer has arrived."};
+  }
+ }
+ const event=upcoming;
  if(!event){
   const table=computeTableArray(s.tableRaw,s.clubs);
   return {...s,activeFixtureId:null,activeEuropeanCompetition:null,stage:"full-results",table1:s.table1||table,tableFinal:table};
