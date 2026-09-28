@@ -1,8 +1,11 @@
 import { freshState, ensureFixtures, computeTableArray, STYLES, clamp } from './engine.js';
+import { FREE_AGENT_CLUB_ID } from './freeAgents.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
 import { repairSaleOffers } from './career.js';
 import { ensurePlayerLife, SQUAD_ROLES } from './playerLife.js';
+import { ensureClubFinance } from './finance.js';
+import { ensureTeamSheets, validTeamPlan } from './teamSheets.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
 const SAVE_VERSION=8;
@@ -84,7 +87,7 @@ export function validateSave(raw){
   s.shortlist=[...new Set(Array.isArray(s.shortlist)?s.shortlist.filter(id=>typeof id==='string'):[])].slice(0,150);
   if(s.market){
     requireValid(s.market.version===1&&Array.isArray(s.market.talks)&&Array.isArray(s.market.history)&&/^\d{4}-\d{2}-\d{2}$/.test(s.market.lastDate),'invalid market calendar.');
-    for(const talk of [...s.market.talks,...s.market.history,...(s.market.invitations||[])])requireValid(talk&&typeof talk.id==='string'&&typeof talk.playerId==='string'&&byId.has(talk.buyerId)&&byId.has(talk.sellerId)&&Number.isFinite(talk.fee)&&talk.fee>0&&/^\d{4}-\d{2}-\d{2}$/.test(talk.dueDate)&&['pending','signed','lost','cancelled'].includes(talk.status),'invalid market agreement.');
+    for(const talk of [...s.market.talks,...s.market.history,...(s.market.invitations||[])])requireValid(talk&&typeof talk.id==='string'&&typeof talk.playerId==='string'&&byId.has(talk.buyerId)&&(talk.kind==='free-agent'?talk.sellerId===FREE_AGENT_CLUB_ID&&talk.fee===0&&['contract-ready'].includes(talk.phase):byId.has(talk.sellerId)&&Number.isFinite(talk.fee)&&talk.fee>0)&&/^\d{4}-\d{2}-\d{2}$/.test(talk.dueDate)&&['pending','signed','lost','cancelled'].includes(talk.status),'invalid market agreement.');
     if(s.market.openingStartedDate)requireValid(/^\d{4}-\d{2}-\d{2}$/.test(s.market.openingStartedDate)&&Array.isArray(s.market.openingProcessed)&&s.market.openingProcessed.every(id=>typeof id==='string')&&Array.isArray(s.market.invitations),'invalid opening-window replay.');
     const activity=s.market.activity;
     if(activity)requireValid(typeof activity.key==='string'&&activity.signingsByClub&&typeof activity.signingsByClub==='object'&&Object.entries(activity.signingsByClub).every(([id,count])=>byId.has(id)&&Number.isInteger(count)&&count>=0)&&Array.isArray(activity.movedPlayerIds)&&activity.movedPlayerIds.every(id=>typeof id==='string'),'invalid market window activity.');
@@ -114,6 +117,17 @@ export function validateSave(raw){
       }
     }
   }
+  if(s.freeAgents!=null){
+    requireValid(Array.isArray(s.freeAgents),'invalid free-agent directory.');
+    const rosterIds=new Set([...byId.values()].flatMap(c=>c.players.map(p=>p.id))),ids=new Set();
+    for(const p of s.freeAgents){
+      requireValid(p&&typeof p.id==='string'&&!ids.has(p.id)&&!rosterIds.has(p.id)&&typeof p.name==='string'&&typeof p.slug==='string'&&ROLE_GROUP[p.role]&&Number.isFinite(p.ovr)&&p.ovr>=1&&p.ovr<=100&&Number.isFinite(p.age)&&p.age>=14&&Number.isFinite(p.value)&&p.value>=0&&!p.loan,'invalid free-agent player.');
+      if(p.contract)requireValid((p.contract.endDate===null||/^\d{4}-\d{2}-\d{2}$/.test(p.contract.endDate))&&(p.contract.wage===null||Number.isFinite(p.contract.wage)&&p.contract.wage>=0&&p.contract.wage<=2000000)&&SQUAD_ROLES[p.contract.role],'invalid free-agent contract.');
+      if(p.life)requireValid(Number.isFinite(p.life.happiness)&&p.life.happiness>=0&&p.life.happiness<=100&&Array.isArray(p.life.recentMinutes)&&p.life.recentMinutes.length<=8&&p.life.recentMinutes.every(n=>Number.isFinite(n)&&n>=0&&n<=130),'invalid free-agent mindset.');
+      ids.add(p.id);
+    }
+    for(const t of s.market?.talks||[])if(t.kind==='free-agent')requireValid(ids.has(t.playerId),'free agent in personal talks is missing.');
+  }
   requireValid(s.lineup&&typeof s.lineup==='object'&&!Array.isArray(s.lineup),'invalid lineup.');
   requireValid(['PL','LALIGA','SERIEA','BUNDES','LIGUE1','PORTUGAL',null].includes(s.league),'invalid league.');
   s.division=s.division===2?2:1;
@@ -121,6 +135,12 @@ export function validateSave(raw){
   if(!['league-select','select'].includes(s.stage))requireValid(!!s.myClubId,'no selected club.');
   requireValid(Number.isInteger(s.season)&&s.season>=1,'invalid season.');
   for(const key of ['history','loans','finances','results1','results2'])requireValid(Array.isArray(s[key]),`invalid ${key}.`);
+  if(s.finance){
+    const f=s.finance,isDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d+'T12:00:00Z'));
+    requireValid(f.version===1&&Number.isInteger(f.season)&&f.season>=1&&isDate(f.lastPayrollDate)&&Number.isFinite(f.paid)&&f.paid>=0&&Number.isFinite(f.boardFunding)&&f.boardFunding>=0&&f.accounts&&typeof f.accounts==='object'&&!Array.isArray(f.accounts)&&Array.isArray(f.ledger)&&f.ledger.length<=600,'invalid club payroll.');
+    for(const a of Object.values(f.accounts))requireValid(a&&typeof a.name==='string'&&['wage','boardWeekly','boardReserve','transferReserve'].every(k=>Number.isFinite(a[k])&&a[k]>=0)&&a.wage<=2000000,'invalid wage account.');
+    for(const e of f.ledger)requireValid(e&&typeof e.id==='string'&&typeof e.category==='string'&&['transfer','wages','allocation'].includes(e.pool)&&Number.isFinite(e.amount)&&(e.date===null||isDate(e.date)),'invalid finance transaction.');
+  }
   s.suspensions={...defaults.suspensions,...s.suspensions};
   requireValid(Array.isArray(s.suspensions.domestic)&&Array.isArray(s.suspensions.ucl),'invalid suspensions.');
   s.injuries=s.injuries&&typeof s.injuries==='object'&&!Array.isArray(s.injuries)?s.injuries:{};
@@ -185,7 +205,11 @@ export function validateSave(raw){
   if(!s.clubForm||typeof s.clubForm!=='object'||Array.isArray(s.clubForm))s.clubForm={};
   if(!s.clubForm[s.myClubId]&&s.myClubId)s.clubForm[s.myClubId]=[...s.results1,...s.results2].slice(-5).map(result=>result.result);
   // Legacy loan flags do not contain ownership; block resale instead of inventing an owner.
-  return ensurePlayerLife(repairSaleOffers(s));
+  if(s.teamSheets!=null){
+    requireValid(Array.isArray(s.teamSheets)&&s.teamSheets.length>=1&&s.teamSheets.length<=3&&s.teamSheets.every(t=>typeof t.id==='string'&&typeof t.name==='string'&&t.name.trim().length>0&&t.name.length<=28&&validTeamPlan(t))&&new Set(s.teamSheets.map(t=>t.id)).size===s.teamSheets.length&&s.teamSheets.some(t=>t.id===s.activeTeamSheetId),'invalid team sheets.');
+  }
+  requireValid(s.rewardClaims==null||Array.isArray(s.rewardClaims)&&s.rewardClaims.length<=600&&s.rewardClaims.every(id=>typeof id==='string'),'invalid competition rewards.');
+  return ensureTeamSheets(ensureClubFinance(ensurePlayerLife(repairSaleOffers(s))));
 }
 export function loadGame(storage){
   const current=storage.getItem(KEY),legacy=current===null?storage.getItem(LEGACY_KEY):null;

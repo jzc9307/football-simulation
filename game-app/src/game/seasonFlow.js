@@ -33,8 +33,7 @@ function advanceEuropaWorld(state,round){
  s={...s,fixtureResults:[...(s.fixtureResults||[]),...fixtures.map(f=>({...f,competition:"UEL"}))]};
  if(round===u.rounds.length){
   const phaseTable=computeTableArray(s.uel.tableRaw,s.uel.clubs);
-  const championId=phaseTable[0]?.id;
-  s={...s,uel:{...s.uel,phaseTable,championId,qualification:"complete",outcome:championId===s.myClubId?"CHAMPION":"LEAGUE PHASE COMPLETE",stage:"final"}};
+  s=initializeEuropeanKnockout({...s,uel:{...s.uel,phaseTable,qualification:"eliminated",outcome:"NOT QUALIFIED",stage:"final"}},"UEL");
  }
  return s;
 }
@@ -47,7 +46,7 @@ function advanceConferenceWorld(state,round){
  let s=applyPerformanceUpdates({...state,uecl:{...u,roundIndex:Math.min(u.rounds.length,round),tableRaw:applyUpdates(u.tableRaw,updates),form:appendClubForm(u.form,updates)}},performanceUpdates,false);
  for(const fixture of fixtures)s=recordScheduledResult(s,{...fixture,competition:"UECL",myGoals:fixture.homeGoals,oppGoals:fixture.awayGoals,round});
  s={...s,fixtureResults:[...(s.fixtureResults||[]),...fixtures.map(f=>({...f,competition:"UECL"}))]};
- if(round===u.rounds.length){const phaseTable=computeTableArray(s.uecl.tableRaw,s.uecl.clubs),championId=phaseTable[0]?.id;s={...s,uecl:{...s.uecl,phaseTable,championId,qualification:"complete",outcome:championId===s.myClubId?"CHAMPION":"LEAGUE PHASE COMPLETE",stage:"final"}};}
+ if(round===u.rounds.length){const phaseTable=computeTableArray(s.uecl.tableRaw,s.uecl.clubs);s=initializeEuropeanKnockout({...s,uecl:{...s.uecl,phaseTable,qualification:"eliminated",outcome:"NOT QUALIFIED",stage:"final"}},"UECL");}
  return s;
 }
 
@@ -64,7 +63,7 @@ export function advanceCupWorld(state,throughDate){
    if(!home||!away)continue;
    const a=aiMatchPlayers(s,home),b=aiMatchPlayers(s,away),ta=aiTactics(home,s),tb=aiTactics(away,s);
    let match=simMatchSmart(a,b,event.neutral?null:true,ta,tb);
-   const first=event.knockoutKey&&event.leg===2?s.seasonSchedule.find(e=>e.knockoutKey===event.knockoutKey&&e.tieIndex===event.tieIndex&&e.leg===1):null;
+   const first=event.knockoutKey&&event.leg===2?s.seasonSchedule.find(e=>e.competition===event.competition&&e.knockoutKey===event.knockoutKey&&e.tieIndex===event.tieIndex&&e.leg===1):null;
    const priorHome=first?.result?.awayGoals||0,priorAway=first?.result?.homeGoals||0;
    const deciding=!event.knockoutKey||event.leg===2||event.neutral;
    if(deciding&&match.goalsA+priorHome===match.goalsB+priorAway)match=addExtraTime(match,a,b,event.neutral?null:true,ta,tb);
@@ -217,7 +216,7 @@ function* scheduledHalfSteps(input,half){
   else if(typeof event.round==="number"){
    const competition=event.competition||"UCL";
    s=advanceEuropeanLeague(playEuropeanLeague(s,competition),competition);
-   if(competition==="UCL"&&s.ucl.stage==="phase-summary")s=startEuropeanKnockout(s);
+   if(s[competition.toLowerCase()].stage==="phase-summary")s=startEuropeanKnockout(s,competition);
   }else s=prepareNextFixture(syncKnockoutSchedule(advanceEuropeanKnockout(playEuropeanKnockout(s))));
   yield s;
  }

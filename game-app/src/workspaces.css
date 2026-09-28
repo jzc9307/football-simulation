@@ -38,6 +38,8 @@
 .hub-sheet.mail-reader{display:grid;grid-template-rows:auto minmax(0,1fr);height:min(680px,86dvh);max-height:86dvh;overflow:hidden;border-radius:22px;clip-path:inset(0 round 22px);animation:surfaceIn .24s ease}
 .mail-reader .mail-reader-layout{min-height:0;max-height:none;overflow:hidden}
 .mail-reader .mail-reader-message{min-height:0;padding:28px 34px}
+.mail-reader .mail-reader-list,.mail-reader .mail-reader-message{height:100%;min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-color:#4c7958 transparent}
+.mail-reader .mail-reader-message::after{pointer-events:none}
 .mail-reader-message .mail-message-top h2{font-size:26px}
 .mail-reader-message .mail-message-rule{margin:22px 0}
 .mail-reader-message .mail-message-signoff{margin-top:18px}
@@ -114,12 +116,13 @@
 .between-fixtures .matchday-centre>b{font-size:54px}
 .between-fixtures .matchday-team>strong{font-size:24px}
 .studio-console{grid-template-rows:auto minmax(0,1fr);align-content:start}
-.studio-console-card{display:flex;align-items:flex-start}
-.studio-launch-actions{width:100%;padding:16px;gap:14px}
-.studio-launch-actions button{grid-template-columns:1fr;padding:20px;gap:8px}
-.studio-launch-actions button em{grid-column:1;grid-row:auto;margin-top:8px;font-size:12px}
-.studio-launch-actions button>b{font-size:22px}
-.studio-launch-actions button small{font-size:12px;line-height:1.4}
+.studio-console-card{display:flex;min-height:0;align-items:stretch}
+.studio-launch-actions{width:100%;height:100%;min-height:0;box-sizing:border-box;display:grid;grid-template-rows:repeat(3,minmax(0,1fr));padding:12px;gap:10px}
+.studio-launch-actions button{display:flex;flex-direction:column;justify-content:center;min-height:0;padding:16px;gap:5px;box-sizing:border-box}
+.studio-launch-actions button em{margin-top:8px;font-size:11px}
+.studio-launch-actions button>b{font-size:clamp(16px,1.45vw,21px);line-height:1.2}
+.studio-launch-actions button small{font-size:11px;line-height:1.4}
+@media(max-width:920px){.studio-launch-actions{height:auto;grid-template-rows:repeat(3,minmax(140px,auto))}}
 .fit-pitch-space{position:relative;min-width:0;min-height:0;width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1fr);place-items:center}
 .fit-pitch{position:relative;min-height:0;max-width:100%;max-height:100%}
 .fit-pitch .squad-pitch{container-type:size;width:100%!important;height:100%!important;min-height:0!important;max-width:none!important;margin:0!important;aspect-ratio:4/5}
@@ -184,3 +187,4 @@ button:focus-visible,input:focus-visible,[role=button]:focus-visible{outline:2px
 @media(max-width:700px){.received-offer-grid{grid-template-columns:1fr}.received-offers-page{padding:24px 16px}.negotiation-room{grid-template-columns:1fr 1fr;gap:18px;padding:20px}.negotiation-centre{grid-column:1/-1;grid-row:1}.negotiation-party .party-badge{width:55px;height:55px}.negotiation-party>strong{font-size:16px}.negotiation-page{padding:16px 12px}.club-demand{padding:12px}.offer-console{padding:18px}.negotiation-staff{font-size:10px}.career-date-bar{flex-wrap:wrap}.career-date-bar b{display:block;margin:4px 0 0}.studio-selection-workspace{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);padding:8px;gap:6px}.studio-selection-list{padding:0 8px 8px}.studio-selection-list>header{margin:0 -8px;padding:10px}.studio-selection-player{padding:8px;grid-template-columns:auto minmax(0,1fr);gap:6px}.studio-selection-player em{grid-column:2}.studio-selection-player strong{white-space:normal;font-size:11px}.studio-selection-player small{white-space:normal;font-size:9px}.studio-selection-pitch{padding:5px}.studio-selection-pitch p{font-size:9px}.studio-selection-ovr{width:26px;height:30px;font-size:12px}.studio-launch-actions button{padding:16px}.studio-hero-numbers{display:none}}
 @media(prefers-reduced-motion:reduce){.club-demand,.studio-workspace-overlay,.transfer-stage,.signed-page{animation:none}.negotiation-pulse{display:none}}
 @media(max-width:700px){.studio-selection-workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,.95fr) minmax(0,1.05fr)}.studio-selection-player{grid-template-columns:auto minmax(0,1fr) auto}.studio-selection-player em{grid-column:auto}.studio-selection-player strong{font-size:12px}.studio-selection-list>header{padding:10px 12px}.studio-selection-pitch p{max-width:300px}.studio-selection-ovr{width:32px;height:34px}}
+.mail-prize-card{display:flex;align-items:center;gap:18px;padding:20px;border:1px solid #80713e;border-radius:15px;background:linear-gradient(120deg,#39321a,#14251a);margin:18px 0}.mail-prize-card>div{flex:1}.mail-prize-card small{display:block;color:#d4bd78;font-size:9px;letter-spacing:1.3px;font-weight:800}.mail-prize-card b{display:block;color:#f4d98e;font-size:30px;margin:8px 0}.mail-prize-card span{font-size:12px;color:#a4bca7}.mail-prize-card>svg{color:#dfc579;flex-shrink:0}

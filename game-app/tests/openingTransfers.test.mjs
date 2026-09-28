@@ -7,9 +7,10 @@ import {ensureMarket,advanceTransferCalendar,marketDay,cancelMarketTalk} from '.
 import {OPENING_TRANSFERS,transferSquadLimit} from '../src/game/openingTransfers.js';
 import {availableBudget,reservedBudget,money} from '../src/game/finance.js';
 import {exportGame,validateSave} from '../src/game/storage.js';
+import {acknowledgedCareer} from './careerFixture.mjs';
 function game(id='liv'){
   const s=freshState(),me=s.plClubs.find(c=>c.id===id);
-  return {...s,league:'PL',myClubId:id,budget:me.budget,formation:me.preferredFormation,lineup:autoLineup(FORMATIONS[me.preferredFormation],me.players),currentDate:'2026-08-15',stage:'squad',seasonSchedule:[],scheduleMigrationDone:true};
+  return acknowledgedCareer({...s,league:'PL',myClubId:id,budget:me.budget,formation:me.preferredFormation,lineup:autoLineup(FORMATIONS[me.preferredFormation],me.players),currentDate:'2026-08-15',stage:'squad',seasonSchedule:[],scheduleMigrationDone:true});
 }
 const owner=(s,slug)=>allClubs(s).find(c=>c.players.some(p=>p.slug===slug));
 test('verified opening replay moves eight players on their dated decisions with no random AI or source edits',()=>{

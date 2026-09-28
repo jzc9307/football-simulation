@@ -1,9 +1,11 @@
 import { autoLineup, freshState, topXI, clamp, moveMedicalRecord } from './engine.js';
-import { initialPlayerLife, archivePlayerSeason, beginPlayerStint, contractMonths } from './playerLife.js';
+import { initialPlayerLife, archivePlayerSeason, beginPlayerStint, contractMonths, advancePlayerLife } from './playerLife.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
-import { money, availableBudget } from './finance.js';
-import { OPENING_DEADLINE, openingDeal, transferSquadLimit } from './openingTransfers.js';
+import { money, cash, availableBudget, ensureClubFinance, releasePlayerWages, recordFinance } from './finance.js';
+import { openingDeal, transferSquadLimit } from './openingTransfers.js';
 import { addDays } from './seasonSchedule.js';
+import { isTransferWindowOpen } from './transferWindows.js';
+import { premierLeaguePrize, leaguePrizeLetter } from './rewards.js';
 
 const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
@@ -30,9 +32,7 @@ export function commitClubs(s,clubs){
 // played. The confirmed 2026 deadline is inclusive of 1 September. January
 // window remains available through the existing squad2 stage.
 export function marketOpen(s){
-  if(!s.currentDate)return true;
-  const month=Number(s.currentDate.slice(5,7));
-  return month===7||month===8||month===1||s.currentDate===OPENING_DEADLINE;
+  return isTransferWindowOpen(s.currentDate);
 }
 export function projectedPotential(p){
   if(Number.isFinite(p.potential))return clamp(p.potential,p.ovr,96);
@@ -62,7 +62,7 @@ function saleBuyerPool(clubs,seller,player,excluded=new Set()){
   // it never lets a low-level European guest afford a prime first-team star.
   const ageRelief=player.age>=34?5:player.age>=31?3:0;
   const requiredQuality=Math.max(60,(player.ovr>=89?84:player.ovr>=86?81:player.ovr>=83?78:player.ovr>=80?74:player.ovr>=76?69:63)-ageRelief);
-  const minimumBudget=saleValue(player)*.8;
+  const minimumBudget=saleValue(player);
   return clubs.filter(club=>{
     if(club.id===seller.id||excluded.has(club.id)||club.players.length>=34)return false;
     if(buyerCapacity(club)<minimumBudget||clubQuality(club)<requiredQuality)return false;
@@ -76,9 +76,11 @@ export function buyerCapacity(club){
   const cap=quality>=84?180:quality>=81?100:quality>=78?65:quality>=75?38:quality>=72?20:quality>=68?9:3;
   return money(Math.max(0,Math.min((club.budget||0)*.8,cap)));
 }
-function saleValue(player){return money(Math.max(.2,player.value*(player.age>=35?.68:player.age>=32?.82:1)));}
+// Displayed value already reflects age. Do not discount it a second time and
+// then invite clubs whose spending ceiling cannot even reach that valuation.
+function saleValue(player){return money(Math.max(.2,player.value));}
 export function makeSaleOffer(s,seller,player,date,excluded=new Set()){
-  const buyers=saleBuyerPool(allClubs(s),seller,player,excluded).filter(c=>availableBudget(s,c.id)>=saleValue(player)*.8);
+  const buyers=saleBuyerPool(allClubs(s),seller,player,excluded).filter(c=>availableBudget(s,c.id)>=saleValue(player));
   const ranked=buyers.map(club=>{
     const strongest=club.players.filter(p=>p.group===player.group).sort((a,b)=>b.ovr-a.ovr)[0]?.ovr||55;
     const gap=player.ovr-strongest;
@@ -86,8 +88,8 @@ export function makeSaleOffer(s,seller,player,date,excluded=new Set()){
   }).sort((a,b)=>b.score-a.score);
   if(!ranked.length)return null;
   const seed=stableFraction(`${player.id}:${date}:${excluded.size}`),buyer=ranked[Math.floor(seed*Math.min(3,ranked.length))].club;
-  const maxFee=money(Math.min(buyerCapacity(buyer),availableBudget(s,buyer.id),saleValue(player)*(1.06+seed*.12)));
-  const amount=money(Math.min(maxFee,saleValue(player)*(.82+seed*.16)));
+  const maxFee=money(Math.min(buyerCapacity(buyer),availableBudget(s,buyer.id),saleValue(player)*(1.15+seed*.15)));
+  const amount=money(Math.min(maxFee,saleValue(player)*(.94+seed*.10)));
   return {id:`sale:${s.season}:${player.id}:${buyer.id}:${date}`,playerId:player.id,buyerId:buyer.id,amount,maxFee,date,status:'pending',round:1};
 }
 export function repairSaleOffers(s){
@@ -96,12 +98,20 @@ export function repairSaleOffers(s){
     const player=seller?.players.find(p=>p.id===offer.playerId),buyer=clubs.find(c=>c.id===offer.buyerId);
     if(player&&buyer&&openingDeal(s,offer.openingDealId,seller.id,buyer.id,player))return !player.loan&&canRelease(seller,player)&&buyer.players.length<transferSquadLimit(s,offer.openingDealId,seller.id,buyer.id,player)&&Number.isFinite(offer.amount)&&offer.amount>0&&offer.amount<=availableBudget(s,buyer.id);
     if(offer.kind==='loan')return player&&buyer&&!player.loan&&buyer.players.length<30;
-    return player&&buyer&&Number.isFinite(offer.amount)&&offer.amount>0&&offer.amount<=buyerCapacity(buyer)&&saleBuyerPool(clubs,seller,player).some(c=>c.id===buyer.id);
+    return player&&buyer&&Number.isFinite(offer.amount)&&offer.amount>0&&offer.amount<=buyerCapacity(buyer)&&availableBudget(s,buyer.id)>=saleValue(player)&&saleBuyerPool(clubs,seller,player).some(c=>c.id===buyer.id);
   });
+  // Replace legacy unaffordable lowball approaches with funded buyers, rather
+  // than leaving a listed player stuck with an impossible negotiation.
+  if(marketOpen(s))for(const old of s.saleOffers||[]){
+    if(offers.includes(old)||old.kind==='loan'||!(s.saleListings||[]).includes(old.playerId)||offers.some(o=>o.playerId===old.playerId)||s.market?.talks?.some(t=>t.playerId===old.playerId&&t.status==='pending'))continue;
+    const player=seller?.players.find(p=>p.id===old.playerId);
+    if(player&&!player.loan&&canRelease(seller,player)){const replacement=makeSaleOffer(s,seller,player,s.currentDate);if(replacement)offers.push(replacement);}
+  }
   const owned=new Set(seller?.players.map(p=>p.id)||[]);
   return {...s,saleOffers:offers,saleListings:(s.saleListings||[]).filter(id=>owned.has(id)),loanListings:(s.loanListings||[]).filter(id=>owned.has(id)),saleFollowUps:(s.saleFollowUps||[]).filter(e=>owned.has(e.playerId))};
 }
 export function unlistPlayer(s,playerId){
+  if(allClubs(s).find(c=>c.id===s.myClubId)?.players.find(p=>p.id===playerId)?.life?.transferRequested)throw Error('This is a formal transfer request. Restore the player’s trust with regular minutes before removing the listing.');
   return {...s,saleListings:(s.saleListings||[]).filter(id=>id!==playerId),loanListings:(s.loanListings||[]).filter(id=>id!==playerId),saleOffers:(s.saleOffers||[]).filter(o=>o.playerId!==playerId),saleFollowUps:(s.saleFollowUps||[]).filter(e=>e.playerId!==playerId)};
 }
 export function loanRecallFine(player){return money(Math.min(2,Math.max(.1,player.value*.05)));}
@@ -148,9 +158,10 @@ function returnLoan(s,loan,date,recall=false){
   if(!owner||!player)return {...s,loans:s.loans.filter(l=>l!==loan)};
   const fine=recall?loanRecallFine(player):0;
   if(recall&&availableBudget(s)<fine)throw new Error('Not enough unreserved budget to pay the recall fine.');
-  const next=moveMedicalRecord(commitClubs(s,clubs.map(c=>c.id===owner.id?{...c,budget:money((c.budget||0)-fine),players:[...c.players,{...player,club:owner.id,loan:false,number:numberFor(c.players)}]}:c.id===borrower.id?{...c,budget:money((c.budget||0)+fine),players:c.players.filter(p=>p.id!==player.id)}:c)),player.id,owner.id);
+  const next=moveMedicalRecord(commitClubs(s,clubs.map(c=>c.id===owner.id?{...c,budget:cash((c.budget||0)-fine),players:[...c.players,{...player,club:owner.id,loan:false,number:numberFor(c.players)}]}:c.id===borrower.id?{...c,budget:money((c.budget||0)+fine),players:c.players.filter(p=>p.id!==player.id)}:c)),player.id,owner.id);
   const owned=owner.id===s.myClubId;
-  return {...next,budget:money(s.budget-(owned?fine:0)),loans:s.loans.filter(l=>l.playerId!==player.id),lineup:Object.fromEntries(Object.entries(s.lineup).filter(([,id])=>id!==player.id)),finances:fine?[...s.finances,{season:s.season,type:'Loan recall fine',player:player.name,amount:-fine}]:s.finances,mail:[{id:`mail:loan-return:${player.id}:${date}`,type:'transfer',subject:owned?`${player.name} is back from loan`:`${player.name}'s loan has ended`,body:owned?`${player.name} has returned from ${borrower.name} and is available for selection.${recall?` Recall compensation paid: £${fine}m.`:''}`:`${player.name} has returned to ${owner.name} after completing their loan with your club.`,date,read:false},...(next.mail||[])].slice(0,80)};
+  const returned={...next,budget:cash(s.budget-(owned?fine:0)),loans:s.loans.filter(l=>l.playerId!==player.id),lineup:Object.fromEntries(Object.entries(s.lineup).filter(([,id])=>id!==player.id)),finances:fine?[...s.finances,{season:s.season,type:'Loan recall fine',player:player.name,amount:-fine}]:s.finances,mail:[{id:`mail:loan-return:${player.id}:${date}`,type:'transfer',subject:owned?`${player.name} is back from loan`:`${player.name}'s loan has ended`,body:owned?`${player.name} has returned from ${borrower.name} and is available for selection.${recall?` Recall compensation paid: £${fine}m.`:''}`:`${player.name} has returned to ${owner.name} after completing their loan with your club.`,date,read:false},...(next.mail||[])].slice(0,80)};
+  return fine&&owned?recordFinance(returned,{category:'Loan recall fine',player:player.name,amount:-fine,date}):returned;
 }
 export function recallLoan(s,playerId){
   const loan=s.loans.find(l=>l.playerId===playerId&&l.ownerId===s.myClubId);
@@ -296,24 +307,25 @@ export function advanceSaleOffers(s,throughDate){
   for(const date of dueDates){
     const events=(next.saleFollowUps||[]).filter(e=>e.date===date);
     next={...next,saleFollowUps:(next.saleFollowUps||[]).filter(e=>e.date!==date)};
-    if(!marketOpen({...next,currentDate:date}))continue;
     const seller=allClubs(next).find(club=>club.id===next.myClubId);
     const arrivals=[];
     for(const event of events){
       const player=seller?.players.find(p=>p.id===event.playerId);
       if(!player||!(event.kind==='loan'?(next.loanListings||[]):(next.saleListings||[])).includes(player.id))continue;
+      if(!marketOpen({...next,currentDate:date})&&!player.life?.transferRequested)continue;
       const excluded=new Set((next.saleOffers||[]).filter(o=>o.playerId===player.id).map(o=>o.buyerId));
       const offer=event.kind==='loan'?makeLoanOffer(next,seller,player,date,excluded):makeSaleOffer(next,seller,player,date,excluded);
-      if(offer){next={...next,saleOffers:[...(next.saleOffers||[]),offer]};arrivals.push({id:`mail:${offer.id}`,type:'transfer',subject:`New ${event.kind==='loan'?'loan ':''}offer for ${player.name}`,body:event.kind==='loan'?`A club proposes a ${offer.seasons}-season loan. Review Received offers in the Transfer Centre.`:`A club has submitted £${offer.amount}m. Review Received offers in the Transfer Centre.`,date,read:false});}
+      if(offer){next={...next,saleOffers:[...(next.saleOffers||[]),{...offer,offWindow:!marketOpen({...next,currentDate:date})}]};arrivals.push({id:`mail:${offer.id}`,type:'transfer',subject:`New ${event.kind==='loan'?'loan ':''}offer for ${player.name}`,body:event.kind==='loan'?`A club proposes a ${offer.seasons}-season loan. Review Received offers in the Transfer Centre.`:`A club has submitted £${offer.amount}m. Review Received offers in the Transfer Centre.`,date,read:false});}
     }
     if(arrivals.length)return {state:{...next,mail:[...arrivals,...(next.mail||[])].slice(0,80)},arrived:true,date};
   }
   return {state:next,arrived:false};
 }
+export const saleTalkAllowed=(s,offer)=>marketOpen(s)||!!offer?.offWindow;
 export function respondToSaleOffer(s,offerId,decision){
-  if(!marketOpen(s))throw new Error('The transfer window is closed.');
   const offer=(s.saleOffers||[]).find(item=>item.id===offerId&&item.status==='pending');
   if(!offer)throw new Error('That offer is no longer available.');
+  if(!saleTalkAllowed(s,offer))throw new Error('The transfer window is closed.');
   if(decision==='reject')return {...s,saleOffers:s.saleOffers.filter(item=>item.id!==offerId)};
   if(offer.kind==='loan')return counterLoanOffer(s,{offerId,seasons:offer.seasons}).state;
   const date=s.currentDate||'2026-08-15',club=allClubs(s).find(c=>c.id===s.myClubId),buyer=allClubs(s).find(c=>c.id===offer.buyerId),player=club?.players.find(p=>p.id===offer.playerId);
@@ -325,17 +337,18 @@ export function respondToSaleOffer(s,offerId,decision){
   return {...s,market:{...market,talks:[...market.talks.map(t=>t.status==='pending'&&t.playerId===player.id?{...t,dueDate}:t),talk]},saleOffers:s.saleOffers.filter(o=>o.id!==offer.id),mail:[{id:`mail:fee:${offer.id}`,type:'transfer',subject:`Fee agreed for ${player.name}`,body:`${buyer.name} agreed £${offer.amount}m. Personal talks take 1–3 days. You may accept another club's fee; the player decides between them. No money has changed hands.`,date,read:false},...(s.mail||[])].slice(0,80)};
 }
 export function counterSaleOffer(s,{offerId,ask}){
-  if(!marketOpen(s))throw new Error('The transfer window is closed.');
   const offer=(s.saleOffers||[]).find(item=>item.id===offerId&&item.status==='pending');
   if(!offer)throw new Error('That offer is no longer available.');
+  if(!saleTalkAllowed(s,offer))throw new Error('The transfer window is closed.');
   const clubs=allClubs(s),seller=clubs.find(club=>club.id===s.myClubId),buyer=clubs.find(club=>club.id===offer.buyerId),player=seller?.players.find(candidate=>candidate.id===offer.playerId);
   if(!seller||!buyer||!player)throw new Error('This transfer can no longer be negotiated.');
   if(!Number.isFinite(Number(ask))||Number(ask)<=0)throw new Error('Enter a valid transfer fee.');
   const amount=money(Number(ask)),round=offer.round||1;
   const capacity=openingDeal(s,offer.openingDealId,seller.id,buyer.id,player)?availableBudget(s,buyer.id):buyerCapacity(buyer);
-  const ceiling=money(Math.min(offer.maxFee??saleValue(player)*1.12,capacity,availableBudget(s,buyer.id)));
-  if(amount<=offer.amount||amount<=ceiling&&amount<=offer.amount*(1.06+round*.025)){
-    const agreed=Math.min(amount,capacity);
+  const legacyCeiling=Math.max(offer.maxFee??saleValue(player)*1.2,saleValue(player));
+  const ceiling=money(Math.min(legacyCeiling,capacity,availableBudget(s,buyer.id)));
+  if(amount<=ceiling){
+    const agreed=amount;
     const state=respondToSaleOffer({...s,saleOffers:s.saleOffers.map(o=>o.id===offerId?{...o,amount:agreed}:o)},offerId,'accept');
     return {state,status:'accepted',message:`${buyer.name} agreed to ${fmtFee(agreed)} for ${player.name}.`};
   }
@@ -344,10 +357,11 @@ export function counterSaleOffer(s,{offerId,ask}){
   }
   const counter=money(Math.max(offer.amount,Math.min(ceiling,(offer.amount+Math.min(amount,ceiling))/2)));
   const replacement={...offer,amount:counter,maxFee:ceiling,round:round+1};
-  return {state:{...s,saleOffers:s.saleOffers.map(item=>item.id===offerId?replacement:item)},status:'counter',counter,message:`${buyer.name} countered at ${fmtFee(counter)}.${round===2?' This is their final bid.':''}`};
+  return {state:{...s,saleOffers:s.saleOffers.map(item=>item.id===offerId?replacement:item)},status:'counter',counter,message:`${buyer.name} countered at ${fmtFee(counter)}.${amount>ceiling?' Your asking price is above their spending limit.':''}${round===2?' This is their final bid.':''}`};
 }
 function fmtFee(amount){return `£${amount}m`;}
 export function transfer(s,{type,playerId,sellerId,buyerId,fee,seasons=1,openingDealId,contract,agreedBeforeDeadline=false}){
+  s=ensureClubFinance(s);
   if(!marketOpen(s)&&!agreedBeforeDeadline)throw new Error('The transfer window is closed. You can still scout and shortlist players.');
   const clubs=allClubs(s),me=clubs.find(c=>c.id===s.myClubId);
   const outgoing=type==='sell'||type==='loan-out';
@@ -377,15 +391,17 @@ export function transfer(s,{type,playerId,sellerId,buyerId,fee,seasons=1,opening
   if(buyer.players.length>=transferSquadLimit(s,openingDealId,seller.id,buyer.id,player))throw new Error('Maximum squad size is 30 players.');
   if(!outgoing&&availableBudget(s)<price)throw new Error('Not enough unreserved budget for this deal.');
   if(buyer.players.length+(s.market?.talks||[]).filter(t=>t.status==='pending'&&t.buyerId===buyer.id).length>=transferSquadLimit(s,openingDealId,seller.id,buyer.id,player))throw new Error('Squad places are reserved for pending signings.');
-  const moved={...(isLoan?player:beginPlayerStint(player,seller.id,s.season)),club:buyer.id,number:numberFor(buyer.players),loan:isLoan,...(!isLoan&&contract?{contract,life:{...player.life,happiness:82,status:'settled',reason:'Excited by a new sporting project',recentMinutes:[],missedMatches:0,joinedDate:s.currentDate}}:{})};
-  const updated=clubs.map(c=>c.id===seller.id?{...c,budget:money((c.id===s.myClubId?s.budget:c.budget||0)+price),players:c.players.filter(p=>p.id!==player.id)}:
-    c.id===buyer.id?{...c,budget:money((c.id===s.myClubId?s.budget:c.budget||0)-price),players:[...c.players,moved]}:c);
+  const moved={...(isLoan?player:beginPlayerStint(player,seller.id,s.season)),club:buyer.id,number:numberFor(buyer.players),loan:isLoan,...(!isLoan&&contract?{contract,life:{...player.life,happiness:82,status:'settled',reason:'Excited by a new sporting project',transferRequested:false,complaintStage:0,recoveryMatches:0,recentMinutes:[],missedMatches:0,joinedDate:s.currentDate}}:{})};
+  const updated=clubs.map(c=>c.id===seller.id?{...c,budget:cash((c.id===s.myClubId?s.budget:c.budget||0)+price),players:c.players.filter(p=>p.id!==player.id)}:
+    c.id===buyer.id?{...c,budget:cash((c.id===s.myClubId?s.budget:c.budget||0)-price),players:[...c.players,moved]}:c);
   const next=moveMedicalRecord(commitClubs(s,updated),player.id,buyer.id);
-  return {...next,budget:money(s.budget+(outgoing?price:-price)),
+  let result={...next,budget:cash(s.budget+(outgoing?price:-price)),
     lineup:outgoing?Object.fromEntries(Object.entries(s.lineup).filter(([,id])=>id!==player.id)):s.lineup,
     loans:isLoan?[...s.loans,{playerId:player.id,ownerId:seller.id,borrowerId:buyer.id,seasons,startsDate:s.currentDate||`${2025+s.season}-08-01`,endsDate:loanEndDate(s.currentDate||`${2025+s.season}-08-01`,seasons),endsSeason:s.season}]:s.loans,
     shortlist:(s.shortlist||[]).filter(id=>id!==player.id),
-    finances:[...s.finances,{season:s.season,type,player:player.name,amount:outgoing?price:-price}].slice(-100)};
+    finances:[...s.finances,{season:s.season,date:s.currentDate,type,player:player.name,amount:outgoing?price:-price}].slice(-100)};
+  if(type==='sell')result=releasePlayerWages(result,player.id);
+  return recordFinance(result,{category:type==='buy'?'Player purchases':type==='sell'?'Player sales':'Loan fees',player:player.name,amount:outgoing?price:-price});
 }
 function promotionAndRelegation(league,topTable,secondTable,season){
   const ids=rows=>rows.map(row=>row.id);
@@ -413,6 +429,7 @@ export function startNextSeason(s){
   if(!s.tableFinal)throw new Error('Finish the league season first.');
   for(const [key,label] of [['ucl','Champions League'],['uel','Europa League'],['uecl','Conference League']])if(s[key]&&s[key].stage!=='final')throw new Error(`Finish your ${label} campaign first.`);
   s=returnExpiredLoans(s,`${2026+s.season}-07-01`);
+  s=advancePlayerLife(s,`${2026+s.season}-07-01`).state;
   let clubs=allClubs(s).map(c=>({...c,players:c.players.map(p=>({...p}))}));
   for(const loan of s.loans.filter(l=>!l.endsDate)){
     const owner=clubs.find(c=>c.id===loan.ownerId),borrower=clubs.find(c=>c.id===loan.borrowerId);
@@ -456,20 +473,24 @@ export function startNextSeason(s){
   }));
   const activePool=previousTier===2&&gameOver?DIVISIONS[s.league].second:(nextTier===1?DIVISIONS[s.league].top:DIVISIONS[s.league].second);
   let activeClubs=pools[activePool];const me=activeClubs.find(club=>club.id===s.myClubId)||byId.get(s.myClubId);
-  const grant=(nextTier===1?10:6)+(activeClubs.length-rank+1)*2;
+  const leaguePrize=s.league==='PL'&&previousTier===1?premierLeaguePrize(rank):0;
+  const boardGrant=s.league==='PL'&&previousTier===1?(nextTier===1?10:6):(nextTier===1?10:6)+(activeClubs.length-rank+1)*2;
+  const grant=boardGrant+leaguePrize;
   clubs=clubs.map(c=>c.id===s.myClubId?c:{...c,budget:money((c.budget||0)+(clubQuality(c)>=81?25:clubQuality(c)>=75?12:4))});
   for(const key of POOLS)pools[key]=pools[key].map(c=>clubs.find(updated=>updated.id===c.id)||c);
-  me.budget=money(s.budget+grant);
+  me.budget=cash(s.budget+grant);
   activeClubs=pools[activePool];
   const fresh=freshState();
   const next={...s,...pools,clubs:activeClubs};
-  return {...next,season:s.season+1,stage:gameOver?'game-over':'squad',division:nextTier,budget:me.budget,loans:s.loans.filter(l=>l.endsDate),saleListings:[],loanListings:[],saleOffers:[],saleFollowUps:[],
+  return ensureClubFinance({...next,season:s.season+1,stage:gameOver?'game-over':'squad',division:nextTier,budget:me.budget,loans:s.loans.filter(l=>l.endsDate),saleListings:me.players.filter(p=>p.life?.transferRequested).map(p=>p.id),loanListings:[],saleOffers:[],saleFollowUps:[],
     half:1,roundIndex:0,roundsHalf1:null,roundsHalf2:null,tableRaw:null,table1:null,tableFinal:null,
     results1:[],results2:[],clubForm:{},lastResult:null,lastCupResult:null,lastLiveContext:null,
-    scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:`${2026+s.season}-07-01`,midSeasonDone:false,activeFixtureId:null,market:null,marketNotice:null,marketNotices:[],
+    scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:`${2026+s.season}-07-01`,midSeasonDone:false,activeFixtureId:null,market:s.market?{...s.market,talks:s.market.talks.filter(t=>t.status==='pending'),invitations:[]}:null,marketNotice:null,marketNotices:[],
     cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,uel:null,uecl:null,qualificationTables,suspensions:fresh.suspensions,
     injuries:{},worldInjuries:{},benchSelection:null,lineup:autoLineup(FORMATIONS[s.formation],me.players),development:development.rows,retirements,movement,
     history:[...s.history,{season:s.season,rank,club:me.name,division:previousTier,ucl:s.cups.ucl?.outcome||null,movement}],
-    finances:[...s.finances,{season:s.season+1,type:'Season funding',amount:grant}].slice(-100),
-    [LEAGUE_POOL[s.league]]:pools[DIVISIONS[s.league].top]};
+    finances:[...s.finances,{season:s.season+1,type:'Season funding',amount:boardGrant},...(leaguePrize?[{season:s.season+1,type:'League position reward',amount:leaguePrize}]:[])].slice(-100),
+    mail:leaguePrize?[leaguePrizeLetter(s,rank,leaguePrize,
+      `${2026+s.season}-07-01`),...(s.mail||[])].slice(0,120):s.mail,
+    [LEAGUE_POOL[s.league]]:pools[DIVISIONS[s.league].top]});
 }

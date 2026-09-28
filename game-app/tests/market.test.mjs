@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { freshState, ensureFixtures, autoLineup, fmtM, applyPerformanceUpdates, aiMatchPlayers, unavailablePlayerIds } from '../src/game/engine.js';
 import { FORMATIONS } from '../src/game/config.js';
 import { allClubs, commitClubs, transferTerms, transfer, listPlayerForSale, buyerCapacity } from '../src/game/career.js';
-import { money, availableBudget, reservedBudget } from '../src/game/finance.js';
+import { money, cash, contractFunding, availableBudget, reservedBudget } from '../src/game/finance.js';
+import { acknowledgedCareer } from './careerFixture.mjs';
 import { ensureMarket, agreeTransferFee, cancelMarketTalk, advanceTransferCalendar, marketDay, recruitmentNeeds, aiSalePrice, playerInterest, negotiatePlayerContract } from '../src/game/market.js';
 import { prepareNextFixture, simulateScheduledHalfAsync } from '../src/game/seasonFlow.js';
 import { exportGame, validateSave } from '../src/game/storage.js';
@@ -11,7 +12,7 @@ import { orderCompetitions } from '../src/game/competitionOrder.js';
 
 const initial=freshState(),me=initial.plClubs.find(c=>c.id==='liv');
 const full=ensureFixtures({...initial,league:'PL',clubs:initial.plClubs,myClubId:me.id,budget:me.budget,formation:me.preferredFormation,lineup:autoLineup(FORMATIONS[me.preferredFormation],me.players),stage:'squad',currentDate:'2026-08-15',scheduleMigrationDone:true});
-const base=commitClubs(full,allClubs(full).map(c=>c.id===me.id?{...c,players:c.players.filter(p=>!p.name.includes('Woodman'))}:c));
+const base=acknowledgedCareer(commitClubs(full,allClubs(full).map(c=>c.id===me.id?{...c,players:c.players.filter(p=>!p.name.includes('Woodman'))}:c)));
 const seller=allClubs(base).find(c=>c.name.includes('Bayern'));
 const target=seller.players.find(p=>p.name.includes('Díaz'));
 const fee=transferTerms(base,seller.id,target.id).askingPrice;
@@ -35,7 +36,7 @@ test('pending agreements survive compact save/reload and stop exactly on the dec
   assert.equal(r.marketNotice.status,'contract-ready');assert.equal(r.budget,base.budget);assert.equal(reservedBudget(r),fee);
   assert.deepEqual(owners(r,target.id).map(c=>c.id),[seller.id]);
   const talk=r.market.talks[0],signed=negotiatePlayerContract(r,{talkId:talk.id,...talk.demands}).state;
-  assert.equal(signed.budget,money(base.budget-fee));assert.equal(reservedBudget(signed),0);assert.equal(owners(signed,target.id)[0].id,'liv');
+  assert.equal(signed.budget,cash(base.budget-fee-contractFunding(r,target,talk.demands.wage,true).change/1000000));assert.equal(reservedBudget(signed),0);assert.equal(owners(signed,target.id)[0].id,'liv');
   const later=advanceTransferCalendar({...signed,marketNotice:null,marketNotices:[]},'2026-08-20');assert.equal(later.state.budget,signed.budget);assert.equal(owners(later.state,target.id).length,1);
 });
 test('a rival can win before confirmation; loser pays nothing and receives an explained failure',()=>{

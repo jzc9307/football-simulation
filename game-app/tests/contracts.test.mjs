@@ -5,13 +5,14 @@ import { FORMATIONS } from '../src/game/config.js';
 import { allClubs, commitClubs, transferTerms, respondToSaleOffer, clubQuality } from '../src/game/career.js';
 import { agreeTransferFee, advanceTransferCalendar, negotiatePlayerContract, ensureMarket, playerChoiceScore, recruitmentNeeds } from '../src/game/market.js';
 import { initialPlayerLife, recordPlayerMinutes, recoverPlayerDays, advancePlayerLife, contractMonths, agentTerms, negotiateRenewal, archivePlayerSeason, playerPentagon } from '../src/game/playerLife.js';
-import { reservedBudget, money } from '../src/game/finance.js';
+import { reservedBudget, money, cash, contractFunding } from '../src/game/finance.js';
+import { acknowledgedCareer } from './careerFixture.mjs';
 import { exportGame, validateSave } from '../src/game/storage.js';
 import { CONTRACT_DATA_META } from '../src/data/contractsFc26.js';
 
 function game(id='liv'){
   const s=freshState(),me=s.plClubs.find(c=>c.id===id);
-  return {...s,league:'PL',myClubId:id,budget:me.budget,formation:me.preferredFormation,lineup:autoLineup(FORMATIONS[me.preferredFormation],me.players),currentDate:'2026-08-15',stage:'squad',seasonSchedule:[],scheduleMigrationDone:true};
+  return acknowledgedCareer({...s,league:'PL',myClubId:id,budget:me.budget,formation:me.preferredFormation,lineup:autoLineup(FORMATIONS[me.preferredFormation],me.players),currentDate:'2026-08-15',stage:'squad',seasonSchedule:[],scheduleMigrationDone:true});
 }
 const player=(s,id)=>allClubs(s).flatMap(c=>c.players).find(p=>p.id===id);
 const owner=(s,id)=>allClubs(s).find(c=>c.players.some(p=>p.id===id));
@@ -28,17 +29,18 @@ test('source terms are attributed, wages are GBP weekly, and unknown records nev
   assert.equal(jesus.contract.endDate,'2027-06-30');assert.equal(jesus.contract.wage,78000);assert.equal(jesus.contract.source,'futwiz-fc26');
   assert.match(jesus.contract.sourceUrl,/gabriel-jesus\/7575/);assert.ok(CONTRACT_DATA_META.matched>=5182);
   const unknown=initialPlayerLife({id:'unknown',slug:'no-source-match',ovr:77,age:22,role:'CM'});
-  assert.equal(unknown.contract.wage,null);assert.equal(unknown.contract.endDate,null);assert.equal(unknown.contract.source,'unavailable');
+  assert.ok(unknown.contract.wage>0);assert.match(unknown.contract.endDate,/^202[89]-06-30$/);assert.equal(unknown.contract.source,'estimated');assert.equal(unknown.contract.sourceUrl,undefined);
   const haaland=allClubs(s).flatMap(c=>c.players).find(p=>p.slug==='erling-braut-haland');
   assert.equal(haaland.contract.endDate,'2034-06-30');assert.equal(haaland.contract.wage,210000);
 });
-test('buying stops on player choice, persists before signature and never spends weekly payroll',()=>{
+test('buying stops on player choice, funds weekly wages once and persists before signature',()=>{
   const {state,p,fee,seller}=buying(),before=state.budget;
   assert.equal(state.market.talks[0].phase,'contract-ready');assert.equal(owner(state,p.id).id,seller.id);
   const reloaded=validateSave(JSON.parse(exportGame(state))),talk=reloaded.market.talks[0];
   assert.equal(reservedBudget(reloaded),fee);assert.equal(advanceTransferCalendar(reloaded,'2026-08-25').state.currentDate,reloaded.currentDate);
   const result=negotiatePlayerContract(reloaded,{talkId:talk.id,...talk.demands});
-  assert.equal(result.status,'accepted');assert.equal(owner(result.state,p.id).id,'liv');assert.equal(result.state.budget,money(before-fee));
+  const allocation=contractFunding(reloaded,p,talk.demands.wage,true).change;
+  assert.equal(result.status,'accepted');assert.equal(owner(result.state,p.id).id,'liv');assert.equal(result.state.budget,cash(before-fee-allocation/1000000));
   assert.equal(reservedBudget(result.state),0);assert.equal(player(result.state,p.id).contract.wage,talk.demands.wage);
   assert.ok(!result.state.marketNotices.some(n=>n.talkId===talk.id));assert.equal(result.state.marketNotice,null);
   const later=advancePlayerLife(result.state,'2026-08-30').state;assert.equal(later.budget,result.state.budget);
@@ -74,7 +76,8 @@ test('renewals open in final two years, use agent counters and cannot repeat imm
   const offer=agentTerms(p,clubQuality(me),s.currentDate),before=s.budget;
   let r=negotiateRenewal(s,p.id,{...offer,wage:Math.round(offer.wage*.8/500)*500});assert.equal(r.status,'counter');
   s=validateSave(JSON.parse(exportGame(r.state)));r=negotiateRenewal(s,p.id,s.renewalTalks[p.id].demands);
-  assert.equal(r.status,'accepted');assert.equal(r.state.budget,before);assert.equal(player(r.state,p.id).contract.source,'career');
+  const allocation=contractFunding(s,p,s.renewalTalks[p.id].demands.wage).change;
+  assert.equal(r.status,'accepted');assert.equal(r.state.budget,cash(before-allocation/1000000));assert.equal(player(r.state,p.id).contract.source,'career');
   assert.throws(()=>negotiateRenewal(r.state,p.id,offer),/just signed/);
 });
 test('underplaying hurts happiness/sharpness; injury absence does not; playing uses energy, not sharpness',()=>{

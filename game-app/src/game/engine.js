@@ -4,7 +4,7 @@ import { buildEuropeanGuestClubs } from "./uclSelection.js";
 import { attachSeasonSchedule } from "./seasonSchedule.js";
 import { firstSeasonLeagueOrder } from "./firstSeasonFixtures.js";
 import { squadGroups } from "./squadSelection.js";
-import { ensurePlayerLife, mapLifeClubs, recordPlayerMinutes } from './playerLife.js';
+import { ensurePlayerLife, mapLifeClubs, recordPlayerMinutes, playerConcernMessages } from './playerLife.js';
 export function slotAccepts(slotRole, player){
   if (!player) return false;
   if (player.role === slotRole) return true;
@@ -546,7 +546,7 @@ export function applyPerformanceUpdates(s,updates=[]){
     for(const injury of update.injuries||[])worldInjuries[injury.playerId]={...injury,clubId:update.clubId};
   }
   next.worldInjuries=worldInjuries;
-  return next;
+  return playerConcernMessages(next,s.currentDate||'2026-08-15').state;
 }
 export function playerSeasonAverage(player){return player.ratedMatches?player.ratingTotal/player.ratedMatches:0;}
 export function seasonPlayerRows(clubs){

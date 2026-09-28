@@ -1,4 +1,5 @@
 // Shared, persisted fixture calendar. UI and match execution use the same event IDs.
+import { rewardFixtureProgress } from './rewards.js';
 const DAY=86400000;
 export const dateValue=date=>Date.parse(`${date}T12:00:00Z`);
 export const addDays=(date,days)=>new Date(dateValue(date)+days*DAY).toISOString().slice(0,10);
@@ -138,7 +139,8 @@ export function recordScheduledResult(state,{competition,homeId,awayId,myGoals,o
   if(e.status!=="scheduled"||(fixtureId?e.id!==fixtureId:e.competition!==competition||e.homeId!==homeId||e.awayId!==awayId||(round!=null&&e.round!==round)))return e;
   played=e;return {...e,status:"completed",winnerId:winnerId||null,result:{homeGoals:myGoals,awayGoals:oppGoals,notes:notes||null}};
  });
- return {...state,seasonSchedule:advanceCupDraws(events),currentDate:played?.date||state.currentDate};
+ const next={...state,seasonSchedule:advanceCupDraws(events),currentDate:played?.date||state.currentDate};
+ return rewardFixtureProgress(next,played?{...played,winnerId:winnerId||null}:null);
 }
 export function addMail(state,{type="update",subject,body,competition=null,date=null}){return {...state,mail:[{id:`mail:${state.season}:${Date.now()}:${Math.random().toString(36).slice(2,7)}`,type,subject,body,competition,date:date||state.currentDate||seasonStart(state.season),read:false},...(state.mail||[])].slice(0,80)};}
 export function markMailRead(state,id){return {...state,mail:(state.mail||[]).map(item=>item.id===id?{...item,read:true}:item)};}
