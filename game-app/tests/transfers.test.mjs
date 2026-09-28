@@ -6,6 +6,7 @@ import {allClubs,marketOpen,listPlayerForSale,respondToSaleOffer,counterSaleOffe
 import {prepareNextFixture} from '../src/game/seasonFlow.js';
 import {isMyFixture,nextFixture} from '../src/game/seasonSchedule.js';
 import {saveGame,loadGame} from '../src/game/storage.js';
+import {advanceTransferCalendar} from '../src/game/market.js';
 function game(){
   let s=freshState();const me=s.plClubs.find(c=>c.id==='liv');
   s={...s,league:'PL',clubs:s.plClubs,myClubId:me.id,budget:me.budget,formation:me.preferredFormation,stage:'squad',simMode:'match',currentDate:'2026-08-01',scheduleMigrationDone:true};
@@ -13,10 +14,11 @@ function game(){
 }
 const base=game(),me=base.clubs.find(c=>c.id==='liv');
 const player=me.players.find(p=>p.name.includes('Leoni'))||me.players.at(-1);
-test('window closes September 1, browsing stages do not reopen it, January opens',()=>{
+test('2026 deadline includes September 1; browsing cannot reopen it after September 2',()=>{
   for(const stage of ['squad','squad2','matchday-prep','calendar-event']){
     assert.equal(marketOpen({...base,stage,currentDate:'2026-08-31'}),true);
-    assert.equal(marketOpen({...base,stage,currentDate:'2026-09-01'}),false);
+    assert.equal(marketOpen({...base,stage,currentDate:'2026-09-01'}),true);
+    assert.equal(marketOpen({...base,stage,currentDate:'2026-09-02'}),false);
     assert.equal(marketOpen({...base,stage,currentDate:'2027-01-10'}),true);
     assert.equal(marketOpen({...base,stage,currentDate:'2027-02-01'}),false);
   }
@@ -33,7 +35,9 @@ test('decimal negotiated sale conserves money, moves exactly one player, clears 
   const s=listPlayerForSale(base,player.id),offer=s.saleOffers[0];
   const fee=Math.round(offer.amount*10-1)/10;
   const before=allClubs(s).find(c=>c.id===offer.buyerId);
-  const result=counterSaleOffer(s,{offerId:offer.id,ask:fee});assert.equal(result.status,'accepted');
+  const agreement=counterSaleOffer(s,{offerId:offer.id,ask:fee});assert.equal(agreement.status,'accepted');
+  assert.equal(agreement.state.budget,base.budget);assert.ok(agreement.state.clubs.find(c=>c.id==='liv').players.some(p=>p.id===player.id));
+  const talk=agreement.state.market.talks[0],result={state:advanceTransferCalendar(agreement.state,talk.dueDate).state};
   const after=allClubs(result.state).find(c=>c.id===offer.buyerId);
   assert.equal(result.state.budget,base.budget+fee);assert.equal(after.budget,before.budget-fee);
   assert.equal(after.players.filter(p=>p.id===player.id).length,1);
@@ -68,7 +72,7 @@ test('calendar stops at the first offer day, keeps later events queued, and save
 test('offers do not arrive outside the window and invalid prices cannot complete a sale',()=>{
   const s=listPlayerForSale(base,player.id),o=s.saleOffers[0];
   assert.throws(()=>counterSaleOffer(s,{offerId:o.id,ask:NaN}),/valid transfer fee/);
-  assert.throws(()=>respondToSaleOffer({...s,currentDate:'2026-09-01'},o.id,'accept'),/closed/);
+  assert.throws(()=>respondToSaleOffer({...s,currentDate:'2026-09-02'},o.id,'accept'),/closed/);
   const r=advanceSaleOffers({...s,saleFollowUps:[{id:'closed',playerId:player.id,date:'2026-09-02'}]},'2026-09-02');assert.equal(r.arrived,false);
 });
 test('buying evaluates the exact decimal fee displayed by the shared slider',()=>{

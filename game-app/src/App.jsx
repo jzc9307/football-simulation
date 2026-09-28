@@ -3,21 +3,31 @@ import { createUclCampaign, selectUclField } from "./game/uclSelection.js";
 import { createEuropaCampaign, selectEuropaField } from "./game/europaSelection.js";
 import { createConferenceCampaign, selectConferenceField } from "./game/conferenceSelection.js";
 import { attachSeasonSchedule, markMailRead, nextFixture, syncKnockoutSchedule, leagueCompetition, cupCompetitions, competitionForCup } from "./game/seasonSchedule.js";
-import { prepareNextFixture, migrateSeason, simulateScheduledHalf } from "./game/seasonFlow.js";
+import { prepareNextFixture, migrateSeason, simulateScheduledHalfAsync, enterMidSeasonWindow } from "./game/seasonFlow.js";
 import { FixturesPanel, CupWorkspace, CalendarPanel, CupDetail, CalendarHub } from "./components/CompetitionCentre.jsx";
 import { formatDate } from "./components/calendarFormat.js";
 import { standingsZone, standingsLegend } from "./game/standingsZones.js";
 import { playEuropeanLeague, advanceEuropeanLeague, startEuropeanKnockout, playLeagueRound, playDomesticCup, playEuropeanKnockout, advanceEuropeanKnockout } from "./game/actions.js";
 import { ROLE_GROUP, GROUP_COLOR, FORMATIONS } from "./game/config.js";
 import { marketOpen, loanFee, loanTerms, transfer, transferTerms, evaluateOffer, allClubs, listPlayerForSale, listPlayerForLoan, unlistPlayer, counterLoanOffer, recallLoan, loanRecallFine, loanEndDate, respondToSaleOffer, counterSaleOffer, startNextSeason } from "./game/career.js";
-import { validateSave, loadGame, saveGame, exportGame } from "./game/storage.js";
+import { validateSave, exportGame } from "./game/storage.js";
+import { createSaveRepository, indexedDBRecords } from "./game/browserStorage.js";
+import { squadGroups, moveToSquadGroup } from "./game/squadSelection.js";
+import { lockPageScroll } from "./components/pageScroll.js";
+import { agreeTransferFee, cancelMarketTalk, negotiatePlayerContract } from "./game/market.js";
+import { negotiateRenewal } from './game/playerLife.js';
+import SquadHub from './components/SquadHub.jsx';
+import ContractTalks from './components/ContractTalks.jsx';
+import { availableBudget, reservedBudget } from "./game/finance.js";
+import { ClubInterest, ActiveTalks, SigningDecision } from "./components/MarketActivity.jsx";
+import { POSITION_OPTIONS, matchesPosition, PERFORMANCE_COLUMNS, performanceStats, sortPerformancePlayers } from "./game/playerBrowse.js";
 import LiveMatchScreen from "./components/LiveMatchScreen.jsx";
 import { GUEST_CRESTS } from "./game/guestAssets.js";
 import { CompetitionMark } from "./components/CompetitionBrand.jsx";
 import { competitionBrand, competitionTheme } from "./components/competitionBrand.js";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeftRight, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins, CalendarDays, Mail, Gamepad2, FastForward, Star } from "lucide-react";
+import { ArrowLeftRight, ArrowUp, ArrowDown, ChevronsUpDown, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins, CalendarDays, Mail, Gamepad2, FastForward, Star, FileSignature } from "lucide-react";
 import "./workspaces.css";
 
 export default function App(){
@@ -31,48 +41,74 @@ export default function App(){
   const [mailOpen, setMailOpen] = useState(false);
   const [offersOpen, setOffersOpen] = useState(false);
   const [tacticsOpen, setTacticsOpen] = useState(false);
+  const [contractTalk,setContractTalk]=useState(null);
   const [marketFilter, setMarketFilter] = useState({ q:"", pos:"ALL", league:"ALL", club:"ALL", sort:"ovr_desc", ageMin:16, ageMax:45, priceMin:0, priceMax:250 });
   const [toast, setToast] = useState("");
   const [halfSimulation, setHalfSimulation] = useState(null);
   const [dragPos, setDragPos] = useState(null);
   const [hoverSlot, setHoverSlot] = useState(null);
   const dragMeta = useRef(null);
+  const saveRepository=useRef(null);
   useEffect(()=>{
-    if(!marketOpen&&!offersOpen&&!tacticsOpen&&!calendarOpen&&!mailOpen&&!selectedCup)return;
-    const previous=document.body.style.overflow;
-    document.body.style.overflow="hidden";
-    return ()=>{document.body.style.overflow=previous;};
-  },[marketOpen,offersOpen,tacticsOpen,calendarOpen,mailOpen,selectedCup]);
+    if(!marketOpen&&!offersOpen&&!tacticsOpen&&!calendarOpen&&!mailOpen&&!selectedCup&&!halfSimulation)return;
+    return lockPageScroll(document);
+  },[marketOpen,offersOpen,tacticsOpen,calendarOpen,mailOpen,selectedCup,halfSimulation]);
 
   useEffect(() => {
-    try { const saved=loadGame(window.localStorage);setState(saved.myClubId?migrateSeason(saved):saved); }
-    catch(error){setState(freshState());setSaveError(error.message);setSaveBlocked(true);}
-    setLoaded(true);
+    let active=true;
+    saveRepository.current??=createSaveRepository({records:indexedDBRecords(window.indexedDB),legacy:window.localStorage});
+    saveRepository.current.load().then(({state:saved,recovered})=>{
+      if(!active)return;
+      setState(saved.myClubId?migrateSeason(saved):saved);
+      if(recovered)setToast("Recovered the last good save. Export a backup when convenient.");
+    }).catch(error=>{
+      if(!active)return;
+      setState(freshState());setSaveError(error.message);setSaveBlocked(true);
+    }).finally(()=>{if(active)setLoaded(true);});
+    return()=>{active=false;};
   }, []);
 
   useEffect(() => {
     if (!loaded || !state || saveBlocked) return;
+    let active=true;
     const persist=()=>{
-      try{saveGame(window.localStorage,state);setSaveError("");}
-      catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);}
+      saveRepository.current.save(state).then(()=>{if(active)setSaveError("");})
+        .catch(error=>{if(active)setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);});
     };
     // Avoid a synchronous localStorage write for every drag, lineup edit, or filter change.
     const timer=window.setTimeout(persist,500);
     window.addEventListener("pagehide",persist,{once:true});
-    return ()=>{window.clearTimeout(timer);window.removeEventListener("pagehide",persist);};
+    return ()=>{active=false;window.clearTimeout(timer);window.removeEventListener("pagehide",persist);};
   }, [state,loaded,saveBlocked]);
 
   const flashToast=useCallback(msg=>{setToast(msg);},[]);
+  async function submitContract({talkId,playerId,...offer}){
+    try{
+      const result=talkId?negotiatePlayerContract(state,{talkId,...offer}):negotiateRenewal(state,playerId,offer);
+      setState(result.state);
+      // Confirm personal terms only after the atomic career snapshot commits.
+      // A rapid reload must not discard a confirmed signing or renewal.
+      try{await saveRepository.current.save(result.state);setSaveError('');}
+      catch(error){
+        setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);
+        return {...result,message:`${result.message} Progress could not be saved. Export a backup before refreshing.`};
+      }
+      return result;
+    }
+    catch(error){return {status:'invalid',message:error.message};}
+  }
+  const dismissMarketNotice=()=>setState(s=>{const remaining=(s.marketNotices||[]).slice(1);return {...s,marketNotices:remaining,marketNotice:remaining[0]||null};});
   useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(""),3000);return()=>clearTimeout(timer);},[toast]);
   const movePlayerToSlot=useCallback((targetIdx,playerId,source,sourceSlotIdx)=>{
     setState(s=>{
       const lineup={...s.lineup},displaced=lineup[targetIdx];
+      const originalSlot=source==="slot"&&sourceSlotIdx!=null?sourceSlotIdx:Object.keys(lineup).find(key=>lineup[key]===playerId);
       Object.keys(lineup).forEach(k=>{if(lineup[k]===playerId)delete lineup[k];});
       lineup[targetIdx]=playerId;
-      if(source==="slot"&&sourceSlotIdx!=null&&displaced&&displaced!==playerId){
-        lineup[sourceSlotIdx]=displaced;
+      if(originalSlot!=null&&displaced&&displaced!==playerId){
+        lineup[originalSlot]=displaced;
       }
-      return {...s,lineup};
+      return originalSlot==null&&displaced&&displaced!==playerId?moveToSquadGroup({...s,lineup},displaced,"bench"):{...s,lineup};
     });
   },[]);
   const setLineupSlot=useCallback((slotIdx,playerId)=>{
@@ -87,25 +123,27 @@ export default function App(){
     setState(s=>{
       const club=s.clubs.find(c=>c.id===s.myClubId);
       const player=club?.players.find(p=>p.id===playerId);
-      if(!club||!player)return s;
+      if(!club||!player||unavailablePlayerIds(s,s.stage==="ucl"?"ucl":"domestic").includes(playerId))return s;
       const slots=FORMATIONS[s.formation]||[];
       const lineup={...s.lineup};
       Object.keys(lineup).forEach(key=>{if(lineup[key]===playerId)delete lineup[key];});
       const target=slots.map((slot,index)=>({slot,index,current:club.players.find(p=>p.id===lineup[index]),fit:positionFit(slot.role,player)}))
+        .filter(candidate=>candidate.fit>0)
         .sort((a,b)=>{
-        if(Boolean(a.current)!==Boolean(b.current))return a.current?1:-1;
           if(b.fit!==a.fit)return b.fit-a.fit;
+          if(Boolean(a.current)!==Boolean(b.current))return a.current?1:-1;
           const aScore=a.current?matchOvr(a.current)*positionFit(a.slot.role,a.current):0;
           const bScore=b.current?matchOvr(b.current)*positionFit(b.slot.role,b.current):0;
           return aScore-bScore;
         })[0];
       if(target)lineup[target.index]=playerId;
-      return {...s,lineup};
+      return target?.current?moveToSquadGroup({...s,lineup},target.current.id,"bench"):{...s,lineup};
     });
   },[]);
   const benchPlayer=useCallback(playerId=>{
-    setState(s=>{const lineup={...s.lineup};Object.keys(lineup).forEach(key=>{if(lineup[key]===playerId)delete lineup[key];});return {...s,lineup};});
+    setState(s=>moveToSquadGroup(s,playerId,"bench"));
   },[]);
+  const availablePlayer=useCallback(playerId=>setState(s=>moveToSquadGroup(s,playerId,"available")),[]);
   const swapStudioPlayer=useCallback((slotIndex,playerId)=>{
     setState(s=>{
       if(unavailablePlayerIds(s,s.stage==="ucl"?"ucl":"domestic").includes(playerId))return s;
@@ -115,11 +153,11 @@ export default function App(){
       Object.keys(lineup).forEach(key=>{if(lineup[key]===playerId)delete lineup[key];});
       lineup[slotIndex]=playerId;
       if(source!==undefined&&Number(source)!==slotIndex&&displaced)lineup[source]=displaced;
-      return {...s,lineup};
+      return source===undefined&&displaced?moveToSquadGroup({...s,lineup},displaced,"bench"):{...s,lineup};
     });
   },[]);
   const benchStudioSlot=useCallback(slotIndex=>{
-    setState(s=>{const lineup={...s.lineup};delete lineup[slotIndex];return {...s,lineup};});
+    setState(s=>moveToSquadGroup(s,s.lineup[slotIndex],"bench"));
   },[]);
   const dragging=!!dragPos;
 
@@ -216,7 +254,7 @@ export default function App(){
     catch(error){flashToast(error.message);}
   }
   function acceptSaleOffer(offerId){
-    try{setState(respondToSaleOffer(state,offerId,"accept"));flashToast("Sale completed and budget updated.");}
+    try{setState(respondToSaleOffer(state,offerId,"accept"));flashToast("Fee agreed. Personal talks take 1–3 days before the sale completes.");}
     catch(error){flashToast(error.message);}
   }
   function rejectSaleOffer(offerId){
@@ -236,7 +274,7 @@ export default function App(){
   }
   function loanOut(playerId){try{if((state.loanListings||[]).includes(playerId)){setState(unlistPlayer(state,playerId));flashToast("Player unlisted for loan.");return;}setState(listPlayerForLoan(state,playerId));flashToast("Loan listed — review Received offers.");}catch(error){flashToast(error.message);}}
   function recallPlayer(playerId){try{setState(recallLoan(state,playerId));flashToast("Player recalled and available for selection.");return true;}catch(error){flashToast(error.message);return false;}}
-  function buyPlayer(seller,player,fee){return doTransfer({type:"buy",sellerId:seller.id,playerId:player.id,fee});}
+  function buyPlayer(seller,player,fee){try{setState(agreeTransferFee(state,{sellerId:seller.id,playerId:player.id,fee}));flashToast("Fee agreed. Advance the calendar for the player decision.");return true;}catch(error){flashToast(error.message);return false;}}
   function loanIn(seller,player){return doTransfer({type:"loan-in",sellerId:seller.id,playerId:player.id});}
   function toggleShortlist(playerId){
     setState(s=>{
@@ -263,18 +301,23 @@ export default function App(){
   }
 
   function beginMatchday(half){
+    if(halfSimulation)return;
     if(state.simMode!=="half"){
       commitGame(s=>prepareNextFixture({...s,midSeasonDone:half===2||s.midSeasonDone}));
       return;
     }
-    // Yield once before the synchronous simulation so the loading presentation
-    // can paint instead of making the browser appear unresponsive.
-    const started=performance.now();
     setHalfSimulation({half,league:leagueCompetition(state.league,state.division)});
-    window.requestAnimationFrame(()=>window.setTimeout(()=>{
-      try{setState(current=>simulateScheduledHalf(current,half));}
+    window.requestAnimationFrame(()=>window.setTimeout(async()=>{
+      try{
+        const next=await simulateScheduledHalfAsync(state,half);
+        // Commit the completed batch to durable storage before dismissing its
+        // loading screen, so an immediate refresh doesn't lose the whole half.
+        setState(next);
+        try{await saveRepository.current.save(next);setSaveError("");}
+        catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);}
+      }
       catch(error){flashToast(error.message);}
-      finally{window.setTimeout(()=>setHalfSimulation(null),Math.max(0,900-(performance.now()-started)));}
+      finally{setHalfSimulation(null);}
     },80));
   }
   function playRound(){commitGame(s=>playLeagueRound(s));}
@@ -285,9 +328,9 @@ export default function App(){
     commitGame(s => ({ ...s, stage: s.stage==="matchday-live" ? "matchday-result" : s.stage==="cup-live" ? "cup-result" : s.stage }));
   }
   function continueAfterCup(){ commitGame(prepareNextFixture); }
-  function nextMatch(){commitGame(prepareNextFixture);}
+  function nextMatch(){if(state.stage==='calendar-event'&&state.simMode==='half')beginMatchday(state.half||1);else commitGame(prepareNextFixture);}
 
-  function goToMidWindow(){ commitGame(s => ({ ...s, stage: "squad2" })); }
+  function goToMidWindow(){ commitGame(enterMidSeasonWindow); }
   function finalizeSeason(){ commitGame(s => ({ ...s, stage: "summary" })); }
 
   function uclGoToPrep(){commitGame(prepareNextFixture);}
@@ -318,7 +361,7 @@ export default function App(){
   const uelActions = { ...uclActions, uclPlayLeagueMatch:uelPlayLeagueMatch, uclFinishLiveMatch:uelFinishLiveMatch, uclContinueAfterMatch:uelContinueAfterMatch };
   const ueclActions = { ...uclActions, uclPlayLeagueMatch:ueclPlayLeagueMatch, uclFinishLiveMatch:ueclFinishLiveMatch, uclContinueAfterMatch:ueclContinueAfterMatch };
 
-  const squadCommonProps = { state, myClub, onRecall:recallPlayer, onSetFormation: setFormation, onDragStart: startDrag, onStartPlayer:startPlayer, onBenchPlayer:benchPlayer, onEditNumber: editNumber, onSell: sellPlayer, onAcceptSaleOffer:acceptSaleOffer, onRejectSaleOffer:rejectSaleOffer, onCounterSaleOffer:negotiateSaleOffer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenOffers: ()=>setOffersOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
+  const squadCommonProps = { state, myClub, onRenew:id=>setContractTalk({playerId:id}), onRecall:recallPlayer, onSetFormation: setFormation, onDragStart: startDrag, onStartPlayer:startPlayer, onBenchPlayer:benchPlayer, onAvailablePlayer:availablePlayer, onEditNumber: editNumber, onSell: sellPlayer, onAcceptSaleOffer:acceptSaleOffer, onRejectSaleOffer:rejectSaleOffer, onCounterSaleOffer:negotiateSaleOffer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenOffers: ()=>setOffersOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
@@ -418,13 +461,14 @@ export default function App(){
           onExport={downloadSave} onImport={importSave} />
         {myClub && !isLive && !["matchday-result","cup-result"].includes(state.stage) && !(state.stage==="ucl"&&["UEL","UECL"].includes(state.activeEuropeanCompetition)) && <SeasonStatus state={state} myClub={myClub} onOpenOffers={()=>setOffersOpen(true)}/>}
         {state.development?.length>0 && state.stage==="squad" && <DevelopmentPanel changes={state.development} />}
+        {state.market?.talks.filter(t=>t.status==='pending'&&t.buyerId===state.myClubId&&t.phase==='contract-ready').map(t=><div className="personal-terms-ready" key={t.id}><FileSignature size={19}/><span>{t.playerName} chose your club. Personal terms are ready.</span><button onClick={()=>setContractTalk({talkId:t.id})}>Open contract talks →</button></div>)}
         {stageEl}
       </div>
 
       {marketOpen && myClub && (
         <TransferMarket state={state} myClub={myClub} filter={marketFilter} setFilter={setMarketFilter}
           onClose={()=>setMarketOpen(false)} onBuy={buyPlayer} onLoanIn={loanIn} onToggleShortlist={toggleShortlist}
-          onOpenOffers={()=>setOffersOpen(true)} />
+          onOpenOffers={()=>setOffersOpen(true)} onOpenContract={id=>setContractTalk({talkId:id})} onCancelTalk={id=>setState(s=>cancelMarketTalk(s,id))} />
       )}
       {selectedCup && myClub && <CupDetail state={state} competition={selectedCup} onClose={()=>setSelectedCup(null)}
         renderStandings={()=>{const campaign=selectedCup==="UEL"?state.uel:selectedCup==="UECL"?state.uecl:state.ucl;return campaign?<UclTable table={computeTableArray(campaign.tableRaw,campaign.clubs)} myClubId={state.myClubId} competition={selectedCup}/>:null;}}
@@ -433,8 +477,10 @@ export default function App(){
       {mailOpen && myClub && <MailHub state={state} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} onOpenTransfer={()=>{setMailOpen(false);setMarketOpen(true);}} />}
       {offersOpen && myClub && <TransferOffersHub state={state} myClub={myClub} onClose={()=>setOffersOpen(false)} onAccept={acceptSaleOffer} onReject={rejectSaleOffer} onCounter={negotiateSaleOffer}/>} 
       {halfSimulation ? <HalfSeasonLoading half={halfSimulation.half} league={halfSimulation.league}/> : null}
+      {!halfSimulation&&!contractTalk&&(state.marketNotices?.[0]||state.marketNotice)&&<SigningDecision notice={state.marketNotices?.[0]||state.marketNotice} state={state} renderBadge={club=><ClubBadge club={club} size="md"/>} onClose={dismissMarketNotice} onContract={id=>{dismissMarketNotice();setContractTalk({talkId:id});}}/>}
+      {contractTalk&&myClub&&<ContractTalks key={contractTalk.talkId||contractTalk.playerId} state={state} {...contractTalk} onSubmit={submitContract} onClose={()=>setContractTalk(null)} onEnd={id=>{if(id)setState(s=>cancelMarketTalk(s,id));}} renderBadge={club=><ClubBadge club={club} size="md"/>}/>}
       {tacticsOpen && myClub && (
-        <StudioCommandOverlay state={state} myClub={myClub} onClose={()=>setTacticsOpen(false)} onSetFormation={setFormation} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} onDragStart={startDrag} onSwapPlayer={swapStudioPlayer} onBenchSlot={benchStudioSlot} draggingPlayer={dragMeta.current?.player} hoverSlot={hoverSlot} />
+        <StudioCommandOverlay state={state} myClub={myClub} onClose={()=>setTacticsOpen(false)} onSetFormation={setFormation} onSetStyle={setTacticalStyle} onSetLine={setDefensiveLine} onSetAggression={setDefensiveAggression} onSetTrap={setOffsideTrap} onSetPlan={plan=>setState(s=>({...s,...plan}))} onDragStart={startDrag} onSwapPlayer={swapStudioPlayer} onBenchSlot={benchStudioSlot} onStartPlayer={startPlayer} onBenchPlayer={benchPlayer} onAvailablePlayer={availablePlayer} draggingPlayer={dragMeta.current?.player} hoverSlot={hoverSlot} />
       )}
     </div>
   );
@@ -474,7 +520,7 @@ function SeasonStatus({ state, myClub, onOpenOffers }){
         <CompetitionMark id={competition} size="sm"/>
         <div><span>{brand.name} · Season {state.season}</span><strong>{seasonLabel(state)}</strong></div>
       </div>
-      <div className="season-command-metric"><span>Available budget</span><strong>{fmtM(state.budget)}</strong><small>Transfer Centre</small></div>
+      <div className="season-command-metric"><span>Available budget</span><strong>{fmtM(availableBudget(state))}</strong><small>{reservedBudget(state)?`${fmtM(reservedBudget(state))} reserved for signings`:'Transfer Centre'}</small></div>
       <div className="season-command-fitness"><div><span>Squad readiness</span><strong>{condition}%</strong><small>Energy {energy}%</small></div><div className="condition-track"><span className={`condition-fill ${conditionTone}`} style={{width:`${condition}%`}}/></div></div>
       <div className="season-command-form"><span>League form</span><div className="form-row">{[0,1,2,3,4].map(i=>{const result=form[i];return <b key={i} className={`form-badge ${result?`form-${result.toLowerCase()}`:"form-empty"}`}>{result||"–"}</b>;})}</div><small>Last five matches</small>{marketOpen(state)&&(state.saleOffers||[]).some(o=>o.status==="pending")&&<button className="status-received-offers" aria-label="Received offers" title="Review received transfer and loan offers" onClick={onOpenOffers}><HandCoins size={16}/><b>Received offers</b><em>{state.saleOffers.filter(o=>o.status==="pending").length}</em><span>→</span></button>}</div>
     </section>
@@ -664,7 +710,7 @@ function LineupSheet({club,formation,style,players,caption}){
     <div className="prematch-roster">{slots.map((slot,i)=>{const player=players[i];const energy=clamp(Math.round(player?.energy??100),0,100);const fitness=clamp(Math.round(player?.condition??100),0,100);return <div className="prematch-roster-row" key={i} style={{"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
       <span className="prematch-role">{slot.role}</span><strong title={player?.name}>{player?pitchPlayerName(player.name):"Vacant"}</strong>
       <div className="prematch-energy" title={`Energy ${energy}%`}><i style={{width:`${energy}%`}}/><small>{energy}%</small></div>
-      <span className={`prematch-fitness ${fitness>=90?"good":fitness>=75?"mid":"low"}`} title={`Fitness ${fitness}%`}><FitnessGem condition={fitness}/>{fitness}%</span>
+      <span className={`prematch-fitness ${fitness>=90?"good":fitness>=75?"mid":"low"}`} title={`Sharpness ${fitness}%`}><FitnessGem condition={fitness}/>{fitness}%</span>
       <b className="prematch-rating">{player?Math.round(matchOvr(player)):"—"}</b>
     </div>;})}</div>
   </section>;
@@ -676,7 +722,7 @@ function FormationBoard({club,formation,style,players,caption}){
     <div className="prematch-formation-pitch"><div className="prematch-formation-lines"/>{slots.map((slot,i)=>{const player=players[i];const energy=clamp(Math.round(player?.energy??100),0,100);return <div key={i} className="prematch-formation-slot" style={{left:`${slot.x}%`,top:`${slot.y}%`,"--role-color":GROUP_COLOR[ROLE_GROUP[slot.role]]}}>
       <div className="prematch-formation-card"><div><b>{player?Math.round(matchOvr(player)):"—"}</b><span>{slot.role}</span></div><strong title={player?.name}>{player?pitchPlayerName(player.name):"Vacant"}</strong><div className="prematch-formation-vitals"><FitnessGem condition={player?.condition}/><i><span style={{width:`${energy}%`}}/></i><small>{energy}%</small></div></div>
     </div>;})}</div>
-    <footer><span><FitnessGem condition={100}/> Fitness</span><span><i/> Energy</span></footer>
+    <footer><span><FitnessGem condition={100}/> Sharpness</span><span><i/> Energy</span></footer>
   </section>;
 }
 function PreMatchLineups({myClub,opponent,isHome,myFormation,oppFormation,myStyle,oppStyle,myXI,oppXI,label,brandId,onClose,onContinue}){
@@ -689,7 +735,7 @@ function PreMatchLineups({myClub,opponent,isHome,myFormation,oppFormation,myStyl
       <div className="prematch-matchup"><div><ClubBadge club={home} size="sm"/><strong>{home.name}</strong></div><b>VS</b><div><ClubBadge club={away} size="sm"/><strong>{away.name}</strong></div></div>
       <div className="prematch-view-switch" role="tablist" aria-label="Lineup view"><button role="tab" aria-selected={view==="sheets"} className={view==="sheets"?"active":""} onClick={()=>setView("sheets")}>Team sheets</button><button role="tab" aria-selected={view==="formation"} className={view==="formation"?"active":""} onClick={()=>setView("formation")}>Formation view</button><span>Compare every starter before kickoff</span></div>
       {view==="sheets"?<div className="prematch-lineups"><LineupSheet club={home} formation={isHome?myFormation:oppFormation} style={isHome?myStyle:oppStyle} players={isHome?myXI:oppXI} caption={isHome?"YOUR TEAM · HOME":"OPPONENT · HOME"}/><LineupSheet club={away} formation={isHome?oppFormation:myFormation} style={isHome?oppStyle:myStyle} players={isHome?oppXI:myXI} caption={isHome?"OPPONENT · AWAY":"YOUR TEAM · AWAY"}/></div>:<div className="prematch-lineups prematch-formation-view"><FormationBoard club={home} formation={isHome?myFormation:oppFormation} style={isHome?myStyle:oppStyle} players={isHome?myXI:oppXI} caption={isHome?"YOUR TEAM · HOME":"OPPONENT · HOME"}/><FormationBoard club={away} formation={isHome?oppFormation:myFormation} style={isHome?oppStyle:myStyle} players={isHome?oppXI:myXI} caption={isHome?"OPPONENT · AWAY":"YOUR TEAM · AWAY"}/></div>}
-      <footer className="prematch-footer"><span>{view==="sheets"?"Energy and fitness are shown for both starting elevens.":"Both formations are shown with current match OVR and energy."}</span><button onClick={onContinue}>Continue to match <b>→</b></button></footer>
+      <footer className="prematch-footer"><span>{view==="sheets"?"Energy and sharpness are shown for both starting elevens.":"Both formations are shown with current match OVR and energy."}</span><button onClick={onContinue}>Continue to match <b>→</b></button></footer>
     </div>
   </div>,document.body);
 }
@@ -729,7 +775,7 @@ function MatchdayPreview({state,myClub,opponent,isHome,oppForm,myStyle,oppStyle,
     </div>
     }
     {showOppXI&&!betweenFixtures&&<div className="matchday-opponent-xi"><div className="matchday-xi-heading"><ClubBadge club={opponent} size="xs"/><strong>{opponent.name} starting XI</strong><span>{oppForm} · {STYLES[oppStyle]?.name||"Balanced"}</span></div><div className="matchday-xi-grid">{oppXI.map(player=><div key={player.id}><b>{matchOvr(player)}</b><strong>{player.name}</strong><small>{player.role}</small></div>)}</div></div>}
-    <div className="matchday-preview-footer"><span>{betweenFixtures?"Manage your squad or review offers before advancing to the next event.":issue||"Check the lineup below, then review both starting XIs."}</span><button onClick={()=>betweenFixtures?onPlay():setShowLineups(true)} disabled={!betweenFixtures&&!!issue}>{betweenFixtures?"Continue simulate day":"View lineups"} <span>→</span></button></div>
+    <div className="matchday-preview-footer"><span role={betweenFixtures?"status":undefined}>{betweenFixtures?<><strong className="calendar-stop-reason">{state.transferNotice||"Your calendar is paused."}</strong>Review the update, then continue to the next event.</>:issue||"Check the lineup below, then review both starting XIs."}</span><button onClick={()=>betweenFixtures?onPlay():setShowLineups(true)} disabled={!betweenFixtures&&!!issue}>{betweenFixtures?"Continue simulate day":"View lineups"} <span>→</span></button></div>
     {showLineups&&<PreMatchLineups myClub={myClub} opponent={opponent} isHome={isHome} myFormation={selectedFormation} oppFormation={oppForm} myXI={myXI} oppXI={oppXI} myStyle={myStyle} oppStyle={oppStyle} brandId={brandId} label={fixtureLabel} onClose={()=>setShowLineups(false)} onContinue={()=>{setShowLineups(false);onPlay();}}/>}
   </section>;
 }
@@ -739,7 +785,7 @@ function FormTrend({confidence}){
 }
 function FitnessGem({condition}){
   const fitness=clamp(Math.round(condition??100),0,100);
-  return <span className={`fitness-gem ${fitness>=90?"fitness-good":fitness>=75?"fitness-mid":"fitness-low"}`} title={`Fitness ${fitness}%`} aria-label={`Fitness ${fitness}%`}><i/></span>;
+  return <span className={`fitness-gem ${fitness>=90?"fitness-good":fitness>=75?"fitness-mid":"fitness-low"}`} title={`Sharpness ${fitness}%`} aria-label={`Sharpness ${fitness}%`}><i/></span>;
 }
 function EnergyBar({energy}){
   const remaining=clamp(Math.round(energy??100),0,100);
@@ -781,15 +827,13 @@ function Pitch({ formation, lineup, players, onDragStart, draggingPlayer, hoverS
 function SeasonInsights({ clubs, myClub, league="PL", compact=false }){
   const [competition,setCompetition]=useState("all");
   const [playerQuery,setPlayerQuery]=useState("");
+  const [playerPosition,setPlayerPosition]=useState("ALL");
+  const [playerSort,setPlayerSort]=useState({key:"appearances",direction:"desc"});
   const competitions=[{id:"all",name:"All competitions"},{id:"league",name:LEAGUE_NAMES[league]||"League"},
     ...(league==="PL"?[{id:"carabao",name:"Carabao Cup"},{id:"fa",name:"FA Cup"}]:[]),
     ...(league==="LALIGA"?[{id:"copa",name:"Copa del Rey"}]:[]),{id:"ucl",name:"Champions League"}];
   const selected=competitions.find(item=>item.id===competition)||competitions[0];
-  const statsFor=player=>!player?{}:competition==="all"?{
-    appearances:player.ratedMatches||0,goals:player.seasonGoals||0,assists:player.seasonAssists||0,
-    cleanSheets:player.seasonCleanSheets||0,yellowCards:player.seasonYellowCards||0,redCards:player.seasonRedCards||0,
-    ratingTotal:player.ratingTotal||0,ratedMatches:player.ratedMatches||0,bestRating:player.bestRating||0,
-  }:player.competitionStats?.[competition]||{};
+  const statsFor=player=>player?performanceStats(player,competition):{};
   const stat=(player,key)=>statsFor(player)[key]||0;
   const average=player=>stat(player,"ratedMatches")?stat(player,"ratingTotal")/stat(player,"ratedMatches"):0;
   const rows=seasonPlayerRows(clubs);
@@ -802,7 +846,8 @@ function SeasonInsights({ clubs, myClub, league="PL", compact=false }){
     {label:"Player awards",icon:"◆",rows:top(r=>r.player.motm||0),value:r=>r.player.motm||0},
   ];
   const allClubPlayers=[...(myClub?.players||[])].sort((a,b)=>stat(b,"ratedMatches")-stat(a,"ratedMatches")||average(b)-average(a)||b.ovr-a.ovr);
-  const clubPlayers=allClubPlayers.filter(player=>player.name.toLowerCase().includes(playerQuery.trim().toLowerCase()));
+  const clubPlayers=sortPerformancePlayers(allClubPlayers.filter(player=>matchesPosition(player,playerPosition)&&player.name.toLowerCase().includes(playerQuery.trim().toLowerCase())),playerSort,competition);
+  const changeSort=key=>setPlayerSort(previous=>({key,direction:previous.key===key?(previous.direction==="asc"?"desc":"asc"):['name','role'].includes(key)?"asc":"desc"}));
   const olderSaveHasUnsplitMatches=!!myClub?.players.some(player=>(player.ratedMatches||0)>0&&!Object.keys(player.competitionStats||{}).length);
   const clubLeader=key=>[...allClubPlayers].sort((a,b)=>stat(b,key)-stat(a,key)||average(b)-average(a))[0];
   const clubHighlights=[
@@ -834,13 +879,19 @@ function SeasonInsights({ clubs, myClub, league="PL", compact=false }){
             <span>{item.icon}</span><div><small>{item.label}</small><strong>{stat(item.player,item.key)>0?item.player.name:"No record yet"}</strong></div><b>{stat(item.player,item.key)}</b>
           </div>)}
         </div>
-        <div className="performance-player-search"><Search size={16}/><input value={playerQuery} onChange={event=>setPlayerQuery(event.target.value)} placeholder="Search your squad"/><span>{clubPlayers.length} shown</span></div>
+        <div className="performance-toolbar">
+          <div className="performance-player-search"><Search size={16}/><input aria-label="Search your squad" value={playerQuery} onChange={event=>setPlayerQuery(event.target.value)} placeholder="Search your squad"/></div>
+          <label className="performance-control"><span>Position</span><select aria-label="Performance position" value={playerPosition} onChange={event=>setPlayerPosition(event.target.value)}><PositionOptions/></select></label>
+          <label className="performance-control"><span>Sort by</span><select aria-label="Performance sort column" value={playerSort.key} onChange={event=>changeSort(event.target.value)}>{PERFORMANCE_COLUMNS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+          <button className="performance-direction" onClick={()=>setPlayerSort(previous=>({...previous,direction:previous.direction==='asc'?'desc':'asc'}))} aria-label={`Sort ${playerSort.direction==='desc'?'ascending':'descending'}`}>{playerSort.direction==='desc'?<ArrowDown size={15}/>:<ArrowUp size={15}/>}<span>{['name','role'].includes(playerSort.key)?(playerSort.direction==='asc'?'A–Z':'Z–A'):(playerSort.direction==='desc'?'Highest first':'Lowest first')}</span></button>
+          <span className="performance-shown">{clubPlayers.length} players</span>
+        </div>
         <div className="club-player-table-wrap">
           <table className="club-player-table">
-            <thead><tr><th>Player</th><th>Pos</th><th>Apps</th><th>Goals</th><th>Assists</th><th>Clean sheets</th><th>Yellow</th><th>Red</th><th>Average</th><th>Best</th></tr></thead>
+            <thead><tr>{PERFORMANCE_COLUMNS.map(([key,label])=><th key={key} aria-sort={playerSort.key===key?(playerSort.direction==='asc'?'ascending':'descending'):'none'}><button onClick={()=>changeSort(key)} aria-label={`Sort by ${label}`}>{label}{playerSort.key===key?(playerSort.direction==='asc'?<ArrowUp size={12}/>:<ArrowDown size={12}/>):<ChevronsUpDown size={11}/>}</button></th>)}</tr></thead>
             <tbody>{clubPlayers.map(player=><tr key={player.id}>
-              <td><strong>{player.name}</strong><small>OVR {matchOvr(player)}{player.confidence?` (${player.confidence>0?"+":""}${player.confidence} confidence)`:""}</small></td><td>{player.role}</td><td>{stat(player,"ratedMatches")}</td><td>{stat(player,"goals")}</td><td>{stat(player,"assists")}</td><td>{stat(player,"cleanSheets")}</td><td>{stat(player,"yellowCards")}</td><td>{stat(player,"redCards")}</td><td className="table-rating">{stat(player,"ratedMatches")?average(player).toFixed(2):"—"}</td><td>{stat(player,"bestRating")?stat(player,"bestRating").toFixed(1):"—"}</td>
-            </tr>)}{!clubPlayers.length&&<tr><td colSpan="10" className="performance-no-results">No squad player matches that search.</td></tr>}</tbody>
+              <td><strong>{player.name}</strong><small>{player.confidence?`${player.confidence>0?"+":""}${player.confidence} confidence`:"Steady form"}</small></td><td title={(player.secondaryRoles||[]).join(' / ')}>{player.role}</td><td>{player.ovr}</td><td>{stat(player,"appearances")}</td><td>{stat(player,"goals")}</td><td>{stat(player,"assists")}</td><td>{stat(player,"cleanSheets")}</td><td>{stat(player,"yellowCards")}</td><td>{stat(player,"redCards")}</td><td className="table-rating">{stat(player,"ratedMatches")?average(player).toFixed(2):"—"}</td><td>{stat(player,"bestRating")?stat(player,"bestRating").toFixed(1):"—"}</td>
+            </tr>)}{!clubPlayers.length&&<tr><td colSpan="11" className="performance-no-results">No players match these filters.</td></tr>}</tbody>
           </table>
         </div>
       </section>}
@@ -895,20 +946,6 @@ function LeagueStandings({state}){
 
 function MailPanel({items,compact=false}){const list=items.slice(0,compact?3:20);return <section className={`mail-panel ${compact?"mail-compact":""}`}><header><div><span>CLUB CORRESPONDENCE</span><strong>Staff mail</strong></div><b>{items.filter(item=>!item.read).length} unread</b></header>{list.length?list.map(item=><article className={!item.read?"is-unread":""} key={item.id}><i>{item.type==="medical"?"+":item.type==="discipline"?"!":"•"}</i><div><strong>{item.subject}</strong><small>{item.body}</small></div></article>):<div className="mail-empty">No staff updates yet. Injuries, suspensions, fixtures and cup progress will appear here.</div>}</section>;}
 
-const BENCH_COVERAGE=[["GK"],["CB"],["LB","RB"],["CDM","CM"],["CAM"],["LM","LW"],["RM","RW"],["ST"]];
-const squadOrder={GK:0,DEF:1,MID:2,FWD:3};
-function hasRole(player,roles){return [player.role,...(player.secondaryRoles||[])].some(role=>roles.includes(role));}
-function sortSquad(players){return [...players].sort((a,b)=>squadOrder[a.group]-squadOrder[b.group]||matchOvr(b)-matchOvr(a)||a.name.localeCompare(b.name));}
-function squadGroups(players,lineup,unavailable){
-  const startingIds=new Set(Object.values(lineup).filter(Boolean));
-  const candidates=players.filter(player=>!startingIds.has(player.id)&&!unavailable.has(player.id));
-  const bench=[];
-  const take=roles=>{const candidate=[...candidates].filter(player=>!bench.includes(player.id)&&(!roles||hasRole(player,roles))).sort((a,b)=>matchOvr(b)-matchOvr(a)||b.energy-a.energy)[0];if(candidate)bench.push(candidate.id);return !!candidate;};
-  BENCH_COVERAGE.forEach(take);
-  while(bench.length<9&&take(null)) { /* only fill places when a player remains */ }
-  const benchIds=new Set(bench);
-  return {startingIds,benchIds,starting:sortSquad(players.filter(player=>startingIds.has(player.id))),bench:sortSquad(players.filter(player=>benchIds.has(player.id))),available:sortSquad(players.filter(player=>!startingIds.has(player.id)&&!benchIds.has(player.id)))};
-}
 function SquadPentagon({players,lineup}){
   const starters=Object.values(lineup).map(id=>players.find(player=>player.id===id)).filter(Boolean);
   const average=list=>list.length?list.reduce((total,player)=>total+matchOvr(player),0)/list.length:58;
@@ -968,10 +1005,11 @@ function TransferOffersHub({state,myClub,onClose,onReject,onCounter}){
   const end=()=>{if(onReject(current.id)){setSelected(previous=>({...previous,offer:current}));setOutcome("withdrawn");setMessage("You ended talks. Your player remains listed and available.");}};
   return <div className="transfer-shell offers-centre" role="dialog" aria-modal="true" aria-label={selected?"Sale negotiation":"Received transfer offers"}>
     <div className="transfer-aurora transfer-aurora-one"/><div className="transfer-aurora transfer-aurora-two"/>
-    <header className="transfer-header"><button className="transfer-back" onClick={back}><ChevronLeft size={18}/><span>{selected?"Received offers":"Close"}</span></button><div className="transfer-brand"><span>{selected?"TRANSFER NEGOTIATIONS":"OUTGOING TRANSFERS"}</span><strong>Transfer Centre</strong></div><div className="transfer-budget"><small>{canTrade?"WINDOW OPEN":"WINDOW CLOSED"}</small><strong>{fmtM(state.budget)}</strong></div></header>
+    <header className="transfer-header"><button className="transfer-back" onClick={back}><ChevronLeft size={18}/><span>{selected?"Received offers":"Close"}</span></button><div className="transfer-brand"><span>{selected?"TRANSFER NEGOTIATIONS":"OUTGOING TRANSFERS"}</span><strong>Transfer Centre</strong></div><div className="transfer-budget"><small>{canTrade?"WINDOW OPEN":"WINDOW CLOSED"}</small><strong>{fmtM(availableBudget(state))}</strong></div></header>
     <main className="transfer-stage" key={selected?"negotiation":"offers"}>
-      {selected?<>{outcome==="accepted"?<section className="signed-page"><Sparkles size={32}/><span>{current.kind==='loan'?'LOAN AGREED':'TRANSFER COMPLETE'}</span><h2>{selected.player.name}</h2><ClubBadge club={selected.buyer} size="xl"/><p>joins {selected.buyer.name} {current.kind==='loan'?'on loan ':''}from {myClub.name}</p><strong>{current.kind==='loan'?loanTermLabel(fee):fmtM(fee)}</strong><button onClick={()=>setSelected(null)}>Return to received offers</button></section>:<TransferNegotiation player={selected.player} otherClub={selected.buyer} myClub={myClub} budget={state.budget} round={current.round||1} demand={current.kind==='loan'?current.seasons:current.amount} fee={fee} onFee={setFee} message={message} onSubmit={submit} onEnd={end} ended={!!outcome} locked={thinking||!canTrade} selling loan={current.kind==='loan'} currentDate={state.currentDate||`${2025+state.season}-08-01`}/>}</>:<section className="received-offers-page"><header><div><span>YOUR TRANSFER DESK</span><h1>Received offers <b>{offers.length}</b></h1><p>{groupedOffers.length} player{groupedOffers.length===1?'':'s'} · Compare club approaches below. Listed players stay available until a deal is agreed.</p></div><HandCoins size={30}/></header><div className="received-offer-grid">{groupedOffers.map(({player,offers:playerOffers})=>{
-        return <article className="received-offer-card" key={player.id}><div className="received-player"><b>{player.ovr}<small>OVR</small></b><div><span>{playerOffers[0].kind==='loan'?'LOAN LISTED':'PLAYER FOR SALE'} · {playerOffers.length} APPROACH{playerOffers.length===1?'':'ES'}</span><h2>{player.name}</h2><small>{player.role} · Age {player.age} · Market value {fmtM(player.value)}</small></div></div><div className="player-offer-stack">{playerOffers.map(offer=>{const buyer=findClubAnywhere(state,offer.buyerId);if(!buyer)return null;return <section className="player-club-offer" key={offer.id}><div className="received-buyer"><ClubBadge club={buyer} size="md"/><div><span>{offer.kind==='loan'?'LOAN APPROACH':'TRANSFER OFFER'}</span><strong>{buyer.name}</strong><small>{formatDate(offer.date)} · Round {offer.round||1}/3</small></div><b>{offer.kind==='loan'?loanTermLabel(offer.seasons):fmtM(offer.amount)}</b></div><footer><button className="negotiate-button" disabled={!canTrade} onClick={()=>open(offer)}>Review &amp; negotiate →</button><button className="negotiation-end" disabled={!canTrade} onClick={()=>onReject(offer.id)}>Decline</button></footer></section>;})}</div></article>;
+      {selected?<>{outcome==="accepted"?<section className="signed-page"><Sparkles size={32}/><span>{current.kind==='loan'?'LOAN AGREED':'CLUB FEE AGREED'}</span><h2>{selected.player.name}</h2><ClubBadge club={selected.buyer} size="xl"/><p>{current.kind==='loan'?`Joins ${selected.buyer.name} on loan`:`${selected.buyer.name} is negotiating personal terms. Player decision in 1–3 days; no fee paid yet.`}</p><strong>{current.kind==='loan'?loanTermLabel(fee):fmtM(fee)}</strong><button onClick={()=>setSelected(null)}>Return to received offers</button></section>:<TransferNegotiation player={selected.player} otherClub={selected.buyer} myClub={myClub} budget={state.budget} round={current.round||1} demand={current.kind==='loan'?current.seasons:current.amount} fee={fee} onFee={setFee} message={message} onSubmit={submit} onEnd={end} ended={!!outcome} locked={thinking||!canTrade} selling loan={current.kind==='loan'} currentDate={state.currentDate||`${2025+state.season}-08-01`}/>}</>:<section className="received-offers-page"><header><div><span>YOUR TRANSFER DESK</span><h1>Received offers <b>{offers.length}</b></h1><p>{groupedOffers.length} player{groupedOffers.length===1?'':'s'} · Compare club approaches below. Listed players stay available until the final transfer is confirmed.</p></div><HandCoins size={30}/></header><div className="received-offer-grid">{groupedOffers.map(({player,offers:playerOffers})=>{
+        const listing=(state.saleListings||[]).includes(player.id)?'TRANSFER LISTED':(state.loanListings||[]).includes(player.id)?'LOAN LISTED':'UNSOLICITED APPROACH';
+        return <article className="received-offer-card" key={player.id}><div className="received-player"><b>{player.ovr}<small>OVR</small></b><div><span>{listing} · {playerOffers.length} APPROACH{playerOffers.length===1?'':'ES'}</span><h2>{player.name}</h2><small>{player.role} · Age {player.age} · Market value {fmtM(player.value)}</small></div></div><div className="player-offer-stack">{playerOffers.map(offer=>{const buyer=findClubAnywhere(state,offer.buyerId);if(!buyer)return null;return <section className="player-club-offer" key={offer.id}><div className="received-buyer"><ClubBadge club={buyer} size="md"/><div><span>{offer.kind==='loan'?'LOAN APPROACH':'TRANSFER OFFER'}</span><strong>{buyer.name}</strong><small>{formatDate(offer.date)} · Round {offer.round||1}/3</small></div><b>{offer.kind==='loan'?loanTermLabel(offer.seasons):fmtM(offer.amount)}</b></div><footer><button className="negotiate-button" disabled={!canTrade} onClick={()=>open(offer)}>Review &amp; negotiate →</button><button className="negotiation-end" disabled={!canTrade} onClick={()=>onReject(offer.id)}>Decline</button></footer></section>;})}</div></article>;
       })}</div>{!offers.length&&<div className="mail-empty">No offers waiting. Further approaches can arrive when you advance the calendar.</div>}</section>}
     </main>
   </div>;
@@ -987,8 +1025,16 @@ function LoanedOutPlayers({state,onRecall}){
   if(!loans.length)return null;
   return <section className="squad-category squad-category-loaned"><header><div><span>Loaned out</span><small>Developing away · returns automatically</small></div><b>{loans.length}</b></header>{loans.map(item=><div className="outgoing-loan-row" key={item.player.id}><b>{item.player.ovr}</b><div><strong>{item.player.name}</strong><small>{item.player.role} · <span>{item.club.name}</span> · Returns {item.loan.endsDate?formatDate(item.loan.endsDate):'at season end'}</small></div><button onClick={()=>setSelected(item)}>Recall</button></div>)}{selected&&<div className="loan-recall-overlay" onClick={()=>setSelected(null)}><section className="loan-recall-dialog" role="dialog" aria-modal="true" aria-label="Recall loan player" onClick={e=>e.stopPropagation()}><span>EARLY LOAN RECALL</span><h2>Bring {selected.player.name} back?</h2><p>Ending the loan early compensates {selected.club.name}. Your player will immediately be available for selection.</p><div className="recall-fine"><small>Recall fine · 5% of value, capped at £2m</small><strong>{fmtM(loanRecallFine(selected.player))}</strong><small>Budget after recall: {fmtM(state.budget-loanRecallFine(selected.player))}</small></div><footer><button onClick={()=>setSelected(null)}>Keep on loan</button><button className="negotiate-button" disabled={state.budget<loanRecallFine(selected.player)} onClick={()=>{if(onRecall?.(selected.player.id))setSelected(null);}}>Pay fine &amp; recall →</button></footer></section></div>}</section>;
 }
-function SquadScreen({ state, myClub, onDragStart, onStartPlayer, onBenchPlayer, onEditNumber, onSell, onLoanOut, onRecall, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
+function SquadMoveControls({player,category,unavailable,onStart,onBench,onAvailable}){
+  return <div className="squad-move-controls" role="group" aria-label={`Move ${player.name}`}>
+    {category!=="starting"&&<button className="move-start" disabled={unavailable} onClick={()=>onStart(player.id)} aria-label={`Start ${player.name}`} title="Replace the lowest-rated starter in the best-fitting position">↑ Start</button>}
+    {category!=="bench"&&<button className="move-bench" disabled={unavailable} onClick={()=>onBench(player.id)} aria-label={`Move ${player.name} to bench`} title="Add to the nine-player bench; if full, replace its weakest same-unit backup">{category==="starting"?"↓":"↑"} Bench</button>}
+    {category!=="available"&&<button className="move-available" onClick={()=>onAvailable(player.id)} aria-label={`Move ${player.name} to available`} title="Rest this player outside the matchday squad">↓ Available</button>}
+  </div>;
+}
+function SquadScreen({ state, myClub, onRenew, onDragStart, onStartPlayer, onBenchPlayer, onAvailablePlayer, onEditNumber, onSell, onLoanOut, onRecall, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
+  const listRef=useRef(null);
   useEffect(()=>{
     if(workspaceTab!=="mail")return;
     onOpenMail?.();
@@ -999,7 +1045,7 @@ function SquadScreen({ state, myClub, onDragStart, onStartPlayer, onBenchPlayer,
   const unavailableSet = new Set([...suspendedSet,...Object.keys(injuries)]);
   const issue = lineupIssue(state,state.stage==="ucl"?"ucl":"domestic");
   const windowOpen=marketOpen(state);
-  const categories=squadGroups(myClub.players,state.lineup,unavailableSet);
+  const categories=squadGroups(myClub.players,state.lineup,unavailableSet,state.benchSelection);
   const hasSeasonData=state.clubs.some(c=>c.players.some(p=>(p.ratedMatches||0)>0));
   const incomingLoans=state.loans.filter(loan=>loan.borrowerId===state.myClubId).length;
 
@@ -1020,6 +1066,7 @@ function SquadScreen({ state, myClub, onDragStart, onStartPlayer, onBenchPlayer,
       <div className="workspace-tabs" role="tablist">
         <button className={workspaceTab==="squad"?"active":""} onClick={()=>setWorkspaceTab("squad")}><b>Squad</b><small>XI & bench</small></button>
         <button className={workspaceTab==="performance"?"active":""} onClick={()=>setWorkspaceTab("performance")}><b>Performance</b><small>Ratings & form</small>{hasSeasonData&&<em>LIVE</em>}</button>
+        <button className={workspaceTab==="hub"?"active":""} onClick={()=>setWorkspaceTab("hub")}><b>Squad Hub</b><small>Contracts & mindset</small></button>
         <button className={workspaceTab==="table"?"active":""} onClick={()=>setWorkspaceTab("table")}><b>Table</b><small>League race</small></button>
         <button className={workspaceTab==="fixtures"?"active":""} onClick={()=>setWorkspaceTab("fixtures")}><b>Fixtures</b><small>Results & schedule</small></button>
         <button className={workspaceTab==="cups"?"active":""} onClick={()=>setWorkspaceTab("cups")}><b>Competitions</b><small>Cups & Europe</small></button>
@@ -1027,7 +1074,7 @@ function SquadScreen({ state, myClub, onDragStart, onStartPlayer, onBenchPlayer,
         <button className={workspaceTab==="mail"?"active":""} onClick={onOpenMail}><b>Mail</b><small>Club inbox</small>{(state.mail||[]).filter(item=>!item.read).length>0&&<em>NEW</em>}</button>
       </div>
 
-      {workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="fixtures" ? <FixturesPanel state={state}/> : workspaceTab==="cups" ? <CupWorkspace state={state} onOpen={onOpenCups}/> : workspaceTab==="calendar" ? <CalendarPanel state={state}/> : workspaceTab==="mail" ? <MailPanel items={state.mail||[]} /> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
+      {workspaceTab==="hub" ? <SquadHub state={state} club={myClub} onRenew={onRenew} renderBadge={club=><ClubBadge club={club} size="md"/>}/> : workspaceTab==="table" ? <div className={state.stage==="ucl"&&state.ucl?.knockoutBracket?"ucl-table-bracket":""}><LeagueStandings state={state}/>{state.stage==="ucl"&&state.ucl?.knockoutBracket&&<UclBracket bracket={state.ucl.knockoutBracket} clubs={state.ucl.clubs} myClubId={state.myClubId}/>}</div> : workspaceTab==="fixtures" ? <FixturesPanel state={state}/> : workspaceTab==="cups" ? <CupWorkspace state={state} onOpen={onOpenCups}/> : workspaceTab==="calendar" ? <CalendarPanel state={state}/> : workspaceTab==="mail" ? <MailPanel items={state.mail||[]} /> : workspaceTab==="performance" ? (hasSeasonData?<SeasonInsights clubs={state.clubs} myClub={myClub} league={state.league}/>:<div className="analytics-empty"><Sparkles size={22}/><strong>Your performance centre is ready</strong><span>Complete a match to unlock ratings, leaders and the Team of the Season race.</span></div>) : <>
       <div className="grid-2col">
         <div>
           <Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} onDragStart={onDragStart} draggingPlayer={draggingPlayer} hoverSlot={hoverSlot} />
@@ -1039,7 +1086,8 @@ function SquadScreen({ state, myClub, onDragStart, onStartPlayer, onBenchPlayer,
 
         <div className="squad-list-panel">
           <div className="squad-list-heading"><div><span>FIRST TEAM</span><strong>Squad <b>{myClub.players.length}</b></strong></div><small>Clear match roles · one-click selection</small></div>
-          <div className="squad-player-list" data-bench="true">
+          <nav className="squad-category-jumps" aria-label="Squad groups">{[["starting","Starting XI",categories.starting.length],["bench","Bench",categories.bench.length],["available","Available",categories.available.length]].map(([id,label,count])=><button key={id} onClick={()=>{const list=listRef.current,target=list?.querySelector(`.squad-category-${id}`);if(target)list.scrollTo({top:list.scrollTop+target.getBoundingClientRect().top-list.getBoundingClientRect().top,behavior:"smooth"});}}>{label}<b>{count}</b></button>)}</nav>
+          <div className="squad-player-list" data-bench="true" ref={listRef}>
             {[{id:"starting",title:"Starting XI",caption:"On the pitch",players:categories.starting},{id:"bench",title:"Bench",caption:`${categories.bench.length}/9 · positional cover first`,players:categories.bench},{id:"available",title:"Available squad",caption:`${categories.available.length} players`,players:categories.available}].map(category=><section className={`squad-category squad-category-${category.id}`} key={category.id}>
               <header><div><span>{category.title}</span><small>{category.caption}</small></div><b>{category.players.length}</b></header>
               {category.players.map(p => {
@@ -1055,7 +1103,7 @@ function SquadScreen({ state, myClub, onDragStart, onStartPlayer, onBenchPlayer,
                     {(p.ratedMatches||0)>0&&<div className="squad-player-season"><span><b>{playerSeasonAverage(p).toFixed(2)}</b> AVG</span><span><b>{p.bestRating?.toFixed(1)}</b> BEST</span><span><b>{p.seasonGoals||0}</b> G</span><span><b>{p.seasonAssists||0}</b> A</span><span><b>{p.motm||0}</b> MOTM</span></div>}
                   </div>
                 </div>
-                <div className="squad-row-actions"><button className={`squad-role-action ${usedIds.has(p.id)?"is-rest":""}`} disabled={unavailable} onClick={()=>usedIds.has(p.id)?onBenchPlayer(p.id):onStartPlayer(p.id)}>{usedIds.has(p.id)?"Bench":"Start"}</button><label title="Squad number"><span>#</span><input type="number" min={1} max={99} value={p.number} onChange={e=>onEditNumber(p.id, clamp(parseInt(e.target.value||"1",10),1,99))}/></label><button className="squad-loan-action" onClick={()=>onLoanOut(p.id)} disabled={p.loan||(!windowOpen&&!(state.loanListings||[]).includes(p.id))}>{(state.loanListings||[]).includes(p.id)?"Unlist loan":"Loan"}</button><button className="squad-sell-action" onClick={()=>onSell(p.id)} disabled={p.loan||(!windowOpen&&!(state.saleListings||[]).includes(p.id))} title={(state.saleListings||[]).includes(p.id)?"Remove listing and pending offers":"List for sale"}>{(state.saleListings||[]).includes(p.id)?"Unlist":"Sell"}</button></div>
+                <div className="squad-row-actions"><SquadMoveControls player={p} category={category.id} unavailable={unavailable} onStart={onStartPlayer} onBench={onBenchPlayer} onAvailable={onAvailablePlayer}/><label title="Squad number"><span>#</span><input type="number" min={1} max={99} value={p.number} onChange={e=>onEditNumber(p.id, clamp(parseInt(e.target.value||"1",10),1,99))}/></label><button className="squad-loan-action" onClick={()=>onLoanOut(p.id)} disabled={p.loan||(!windowOpen&&!(state.loanListings||[]).includes(p.id))}>{(state.loanListings||[]).includes(p.id)?"Unlist loan":"Loan"}</button><button className="squad-sell-action" onClick={()=>onSell(p.id)} disabled={p.loan||(!windowOpen&&!(state.saleListings||[]).includes(p.id))} title={(state.saleListings||[]).includes(p.id)?"Remove listing and pending offers":"List for sale"}>{(state.saleListings||[]).includes(p.id)?"Unlist":"Sell"}</button></div>
               </div>
               );
             })}</section>)}
@@ -1553,14 +1601,14 @@ function StudioOverview({state,myClub,onClose,onSetFormation,onOpenSelection,onO
   const average=starters.length?Math.round(starters.reduce((sum,player)=>sum+matchOvr(player),0)/starters.length):"—";
   return <div className="matchday-studio" role="dialog" aria-modal="true" aria-label="Matchday Studio"><div className="studio-aurora"/><header className="studio-topbar"><button className="studio-back" onClick={onClose}><ChevronLeft size={19}/> Squad hub</button><div className="studio-title"><span>MATCHDAY STUDIO</span><strong>{myClub.name}</strong></div><button className="studio-save" onClick={onClose}>Save &amp; return <span>→</span></button></header><main className="studio-scroll"><section className="studio-hero"><ClubBadge club={myClub} size="lg" className="studio-club-badge"/><div className="studio-hero-copy"><span>FIRST TEAM CONTROL</span><h1>Matchday Studio</h1><p>{starters.length}/11 selected · choose your formation, lineup and match plan.</p></div><div className="studio-hero-numbers"><div><small>XI AVG</small><b>{average}</b></div><div><small>FORMATION</small><b>{state.formation}</b></div><div><small>READINESS</small><b>{starters.length?Math.round(starters.reduce((sum,player)=>sum+(player.energy??100),0)/starters.length):"—"}%</b></div></div></section><div className="studio-layout studio-workbench"><section className="studio-card studio-formation-card"><header className="studio-formation-header"><div><span className="studio-section-label">FORMATION LAB</span><h2>{state.formation}</h2></div><p>{notes?.strength||"Shape your XI for the next fixture."}</p></header><div className="studio-formation-buttons">{Object.keys(FORMATIONS).map(formation=><button key={formation} className={formation===state.formation?"active":""} onClick={()=>onSetFormation(formation)}><b>{formation}</b><span>{formation===state.formation?"Selected":"Preview"}</span></button>)}</div><FitPitch wide><Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} interactive={false}/></FitPitch><div className="studio-formation-note"><i>✦</i><span><b>{notes?.strength||"Balanced setup"}</b><small>{notes?.risk||"Your selected XI will adapt to this shape."}</small></span></div></section><aside className="studio-console"><section className="studio-card studio-profile-card"><SquadPentagon players={myClub.players} lineup={state.lineup}/><div className="studio-intel-list"><div><span>Team identity</span><b>{STYLES[state.tacticalStyle||"balanced"].name}</b></div><div><span>Watch</span><b className="studio-warning">{notes?.risk||"Review your coverage before kickoff."}</b></div></div></section><section className="studio-card studio-console-card"><div className="studio-launch-actions"><button onClick={onOpenSelection}><span>LINEUP</span><b>Choose your XI</b><small>Drag, drop and manage the bench.</small><em>Open squad selection →</em></button><button onClick={onOpenTactics}><span>TACTICS</span><b>Build your match plan</b><small>{STYLES[state.tacticalStyle||"balanced"].name} · defensive instructions.</small><em>Open tactics lab →</em></button></div></section></aside></div></main></div>;
 }
-function StudioCommandOverlay({state,myClub,onClose,onSetFormation,onSetStyle,onSetLine,onSetAggression,onSetTrap,onSetPlan,onDragStart,onSwapPlayer,onBenchSlot,draggingPlayer,hoverSlot}){
+function StudioCommandOverlay({state,myClub,onClose,onSetFormation,onSetStyle,onSetLine,onSetAggression,onSetTrap,onSetPlan,onDragStart,onSwapPlayer,onBenchSlot,onStartPlayer,onBenchPlayer,onAvailablePlayer,draggingPlayer,hoverSlot}){
   const [screen,setScreen]=useState("home");
   const [selectedSlot,setSelectedSlot]=useState(null);
   const unavailable=new Set(unavailablePlayerIds(state,state.stage==="ucl"?"ucl":"domestic"));
-  const groups=squadGroups(myClub.players,state.lineup,unavailable);
+  const groups=squadGroups(myClub.players,state.lineup,unavailable,state.benchSelection);
   const styles=Object.entries(STYLES).map(([key,value])=>({key,...value}));
   const active=state.tacticalStyle||"balanced",line=state.defensiveLine??50,aggression=state.defensiveAggression??50;
-  if(screen==="selection")return <div className="studio-workspace-overlay studio-selection-overlay" role="dialog" aria-modal="true" aria-label="Squad selection"><header className="studio-workspace-top"><button onClick={()=>setScreen("home")}><ChevronLeft size={18}/> Matchday Studio</button><div><span>SQUAD SELECTION</span><strong>Pick the starting XI</strong></div><button className="studio-save" onClick={()=>setScreen("home")}>Done <span>→</span></button></header><main className="studio-selection-workspace"><section className="studio-selection-pitch"><FitPitch><Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} onDragStart={onDragStart} draggingPlayer={draggingPlayer} hoverSlot={hoverSlot} onSelectPlayer={setSelectedSlot} selectedSlot={selectedSlot}/></FitPitch><p>{selectedSlot===null?"Click a pitch position, then choose a replacement — or drag a squad card onto the pitch.":`Replacing ${FORMATIONS[state.formation][selectedSlot].role} · click a squad player to swap.`}</p>{selectedSlot!==null&&<button className="studio-bench-slot" onClick={()=>{onBenchSlot(selectedSlot);setSelectedSlot(null);}}>Move selected starter to bench</button>}</section><section className="studio-selection-list" data-bench="true"><header><span>FIRST TEAM</span><strong>Squad <b>{myClub.players.length}</b></strong><small>{selectedSlot===null?"Starting XI · Bench · Available squad":`Choose a replacement for ${FORMATIONS[state.formation][selectedSlot].role}`}</small></header>{[{title:"Starting XI",players:groups.starting},{title:"Bench · coverage first",players:groups.bench},{title:"Available squad",players:groups.available}].map(group=><section key={group.title}><h3>{group.title} <b>{group.players.length}</b></h3>{group.players.map(player=><button key={player.id} disabled={unavailable.has(player.id)} className="studio-selection-player" style={{"--role-color":GROUP_COLOR[player.group]}} onPointerDown={event=>onDragStart(event,player,{source:"squad"})} onClick={()=>{if(selectedSlot!==null){onSwapPlayer(selectedSlot,player.id);setSelectedSlot(null);}}}><span className="studio-selection-ovr">{matchOvr(player)}</span><span><strong>{player.name}</strong><small>{player.role}{player.secondaryRoles?.length?` · ${player.secondaryRoles.join("/")}`:""} · {Math.round(player.energy??100)}% energy{unavailable.has(player.id)?" · Unavailable":""}</small></span><em>{selectedSlot!==null?positionFitLabel(FORMATIONS[state.formation][selectedSlot].role,player):"Drag →"}</em></button>)}</section>)}</section></main></div>;
+  if(screen==="selection")return <div className="studio-workspace-overlay studio-selection-overlay" role="dialog" aria-modal="true" aria-label="Squad selection"><header className="studio-workspace-top"><button onClick={()=>setScreen("home")}><ChevronLeft size={18}/> Matchday Studio</button><div><span>SQUAD SELECTION</span><strong>Pick the starting XI</strong></div><button className="studio-save" onClick={()=>setScreen("home")}>Done <span>→</span></button></header><main className="studio-selection-workspace"><section className="studio-selection-pitch"><FitPitch><Pitch formation={state.formation} lineup={state.lineup} players={myClub.players} onDragStart={onDragStart} draggingPlayer={draggingPlayer} hoverSlot={hoverSlot} onSelectPlayer={setSelectedSlot} selectedSlot={selectedSlot}/></FitPitch><p>{selectedSlot===null?"Click a pitch position, then choose a replacement — or drag a squad card onto the pitch.":`Replacing ${FORMATIONS[state.formation][selectedSlot].role} · click a squad player to swap.`}</p>{selectedSlot!==null&&<button className="studio-bench-slot" onClick={()=>{onBenchSlot(selectedSlot);setSelectedSlot(null);}}>Move selected starter to bench</button>}</section><section className="studio-selection-list" data-bench="true"><header><span>FIRST TEAM</span><strong>Squad <b>{myClub.players.length}</b></strong><small>{selectedSlot===null?"Starting XI · Bench · Available squad":`Choose a replacement for ${FORMATIONS[state.formation][selectedSlot].role}`}</small></header>{[{id:"starting",title:"Starting XI",players:groups.starting},{id:"bench",title:"Bench",players:groups.bench},{id:"available",title:"Available squad",players:groups.available}].map(group=><section key={group.title}><h3>{group.title} <b>{group.players.length}</b></h3>{group.players.map(player=><div className="studio-selection-row" key={player.id}><button disabled={unavailable.has(player.id)} className="studio-selection-player" style={{"--role-color":GROUP_COLOR[player.group]}} onPointerDown={event=>onDragStart(event,player,{source:"squad"})} onClick={()=>{if(selectedSlot!==null){onSwapPlayer(selectedSlot,player.id);setSelectedSlot(null);}}}><span className="studio-selection-ovr">{matchOvr(player)}</span><span><strong>{player.name}</strong><small>{player.role}{player.secondaryRoles?.length?` · ${player.secondaryRoles.join("/")}`:""} · {Math.round(player.energy??100)}% energy{unavailable.has(player.id)?" · Unavailable":""}</small></span><em>{selectedSlot!==null?positionFitLabel(FORMATIONS[state.formation][selectedSlot].role,player):"Drag →"}</em></button><SquadMoveControls player={player} category={group.id} unavailable={unavailable.has(player.id)} onStart={onStartPlayer} onBench={onBenchPlayer} onAvailable={onAvailablePlayer}/></div>)}</section>)}</section></main></div>;
   if(screen==="tactics")return <div className="studio-workspace-overlay" role="dialog" aria-modal="true" aria-label="Tactics lab"><header className="studio-workspace-top"><button onClick={()=>setScreen("home")}><ChevronLeft size={18}/> Matchday Studio</button><div><span>TACTICS LAB</span><strong>Set the match plan</strong></div><button className="studio-save" onClick={()=>setScreen("home")}>Save plan <span>→</span></button></header><main className="studio-tactics-workspace"><section><header><span>PLAYING STYLE</span><h2>How should your team play?</h2><p>Choose the football identity. This is separate from defensive instructions below.</p></header><div className="studio-style-grid">{styles.map(style=><button key={style.key} className={style.key===active?"active":""} onClick={()=>onSetStyle(style.key)}><span>{style.key===active?"ACTIVE STYLE":"STYLE"}</span><b>{style.name}</b><small>{style.desc}</small></button>)}</div></section><section className="studio-instructions-card"><header><span>MATCH INSTRUCTIONS</span><h2>Defensive approach &amp; game management</h2></header><div className="studio-controls-grid"><label className="studio-range"><span><b>Defensive line</b><em>{line}</em></span><input type="range" min="0" max="100" value={line} onChange={event=>onSetLine(Number(event.target.value))}/><small>Deep block <i/> high press</small></label><label className="studio-range"><span><b>Defensive aggression</b><em>{aggression<25?"Cautious":aggression<50?"Measured":aggression<75?"Assertive":"Full contact"}</em></span><input type="range" min="0" max="100" step="5" value={aggression} onChange={event=>onSetAggression(Number(event.target.value))}/><small>Cautious <i/> aggressive</small></label><label className="studio-select"><b>Half-time response</b><select value={state.halftimeStyle||"keep"} onChange={event=>onSetPlan({halftimeStyle:event.target.value})}><option value="keep">Keep current style</option>{styles.map(style=><option key={style.key} value={style.key}>{style.name}</option>)}</select></label><div className="studio-switch-row"><span><b>Offside trap</b><small>Push the line and catch runners.</small></span><button aria-label="Offside trap" aria-pressed={!!state.offsideTrap} className={state.offsideTrap?"active":""} onClick={()=>onSetTrap(!state.offsideTrap)}><i/></button></div><label className="studio-check"><input type="checkbox" checked={state.autoSubs!==false} onChange={event=>onSetPlan({autoSubs:event.target.checked})}/><span><b>Automatic substitutions</b><small>Use up to five changes when fatigue demands it.</small></span></label></div></section></main></div>;
   if(screen==="home")return <StudioOverview state={state} myClub={myClub} onClose={onClose} onSetFormation={onSetFormation} onOpenSelection={()=>setScreen("selection")} onOpenTactics={()=>setScreen("tactics")}/>;
   return null;
@@ -1593,7 +1641,10 @@ function DualRange({label,min,max,low,high,onLow,onHigh,format}){
     <strong>{format(safeLow)} – {format(safeHigh)}</strong>
   </div>;
 }
-function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLoanIn, onToggleShortlist, onOpenOffers }){
+function PositionOptions(){
+  return <><option value="ALL">All positions</option>{POSITION_OPTIONS.map(group=><optgroup key={group.label} label={group.label}>{group.options.map(([value,label])=><option key={value} value={value}>{label}</option>)}</optgroup>)}</>;
+}
+function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLoanIn, onToggleShortlist, onOpenOffers, onOpenContract, onCancelTalk }){
   const [screen,setScreen]=useState("browse");
   const [selected,setSelected]=useState(null);
   const [round,setRound]=useState(1);
@@ -1604,6 +1655,10 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
   const [negotiationEnded,setNegotiationEnded]=useState(false);
   const [page,setPage]=useState(0);
   const [shortlistOnly,setShortlistOnly]=useState(false);
+  const [talksOpen,setTalksOpen]=useState(false);
+  const activeTalkCount=(state.market?.talks||[]).filter(t=>t.status==='pending').length+(state.market?.invitations||[]).length+(state.saleOffers||[]).filter(o=>o.status==='pending').length;
+  const spendable=availableBudget(state);
+  const pendingSigning=selected&&(state.market?.talks||[]).find(t=>t.status==='pending'&&t.playerId===selected.id&&t.buyerId===state.myClubId);
   const incomingLoans=state.loans.filter(loan=>loan.borrowerId===state.myClubId).length;
   const transferWindowOpen=marketOpen(state);
   const shortlistedIds=new Set(state.shortlist||[]);
@@ -1613,11 +1668,11 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
     ["LALIGA2",state.laliga2Clubs],["SERIEB",state.serieBClubs],["BUNDES2",state.bundes2Clubs],["LIGUE2",state.ligue2Clubs],["EUROPE",state.europeanGuestClubs],
   ];
   const leagueByClub=new Map(pools.flatMap(([league,clubs])=>(clubs||[]).map(club=>[club.id,league])));
-  const clubs=allClubs(state).filter(club=>club.id!==myClub.id).map(club=>({...club,league:leagueByClub.get(club.id)||state.league}));
+  const clubs=allClubs(state).map(club=>({...club,league:leagueByClub.get(club.id)||state.league}));
   let players=clubs.flatMap(club=>club.players.map(player=>({...player,sellerClub:club,league:club.league})));
   const query=filter.q.trim().toLowerCase();
   if(query)players=players.filter(p=>p.name.toLowerCase().includes(query)||p.sellerClub.name.toLowerCase().includes(query));
-  if(filter.pos!=="ALL")players=players.filter(p=>p.group===filter.pos);
+  if(filter.pos!=="ALL")players=players.filter(p=>matchesPosition(p,filter.pos));
   if(filter.league!=="ALL")players=players.filter(p=>p.league===filter.league);
   if(filter.club!=="ALL")players=players.filter(p=>p.sellerClub.id===filter.club);
   if(shortlistOnly)players=players.filter(player=>shortlistedIds.has(player.id));
@@ -1637,12 +1692,12 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
   const attributes=selected?playerAttributes(selected):[];
   useEffect(()=>setPage(0),[filter.q,filter.pos,filter.league,filter.club,filter.sort,filter.ageMin,filter.ageMax,filter.priceMin,filter.priceMax,shortlistOnly]);
   function openPlayer(player){setSelected(player);setScreen("profile");setClubMessage("");}
-  function startNegotiation(){if(!transferWindowOpen||!terms)return;setOffer(Math.min(state.budget,Math.max(1,Math.round(terms.askingPrice*.88))));setRound(1);setNegotiationEnded(false);setClubMessage(`${terms.seller.name} opened at ${fmtM(terms.askingPrice)}.`);setScreen("negotiate");}
+  function startNegotiation(){if(pendingSigning){if(pendingSigning.phase==='contract-ready')onOpenContract(pendingSigning.id);else setTalksOpen(true);return;}if(!transferWindowOpen||!terms)return;setOffer(Math.min(spendable,Math.max(1,Math.round(terms.askingPrice*.88))));setRound(1);setNegotiationEnded(false);setClubMessage(`${terms.seller.name} opened at ${fmtM(terms.askingPrice)}.`);setScreen("negotiate");}
   function submitOffer(){
     const response=evaluateOffer(state,{sellerId:selected.sellerClub.id,playerId:selected.id,offer,round});
     setClubMessage(response.message);
     if(response.status==="accepted"){
-      if(onBuy(selected.sellerClub,selected,response.fee)){setDealFee(response.fee);setDealKind("Permanent transfer");setScreen("signed");}
+      if(onBuy(selected.sellerClub,selected,response.fee)){setDealFee(response.fee);setDealKind("Permanent transfer");setScreen("pending");}
     }else if(response.status==="counter"){
       setOffer(response.counter);setRound(value=>value+1);
     }else if(response.status==="rejected")setNegotiationEnded(true);
@@ -1654,20 +1709,19 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
       <header className="transfer-header">
         <button className="transfer-back" onClick={goBack}><ChevronLeft size={18}/><span>{screen==="browse"?"Close":"Back"}</span></button>
         <div className="transfer-brand"><span>GLOBAL RECRUITMENT</span><strong>Transfer Centre</strong></div>
-        <div className="transfer-budget"><small>{transferWindowOpen?`WINDOW OPEN · LOANS ${incomingLoans}/3`:`WINDOW CLOSED · SCOUTING ONLY`}</small><strong>{fmtM(state.budget)}</strong></div>
+        <div className="transfer-budget"><small>{transferWindowOpen?`WINDOW OPEN · LOANS ${incomingLoans}/3`:`WINDOW CLOSED · SCOUTING ONLY`}{reservedBudget(state)>0?` · ${fmtM(reservedBudget(state))} RESERVED`:''}</small><strong>{fmtM(spendable)}</strong></div>
       </header>
 
       <main className={`transfer-stage transfer-screen-${screen}`} key={screen}>
-        {screen==="browse"&&(state.saleOffers||[]).some(o=>o.status==="pending")&&<button className="market-received-offers" onClick={onOpenOffers}><HandCoins size={18}/> Received offers <b>{state.saleOffers.filter(o=>o.status==="pending").length}</b><span>Review →</span></button>}
         {screen==="browse"&&<>
           <section className="market-hero">
             <div><span>SCOUTING NETWORK · 6 COMPETITIONS</span><h2>Find the player who changes your season.</h2><p>{transferWindowOpen?"Search any player or club, compare the market, then enter direct negotiations.":"The window is closed. Scout every player and keep your targets ready for the next opening."}</p></div>
-            <div className="market-hero-tools"><div className="market-search"><Search size={18}/><input autoFocus value={filter.q} onChange={e=>setFilter(f=>({...f,q:e.target.value,club:"ALL"}))} placeholder="Search player or club"/><kbd>⌘ K</kbd></div><button className={`market-shortlist-toggle ${shortlistOnly?"active":""}`} onClick={()=>setShortlistOnly(value=>!value)}><Star size={15} fill={shortlistOnly?"currentColor":"none"}/>{shortlistOnly?"Showing shortlist":"View shortlist"}<b>{shortlistedIds.size}</b></button></div>
+            <div className="market-hero-tools"><div className="market-search"><Search size={18}/><input autoFocus aria-label="Search player or club" value={filter.q} onChange={e=>setFilter(f=>({...f,q:e.target.value,club:"ALL"}))} placeholder="Search player or club"/><kbd>⌘ K</kbd></div><nav className="market-desk-tools" aria-label="Transfer desk"><button className="market-active-talks" onClick={()=>setTalksOpen(true)}><ArrowLeftRight size={16}/><span>Active Talks</span><b>{activeTalkCount}</b></button>{(state.saleOffers||[]).some(o=>o.status==='pending')&&<button className="market-offers-shortcut" onClick={onOpenOffers}><HandCoins size={16}/><span>Offers</span><b>{state.saleOffers.filter(o=>o.status==='pending').length}</b></button>}<button className={`market-shortlist-toggle ${shortlistOnly?"active":""}`} onClick={()=>setShortlistOnly(value=>!value)}><Star size={15} fill={shortlistOnly?"currentColor":"none"}/>{shortlistOnly?"Shortlisted":"Shortlist"}<b>{shortlistedIds.size}</b></button></nav></div>
           </section>
           <div className="market-filters">
             <label><span>League</span><select value={filter.league} onChange={e=>setFilter(f=>({...f,league:e.target.value,club:"ALL"}))}><option value="ALL">All leagues</option>{Object.entries(MARKET_LEAGUES).map(([id,name])=><option value={id} key={id}>{name}</option>)}</select></label>
             <label><span>Club</span><select value={filter.club} onChange={e=>setFilter(f=>({...f,club:e.target.value}))}><option value="ALL">All clubs</option>{visibleClubs.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label>
-            <label><span>Position</span><select value={filter.pos} onChange={e=>setFilter(f=>({...f,pos:e.target.value}))}><option value="ALL">All positions</option><option value="GK">Goalkeepers</option><option value="DEF">Defenders</option><option value="MID">Midfielders</option><option value="FWD">Forwards</option></select></label>
+            <label><span>Position</span><select aria-label="Transfer position" value={filter.pos} onChange={e=>setFilter(f=>({...f,pos:e.target.value}))}><PositionOptions/></select></label>
             <label><span>Sort</span><select value={filter.sort} onChange={e=>setFilter(f=>({...f,sort:e.target.value}))}><option value="ovr_desc">Highest rated</option><option value="value_desc">Highest value</option><option value="value_asc">Lowest value</option><option value="age_asc">Youngest</option></select></label>
             <DualRange label="Age range" min={16} max={45} low={Math.min(ageMin,ageMax)} high={Math.max(ageMin,ageMax)} onLow={value=>setFilter(f=>({...f,ageMin:value}))} onHigh={value=>setFilter(f=>({...f,ageMax:value}))} format={value=>value}/>
             <DualRange label="Market value" min={0} max={maxPrice} low={priceFloor} high={priceCeiling} onLow={value=>setFilter(f=>({...f,priceMin:value}))} onHigh={value=>setFilter(f=>({...f,priceMax:value}))} format={fmtM}/>
@@ -1699,7 +1753,7 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
             <div className="profile-club-glow" style={{background:selected.sellerClub.color}}/>
             <div className="profile-crest-watermark"><ClubBadge club={selected.sellerClub} size="xl"/></div>
             <div className="profile-rating"><strong>{selected.ovr}</strong><span>{selected.role}</span></div>
-            <div className="profile-name"><div className="profile-clubline"><ClubBadge club={selected.sellerClub} size="sm"/><span>{MARKET_LEAGUES[selected.league]} · {selected.sellerClub.name}</span></div><h2>{selected.name}</h2><p>Age {selected.age} · {selected.group} · Potential {terms?.potential||selected.ovr} · Fitness {Math.round(selected.condition??100)}% · Energy {Math.round(selected.energy??100)}%</p></div>
+            <div className="profile-name"><div className="profile-clubline"><ClubBadge club={selected.sellerClub} size="sm"/><span>{MARKET_LEAGUES[selected.league]} · {selected.sellerClub.name}</span></div><h2>{selected.name}</h2><p>Age {selected.age} · {selected.group} · Potential {terms?.potential||selected.ovr} · Sharpness {Math.round(selected.condition??100)}% · Energy {Math.round(selected.energy??100)}%</p></div>
             <div className="profile-value"><small>MARKET VALUE</small><strong>{fmtM(selected.value)}</strong><span>{terms?.stance||"Unavailable"}</span></div>
           </div>
           <div className="profile-grid" style={{"--profile-club":selected.sellerClub.color||"#4e9461"}}>
@@ -1707,28 +1761,33 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onLo
               <div className="profile-section-title">Scouted attributes</div>
               <div className="attribute-grid">{attributes.map(([label,value])=><div className="attribute" key={label}><strong>{value}</strong><span>{label}</span><i><b style={{width:`${value}%`}}/></i></div>)}</div>
               <div className="scout-summary"><span>Scout summary</span><p>{selected.ovr>=86?"Elite player capable of deciding high-level matches.":selected.age<=23?"High-upside profile with immediate first-team value.":selected.ovr>=80?"Proven first-team quality with a reliable current level.":"Useful squad option whose value depends on tactical fit."}</p></div>
+              <ClubInterest key={selected.id} state={state} playerId={selected.id} renderBadge={club=><ClubBadge club={club} size="sm"/>}/>
             </div>
             <div className="deal-card">
               <div className="profile-section-title">Deal room</div>
               <div className="deal-line"><span>Club asking price</span><strong>{terms?fmtM(terms.askingPrice):"Unavailable"}</strong></div>
-              <div className="deal-line"><span>Your budget</span><strong className={terms&&state.budget>=terms.minimumPrice?"positive":"negative"}>{fmtM(state.budget)}</strong></div>
+              <div className="deal-line"><span>Unreserved budget</span><strong className={terms&&spendable>=terms.minimumPrice?"positive":"negative"}>{fmtM(spendable)}</strong></div>
               <div className="deal-line"><span>Squad status</span><strong>{terms?.stance||"No deal"}</strong></div>
               <button className={`shortlist-button ${shortlistedIds.has(selected.id)?"is-shortlisted":""}`} onClick={()=>onToggleShortlist(selected.id)}><Star size={15} fill={shortlistedIds.has(selected.id)?"currentColor":"none"}/>{shortlistedIds.has(selected.id)?"Saved to shortlist":"Add to shortlist"}</button>
-              <button className="negotiate-button" disabled={!transferWindowOpen||!terms?.releaseAllowed||state.budget<terms?.minimumPrice||selected.loan} onClick={startNegotiation}><HandCoins size={17}/> {transferWindowOpen?"Enter negotiations":"Window closed"}</button>
-              <button className="loan-button" disabled={!transferWindowOpen||selected.loan||!loan?.available||state.budget<(loan?.fee||loanFee(selected))} title={!transferWindowOpen?"The transfer window is closed":loan?.reason} onClick={()=>{if(transferWindowOpen&&onLoanIn(selected.sellerClub,selected)){setDealFee(loan.fee);setDealKind("Season loan");setScreen("signed");}}}>Loan enquiry · {transferWindowOpen&&loan?.available?fmtM(loan.fee):transferWindowOpen?"Unavailable":"Window closed"}</button>
+              <button className="negotiate-button" disabled={!pendingSigning&&(!transferWindowOpen||!terms?.releaseAllowed||spendable<terms?.minimumPrice||selected.loan||selected.sellerClub.id===myClub.id)} onClick={startNegotiation}><HandCoins size={17}/> {pendingSigning?(pendingSigning.phase==='contract-ready'?'Open personal contract talks':'Fee agreed · view Active Talks'):selected.sellerClub.id===myClub.id?'Your squad player':transferWindowOpen?"Enter negotiations":"Window closed"}</button>
+              <button className="loan-button" disabled={!transferWindowOpen||pendingSigning||selected.sellerClub.id===myClub.id||selected.loan||!loan?.available||spendable<(loan?.fee||loanFee(selected))} title={!transferWindowOpen?"The transfer window is closed":loan?.reason} onClick={()=>{if(transferWindowOpen&&onLoanIn(selected.sellerClub,selected)){setDealFee(loan.fee);setDealKind("Season loan");setScreen("signed");}}}>Loan enquiry · {transferWindowOpen&&loan?.available?fmtM(loan.fee):transferWindowOpen?"Unavailable":"Window closed"}</button>
               {!transferWindowOpen&&<p className="market-closed-notice">Scouting and shortlisting stay open. Deals resume in the next transfer window.</p>}
               {loan&&!loan.available&&<p className="loan-status">{loan.reason}</p>}
-              {terms&&state.budget<terms.minimumPrice&&<p className="deal-warning">The likely agreement is above your current budget.</p>}
+              {terms&&spendable<terms.minimumPrice&&!pendingSigning&&<p className="deal-warning">The likely agreement is above your unreserved budget.</p>}
+              <button className="loan-button" onClick={()=>setTalksOpen(true)}>Open Active Talks →</button>
             </div>
           </div>
         </section>}
 
-        {screen==="negotiate"&&selected&&terms&&<TransferNegotiation player={selected} otherClub={selected.sellerClub} myClub={myClub} budget={state.budget} round={round} message={clubMessage} demand={round===1?terms.askingPrice:Number(clubMessage.match(/([\d.]+)m/)?.[1])||terms.askingPrice} fee={offer} onFee={setOffer} onSubmit={()=>negotiationEnded?setScreen("profile"):submitOffer()} onEnd={()=>{setNegotiationEnded(true);setClubMessage("You ended negotiations.");}} ended={negotiationEnded}/>}
+        {screen==="negotiate"&&selected&&terms&&<TransferNegotiation player={selected} otherClub={selected.sellerClub} myClub={myClub} budget={spendable} round={round} message={clubMessage} demand={round===1?terms.askingPrice:Number(clubMessage.match(/([\d.]+)m/)?.[1])||terms.askingPrice} fee={offer} onFee={setOffer} onSubmit={()=>negotiationEnded?setScreen("profile"):submitOffer()} onEnd={()=>{setNegotiationEnded(true);setClubMessage("You ended negotiations.");}} ended={negotiationEnded}/>}
+
+        {screen==='pending'&&selected&&<section className="pending-signing"><CalendarDays size={32}/><span>FEE AGREED · NOT YET SIGNED</span><h2>{selected.name}</h2><p>The selling club has accepted. The player is considering the sporting project; rival clubs can still enter the race before confirmation.</p><div className="pending-reservation"><div><small>FUNDS RESERVED</small><strong>{fmtM(dealFee)}</strong></div><div><small>PLAYER DECISION</small><strong>{pendingSigning?formatDate(pendingSigning.dueDate,{day:'numeric',month:'short'}):'Check Active Talks'}</strong></div></div><button className="submit-offer" onClick={onClose}>Return & advance the calendar →</button><button className="loan-button" onClick={()=>setTalksOpen(true)}>Track in Active Talks</button></section>}
 
         {screen==="signed"&&selected&&<section className="signed-page">
           <div className="signed-rings"><i/><i/><i/></div><Sparkles className="signed-spark" size={30}/><span>{dealKind.toUpperCase()} COMPLETE</span><div className="signed-player"><b>{selected.ovr}</b><i style={{background:selected.sellerClub.color}}>{selected.role}</i></div><h2>{selected.name}</h2><p>{dealKind==="Season loan"?`joins ${myClub.name} on loan from ${selected.sellerClub.name}`:`joins ${myClub.name} from ${selected.sellerClub.name}`}</p><strong>{fmtM(dealFee)}</strong><button onClick={onClose}>Return to squad</button>
         </section>}
       </main>
+      {talksOpen&&<ActiveTalks state={state} onClose={()=>setTalksOpen(false)} onContract={id=>{setTalksOpen(false);onOpenContract(id);}} onCancel={id=>{onCancelTalk(id);if(id===pendingSigning?.id&&screen==='pending')setScreen('profile');}} onOffers={()=>{setTalksOpen(false);onOpenOffers();}} renderBadge={club=><ClubBadge club={club} size="sm"/>} onPlayer={(p,seller)=>{setTalksOpen(false);openPlayer({...p,sellerClub:seller,league:leagueByClub.get(seller.id)});}}/>}
     </div>
   );
 }

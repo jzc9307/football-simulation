@@ -35,5 +35,5 @@ test('long contracts survive save reload and next season; ending contracts retur
   const next=startNextSeason(finish(loaded));assert.equal(next.loans.length,1);assert.ok(!next.clubs.find(c=>c.id==='liv').players.some(p=>p.id===player.id));const ended=startNextSeason(finish(agree(1)));assert.equal(ended.loans.length,0);assert.ok(ended.clubs.find(c=>c.id==='liv').players.some(p=>p.id===player.id));assert.ok(ended.mail.some(m=>m.subject.includes('back from loan')));
 });
 test('invalid durations, double loans and closed-window agreements are blocked',()=>{
-  const s=listPlayerForLoan(base,player.id),offer=s.saleOffers[0];for(const term of [0,.25,3.5,NaN])assert.throws(()=>counterLoanOffer(s,{offerId:offer.id,seasons:term}));assert.throws(()=>counterLoanOffer({...s,currentDate:'2026-09-01'},{offerId:offer.id,seasons:1}));const accepted=agree();assert.throws(()=>listPlayerForLoan(accepted,player.id));
+  const s=listPlayerForLoan(base,player.id),offer=s.saleOffers[0];for(const term of [0,.25,3.5,NaN])assert.throws(()=>counterLoanOffer(s,{offerId:offer.id,seasons:term}));assert.throws(()=>counterLoanOffer({...s,currentDate:'2026-09-02'},{offerId:offer.id,seasons:1}));const accepted=agree();assert.throws(()=>listPlayerForLoan(accepted,player.id));
 });

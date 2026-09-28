@@ -2,14 +2,17 @@ import { freshState, ensureFixtures, computeTableArray, STYLES, clamp } from './
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
 import { repairSaleOffers } from './career.js';
+import { ensurePlayerLife, SQUAD_ROLES } from './playerLife.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
-const SAVE_VERSION=7;
+const SAVE_VERSION=8;
 const STAGES=new Set(['league-select','select','mode','squad','squad2','calendar-event','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
 const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
+const SECOND_POOL={PL:'championshipClubs',LALIGA:'laliga2Clubs',SERIEA:'serieBClubs',BUNDES:'bundes2Clubs',LIGUE1:'ligue2Clubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+function validPersonalTerms(t){return t&&Number.isInteger(t.years)&&t.years>=1&&t.years<=5&&Number.isFinite(t.wage)&&t.wage>=500&&t.wage<=2000000&&!!SQUAD_ROLES[t.role];}
 // A club can move between the top flight and its second tier. Look up the
 // canonical roster across every default pool when hydrating a compact save,
 // rather than assuming it is still in the division where it began.
@@ -58,12 +61,12 @@ function restoreCompactState(input, defaults){
 export function validateSave(raw){
   const input=raw?.version&&raw?.state?raw.state:raw;
   requireValid(input&&typeof input==='object'&&!Array.isArray(input),'invalid format.');
-  requireValid(!raw.version||[1,2,3,4,5,6,SAVE_VERSION].includes(raw.version),'unsupported save version.');
+  requireValid(!raw.version||[1,2,3,4,5,6,7,SAVE_VERSION].includes(raw.version),'unsupported save version.');
   requireValid(STAGES.has(input.stage),'unknown game screen.');
   requireValid(FORMATIONS[input.formation],'invalid formation.');
   requireValid(Number.isFinite(input.budget)&&input.budget>=0,'invalid budget.');
-  const defaults=freshState(), restored=restoreCompactState(input,defaults);let s={...defaults,...restored};
-  if(!Array.isArray(restored.clubs))s.clubs=restored.league? s[LEAGUE_POOL[restored.league]] : defaults.clubs;
+  const defaults=freshState(), restored=restoreCompactState(input,defaults);let s={...defaults,...restored,playerLifeVersion:restored.playerLifeVersion||0};
+  if(!Array.isArray(restored.clubs))s.clubs=restored.league? s[(restored.division===2?SECOND_POOL:LEAGUE_POOL)[restored.league]||LEAGUE_POOL[restored.league]] : defaults.clubs;
   const allPools=POOL_KEYS.map(key=>s[key]).filter(Array.isArray);
   const byId=new Map(allPools.flat().map(club=>[club.id,club]));
   for(const key of ['ucl','uel','uecl'])if(Array.isArray(s[key]?.clubIds)&&!Array.isArray(s[key].clubs)){
@@ -74,10 +77,20 @@ export function validateSave(raw){
   s.table1=hydrateTable(s.table1,s.clubs);
   s.tableFinal=hydrateTable(s.tableFinal,s.clubs);
   for(const key of ['ucl','uel','uecl'])if(s[key]?.clubs)s[key]={...s[key],phaseTable:hydrateTable(s[key].phaseTable,s[key].clubs)};
+  if(s.qualificationTables)s.qualificationTables=Object.fromEntries(Object.entries(s.qualificationTables).map(([league,rows])=>[league,hydrateTable(rows,s[LEAGUE_POOL[league]]||s.clubs)]));
   s=repairUclField(s);
   // A shortlist is intentionally lightweight and survives save/export cycles.
   // Discard malformed legacy values rather than blocking an otherwise valid save.
   s.shortlist=[...new Set(Array.isArray(s.shortlist)?s.shortlist.filter(id=>typeof id==='string'):[])].slice(0,150);
+  if(s.market){
+    requireValid(s.market.version===1&&Array.isArray(s.market.talks)&&Array.isArray(s.market.history)&&/^\d{4}-\d{2}-\d{2}$/.test(s.market.lastDate),'invalid market calendar.');
+    for(const talk of [...s.market.talks,...s.market.history,...(s.market.invitations||[])])requireValid(talk&&typeof talk.id==='string'&&typeof talk.playerId==='string'&&byId.has(talk.buyerId)&&byId.has(talk.sellerId)&&Number.isFinite(talk.fee)&&talk.fee>0&&/^\d{4}-\d{2}-\d{2}$/.test(talk.dueDate)&&['pending','signed','lost','cancelled'].includes(talk.status),'invalid market agreement.');
+    if(s.market.openingStartedDate)requireValid(/^\d{4}-\d{2}-\d{2}$/.test(s.market.openingStartedDate)&&Array.isArray(s.market.openingProcessed)&&s.market.openingProcessed.every(id=>typeof id==='string')&&Array.isArray(s.market.invitations),'invalid opening-window replay.');
+    const activity=s.market.activity;
+    if(activity)requireValid(typeof activity.key==='string'&&activity.signingsByClub&&typeof activity.signingsByClub==='object'&&Object.entries(activity.signingsByClub).every(([id,count])=>byId.has(id)&&Number.isInteger(count)&&count>=0)&&Array.isArray(activity.movedPlayerIds)&&activity.movedPlayerIds.every(id=>typeof id==='string'),'invalid market window activity.');
+    for(const talk of s.market.talks)if(talk.phase==='contract-ready')requireValid(Number.isInteger(talk.round)&&talk.round>=1&&talk.round<=3&&validPersonalTerms(talk.demands),'invalid personal contract talks.');
+  }
+  if(s.renewalTalks){requireValid(typeof s.renewalTalks==='object'&&!Array.isArray(s.renewalTalks),'invalid renewal sessions.');for(const talk of Object.values(s.renewalTalks))if(talk)requireValid(Number.isInteger(talk.round)&&talk.round>=1&&talk.round<=3&&validPersonalTerms(talk.demands),'invalid renewal terms.');}
   requireValid(STYLES[s.tacticalStyle]&&Number.isFinite(s.defensiveLine)&&s.defensiveLine>=0&&s.defensiveLine<=100&&Number.isFinite(s.defensiveAggression)&&s.defensiveAggression>=0&&s.defensiveAggression<=100,'invalid tactics.');
   requireValid(s.halftimeStyle==='keep'||STYLES[s.halftimeStyle],'invalid halftime plan.');
   const playerIds=new Set();
@@ -91,6 +104,8 @@ export function validateSave(raw){
         requireValid(typeof p.id==='string'&&!ids.has(p.id)&&typeof p.name==='string'&&ROLE_GROUP[p.role]&&p.group===ROLE_GROUP[p.role]&&Number.isFinite(p.ovr)&&p.ovr>0&&p.ovr<=100&&Number.isFinite(p.age)&&Number.isFinite(p.value)&&p.value>=0,'invalid player.');
         requireValid(p.condition===undefined||(Number.isFinite(p.condition)&&p.condition>=0&&p.condition<=100),'invalid player condition.');
         requireValid(p.energy===undefined||(Number.isFinite(p.energy)&&p.energy>=0&&p.energy<=100),'invalid player energy.');
+        if(p.contract){requireValid((p.contract.endDate===null||/^\d{4}-\d{2}-\d{2}$/.test(p.contract.endDate))&&(p.contract.wage===null||Number.isFinite(p.contract.wage)&&p.contract.wage>=0&&p.contract.wage<=2000000)&&SQUAD_ROLES[p.contract.role],`invalid player contract: ${p.name} (${p.contract.endDate}, ${p.contract.wage}, ${p.contract.role}).`);}
+        if(p.life)requireValid(Number.isFinite(p.life.happiness)&&p.life.happiness>=0&&p.life.happiness<=100&&Array.isArray(p.life.recentMinutes)&&p.life.recentMinutes.length<=8&&p.life.recentMinutes.every(n=>Number.isFinite(n)&&n>=0&&n<=130),'invalid player mindset.');
         requireValid(p.stamina===undefined||(Number.isFinite(p.stamina)&&p.stamina>=1&&p.stamina<=100),'invalid player stamina.');
         requireValid(p.potential===undefined||(Number.isFinite(p.potential)&&p.potential>=p.ovr&&p.potential<=100),'invalid player potential.');
         requireValid(p.confidence===undefined||(Number.isFinite(p.confidence)&&p.confidence>=-2&&p.confidence<=2),'invalid player confidence.');
@@ -110,6 +125,8 @@ export function validateSave(raw){
   requireValid(Array.isArray(s.suspensions.domestic)&&Array.isArray(s.suspensions.ucl),'invalid suspensions.');
   s.injuries=s.injuries&&typeof s.injuries==='object'&&!Array.isArray(s.injuries)?s.injuries:{};
   for(const injury of Object.values(s.injuries))requireValid(injury&&typeof injury.name==='string'&&Number.isInteger(injury.matches)&&injury.matches>0,'invalid injury.');
+  requireValid(s.worldInjuries&&typeof s.worldInjuries==='object'&&!Array.isArray(s.worldInjuries),'invalid world medical record.');
+  for(const injury of Object.values(s.worldInjuries))requireValid(injury&&byId.has(injury.clubId)&&typeof injury.name==='string'&&Number.isInteger(injury.matches)&&injury.matches>0,'invalid world injury.');
   s.cupStatus={...defaults.cupStatus,...s.cupStatus};
   for(const c of Object.values(s.cupStatus))requireValid(c&&Array.isArray(c.playedRounds)&&Array.isArray(c.results)&&Array.isArray(c.faced)&&c.record,'invalid cup progress.');
   requireValid(s.cups&&typeof s.cups==='object','invalid cup records.');
@@ -168,7 +185,7 @@ export function validateSave(raw){
   if(!s.clubForm||typeof s.clubForm!=='object'||Array.isArray(s.clubForm))s.clubForm={};
   if(!s.clubForm[s.myClubId]&&s.myClubId)s.clubForm[s.myClubId]=[...s.results1,...s.results2].slice(-5).map(result=>result.result);
   // Legacy loan flags do not contain ownership; block resale instead of inventing an owner.
-  return repairSaleOffers(s);
+  return ensurePlayerLife(repairSaleOffers(s));
 }
 export function loadGame(storage){
   const current=storage.getItem(KEY),legacy=current===null?storage.getItem(LEGACY_KEY):null;
@@ -191,6 +208,7 @@ function compactState(state){
   if(state.cups)out.cups=Object.fromEntries(Object.entries(state.cups).map(([key,cup])=>[key,cup?.results?{...cup,results:cup.results.map(compactResult)}:cup]));
   for(const key of ['ucl','uel','uecl'])if(state[key])out[key]={...state[key],clubIds:state[key].clubs.map(club=>club.id),clubs:undefined,
     phaseTable:compactTable(state[key].phaseTable),campaignResults:state[key].campaignResults.map(compactResult)};
+  if(state.qualificationTables)out.qualificationTables=Object.fromEntries(Object.entries(state.qualificationTables).map(([league,rows])=>[league,compactTable(rows)]));
   return out;
 }
 export function saveGame(storage,state){
@@ -198,4 +216,4 @@ export function saveGame(storage,state){
   const json=JSON.stringify({version:SAVE_VERSION,state:compactState(state)},(key,value)=>key==='match'?undefined:value);
   storage.setItem(KEY,json);
 }
-export function exportGame(state){return JSON.stringify({version:SAVE_VERSION,state:compactState(state)},(key,value)=>key==='match'?undefined:value,2);}
+export function exportGame(state,pretty=true,savedAt){return JSON.stringify({version:SAVE_VERSION,savedAt,state:compactState(state)},(key,value)=>key==='match'?undefined:value,pretty?2:undefined);}

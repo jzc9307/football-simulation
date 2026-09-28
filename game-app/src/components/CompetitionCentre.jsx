@@ -3,10 +3,12 @@ import { ChevronLeft, ChevronRight, ArrowUpRight, X, CalendarDays, Trophy, Star,
 import { CompetitionMark } from "./CompetitionBrand.jsx";
 import { competitionTheme, competitionBrand } from "./competitionBrand.js";
 import { CUP_KEYS, cupCompetitions, isMyFixture, nextFixture, seasonStart, addDays, dateValue, leagueCompetition } from "../game/seasonSchedule.js";
+import { lockPageScroll } from "./pageScroll.js";
 import { findClubAnywhere } from "../game/engine.js";
 import { GUEST_CRESTS } from "../game/guestAssets.js";
 import "./CompetitionCentre.css";
 import { formatDate } from "./calendarFormat.js";
+import { orderCompetitions } from "../game/competitionOrder.js";
 
 const LOGOS=import.meta.glob("../assets/club-logos/*.png",{eager:true,query:"?url",import:"default"});
 function club(state,id){return id?(findClubAnywhere(state,id)||{id,name:"Club unavailable"}):{name:"Winner to be confirmed"};}
@@ -39,10 +41,11 @@ export function FixturesPanel({state}){
  return <section className="cc-surface" style={competitionTheme(competition)}><header className="cc-heading"><div><span className="cc-eyebrow">FIXTURES & RESULTS</span><h2>{competitionBrand(competition).name}</h2><p>The full draw. Every fixture. One season.</p></div><CompetitionMark id={competition}/></header><div className="cc-toolbar"><div className="cc-pills">{options.map(id=><button className={id===competition?"active":""} key={id} onClick={()=>{setCompetition(id);setSelected(null);}}>{competitionBrand(id).name}</button>)}</div><div className="cc-round-controls"><ArrowButton direction="prev" label="Previous matchweek" disabled={index<=0} onClick={()=>setSelected(rounds[index-1])}/><div><small>{competition===league?"MATCHWEEK":"ROUND"}</small><strong>{typeof round==="number"?`${round} / ${rounds.length}`:round||"Awaiting draw"}</strong></div><ArrowButton label="Next matchweek" disabled={index>=rounds.length-1} onClick={()=>setSelected(rounds[index+1])}/></div></div><div className="cc-fixtures" key={competition+round}>{shown.map(e=><FixtureLine key={e.id} state={state} event={e}/>)}{!shown.length&&<div className="cc-empty">Fixtures will appear after the draw.</div>}</div></section>;
 }
 export function CupWorkspace({state,onOpen}){
- return <section className="cc-cups"><div className="cc-section-title"><span className="cc-eyebrow">COMPETITION CENTRE</span><h2>Your road to silverware</h2><p>Follow the draw, the next opponent and every step of your campaign.</p></div>{[...cupCompetitions(state.league),"UCL","UEL","UECL"].map(id=>{
+ const competitions=orderCompetitions([...cupCompetitions(state.league),'UCL','UEL','UECL'].map((id,index)=>({id,index,outcome:cupState(state,id).outcome,date:future(state,id)?.date})));
+ return <section className="cc-cups"><div className="cc-section-title"><span className="cc-eyebrow">COMPETITION CENTRE</span><h2>Your road to silverware</h2><p>Your live campaigns first. Completed journeys below.</p></div>{competitions.map(({id})=>{
   const status=cupState(state,id),event=future(state,id),opponent=event?club(state,event.homeId===state.myClubId?event.awayId:event.homeId):null,ended=!!status.outcome;
   const results=(state.seasonSchedule||[]).filter(e=>e.competition===id&&isMyFixture(state,e)&&e.status==="completed");
-  return <button className={`cc-cup-row ${ended?"is-ended":""}`} style={competitionTheme(id)} onClick={()=>onOpen(id)} key={id}>
+  return <button className={`cc-cup-row ${ended?(/^CHAMPION/i.test(status.outcome)?"is-champion":"is-ended"):""}`} style={competitionTheme(id)} onClick={()=>onOpen(id)} key={id}>
    <div className="cc-cup-identity"><CompetitionMark id={id}/><div><span className="cc-eyebrow">{["UCL","UEL","UECL"].includes(id)?"EUROPEAN NIGHTS":"DOMESTIC SILVERWARE"}</span><h3>{competitionBrand(id).name}</h3><span className="cc-status-pill">{status.outcome|| (event?roundName(event):"Awaiting next draw")}</span></div></div>
    <div className="cc-cup-opponent">{event&&!ended?<><small>NEXT OPPONENT · {event.homeId===state.myClubId?"HOME":"AWAY"}</small><div><Crest team={opponent} large/><strong>{opponent.name}</strong></div><span><CalendarDays size={14}/>{formatDate(event.date)} · {event.competition==="UEL"?"20:00":event.competition==="UCL"?"20:00":"19:45"}</span></>:<><small>{ended?"CAMPAIGN STATUS":"THE DRAW"}</small><strong>{status.outcome||"Next round to be confirmed"}</strong><span>{results.length} matches played · Explore competition</span></>}</div>
    <div className="cc-cup-progress"><small>YOUR RECORD</small><strong>{status.record?.w||0}<i>W</i> {status.record?.d||0}<i>D</i> {status.record?.l||0}<i>L</i></strong><span>View competition <ArrowUpRight size={18}/></span></div>
@@ -79,7 +82,7 @@ function DomesticPath({state,events}){
 }
  export function CupDetail({state,competition,onClose,renderStandings,renderBracket}){
  const [tab,setTab]=useState("fixtures"),[round,setRound]=useState(null);
- useEffect(()=>{const key=e=>{if(e.key==="Escape")onClose();};document.addEventListener("keydown",key);const old=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{document.removeEventListener("keydown",key);document.body.style.overflow=old;};},[onClose]);
+ useEffect(()=>{const key=e=>{if(e.key==="Escape")onClose();};document.addEventListener("keydown",key);const release=lockPageScroll(document);return()=>{document.removeEventListener("keydown",key);release();};},[onClose]);
  const events=state.seasonSchedule.filter(e=>e.competition===competition&&e.status!=="bye"&&e.status!=="cancelled"),rounds=[...new Set(events.map(e=>e.round))],next=future(state,competition),selected=round??next?.round??rounds[0],status=cupState(state,competition);
  const opponent=next?club(state,next.homeId===state.myClubId?next.awayId:next.homeId):null;
  return <div className="cc-modal-overlay" onClick={onClose}><section className="cc-modal" role="dialog" aria-modal="true" aria-label={competitionBrand(competition).name} style={competitionTheme(competition)} onClick={e=>e.stopPropagation()}><header className="cc-modal-heading"><CompetitionMark id={competition}/><div><span className="cc-eyebrow">COMPETITION CENTRE</span><h2>{competitionBrand(competition).name}</h2></div><button className="cc-icon-button" onClick={onClose} aria-label="Close competition"><X size={22}/></button></header><div className="cc-modal-body"><div className="cc-campaign-hero"><div><span className="cc-eyebrow">{status.outcome?"CAMPAIGN STATUS":"NEXT IN YOUR CAMPAIGN"}</span><h2>{status.outcome||opponent?.name||"Awaiting the draw"}</h2><p>{next&&!status.outcome?`${formatDate(next.date)} · ${roundName(next)} · ${next.homeId===state.myClubId?"Home":"Away"}`:"Fixtures, performances and the road to the trophy."}</p></div>{opponent?<Crest team={opponent} large/>:<Trophy size={58}/>}</div><nav className="cc-detail-tabs">{["fixtures",...(["UCL","UEL","UECL"].includes(competition)?["table"]:[]),"path","ratings"].map(key=><button key={key} className={tab===key?"active":""} onClick={()=>setTab(key)}>{({fixtures:"Fixtures & results",table:"League phase table",path:"Road to the final",ratings:"Player ratings"})[key]}</button>)}</nav>

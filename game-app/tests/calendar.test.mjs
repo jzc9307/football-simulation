@@ -24,6 +24,7 @@ test("earliest fixture guards prevent playing Europe and cups early",()=>{
 test("complete season follows one chronological queue, including cup and UCL knockout games",()=>{
  let s=prepareNextFixture(game()),date="0000",count=0;const seen=new Set(),competitions=new Set();
  for(;count<100;count++){
+  if(s.stage==='calendar-event'){s=prepareNextFixture(s);continue;}
   if(s.stage==="half-results"){s=prepareNextFixture({...s,midSeasonDone:true});continue;}
   if(s.stage==="full-results")break;
   const e=nextFixture(s);assert.ok(e,"next fixture exists");assert.ok(e.date>=date,`time moved backwards ${date} -> ${e.date}`);date=e.date;
@@ -69,6 +70,8 @@ test("a relegated manager receives all 46 Championship league fixtures",()=>{
 
 test("new seasons rebuild fixtures and generated youth survive save reload",()=>{
  let s=game();
+ // Academy intake needs vacancies; never silently discard contracted players.
+ s={...s,clubs:s.clubs.map(c=>c.id==='liv'?{...c,players:c.players.slice(0,27)}:c)};
  s={...s,ucl:{...s.ucl,stage:"final"},tableFinal:[{id:"liv"},...s.clubs.filter(c=>c.id!=="liv").map(c=>({id:c.id}))]};
  s=prepareNextFixture(startNextSeason(s));
  assert.equal(s.season,2);assert.ok(s.seasonSchedule.every(e=>e.date>="2027-07-01"));
@@ -110,9 +113,9 @@ test("legacy saves preserve cup scores and migration is idempotent",()=>{
 
 test("instant half-seasons follow the calendar, including Europe for non-qualified managers",()=>{
  let s=game("PL","afc");
- s=simulateScheduledHalf(s,1);assert.equal(s.stage,"half-results");assert.equal(s.results1.length,19);
+ do{s=simulateScheduledHalf(s,1);}while(s.stage==='calendar-event');assert.equal(s.stage,"half-results");assert.equal(s.results1.length,19);
  assert.ok(s.ucl.tableRaw&&Object.values(s.ucl.tableRaw).some(r=>r.played>0));
- s=simulateScheduledHalf(s,2);assert.equal(s.stage,"full-results");assert.equal(s.results2.length,19);
+ do{s=simulateScheduledHalf(s,2);}while(s.stage==='calendar-event');assert.equal(s.stage,"full-results");assert.equal(s.results2.length,19);
  assert.ok(s.ucl.knockoutBracket.stages.at(-1).ties[0].winnerId);
  assert.equal(s.ucl.campaignResults.length,0);
 });

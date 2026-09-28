@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live substitution regression fixture</title></head>
+<body><div id="root"></div><script type="module">
+// Local visual regression fixture, not a career save or a production entry.
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import LiveMatchScreen from '../../src/components/LiveMatchScreen.jsx';
+import '../../src/index.css';
+import '../../src/workspaces.css';
+const timeline=[{minute:1,type:'sub',side:0,teamName:'Arsenal',playerId:'test-on',outId:'test-off',inName:'Kepa Arrizabalaga',outName:'David Raya',text:'Kepa Arrizabalaga replaces David Raya'}];
+createRoot(document.getElementById('root')).render(React.createElement(LiveMatchScreen,{homeName:'Arsenal',awayName:'Liverpool',homeClubId:'ars',awayClubId:'liv',competition:'PL',timeline,onDone:()=>{}}));
+</script></body></html>

@@ -188,10 +188,19 @@ function MatchPulse({events,minute,homeName,awayName,homeColor,awayColor,endMinu
     <div className="momentum-note">{hasExtraTime?"Extra time included · shot pressure, xG and goals": "Shot pressure, xG and goals · smoothed minute by minute"}</div>
   </section>;
 }
-function GoalRibbon({goals,homeName,awayName,homeGoals,awayGoals}){
-  if(!goals.length)return <div className="goal-ribbon is-waiting"><span>LIVE MOMENT</span><strong>Kick-off. The first big moment will appear here.</strong></div>;
-  const latest=goals.at(-1),scorer=(latest.text||"").replace(/ scores.*$/i,"");
-  return <section className="goal-ribbon" aria-live="polite">
+function GoalRibbon({events,homeName,awayName,homeGoals,awayGoals}){
+  const latest=events.filter(event=>event.isGoal===true||event.type==="sub"||(event.type==="injury"&&event.inId)).at(-1);
+  if(!latest)return <div className="goal-ribbon is-waiting"><span>LIVE MOMENT</span><strong>Goals and substitutions will appear here.</strong></div>;
+  const scorer=(latest.text||"").replace(/ scores.*$/i,"");
+  if(!latest.isGoal){
+    const [incoming,outgoing]=(latest.text||"").split(" replaces ");
+    return <section key={`${latest.minute}-${latest.playerId}`} className="goal-ribbon substitution-ribbon" aria-live="polite">
+      <span className="goal-ribbon-kicker">SUBSTITUTION · {latest.minute>90?`90+${latest.minute-90}`:latest.minute}′</span>
+      <div className="substitution-names"><strong className="sub-on"><i>↑ ON</i>{latest.inName||incoming}</strong><strong className="sub-off"><i>↓ OFF</i>{latest.outName||outgoing}</strong></div>
+      <small>{latest.teamName|| (latest.side===0?homeName:awayName)}{latest.type==="injury"?" · Injury replacement":""}</small>
+    </section>;
+  }
+  return <section key={`${latest.minute}-${latest.playerId}`} className="goal-ribbon" aria-live="polite">
     <span className="goal-ribbon-kicker">GOAL · {latest.minute>90?`90+${latest.minute-90}`:latest.minute}′</span>
     <strong>⚽ {scorer || latest.teamName}</strong>
     <small>{latest.teamName} <b>{homeGoals} – {awayGoals}</b> {latest.teamName===homeName?awayName:homeName}</small>
@@ -252,7 +261,6 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
 
   const homeGoals = revealed.filter(e => e.isGoal === true && e.teamName===homeName).length;
   const awayGoals = revealed.filter(e => e.isGoal === true && e.teamName===awayName).length;
-  const revealedGoals=revealed.filter(event=>event.isGoal===true);
   const ICONS = { foul:"⚠️", goal:"⚽", penalty:"🎯", freekick:"🌀", corner:"🚩", yellow:"🟨", red:"🟥", chance:"➡️", var:"📺", offside:"🚫", "penalty-miss":"❌", "corner-miss":"🚩", sub:"🔄", tactics:"🧠" };
   const currentStats=stats?revealStats(stats,minute):null;
   const tabBtn = (key, label) => (
@@ -273,7 +281,7 @@ export default function LiveMatchScreen({ homeName, awayName, homeClubId, awayCl
         <div className="scoreboard-live-data"><div><span>POSSESSION</span><strong>{currentStats?`${currentStats.possession[0]}% — ${currentStats.possession[1]}%`:"—"}</strong></div><div><span>SHOTS</span><strong>{currentStats?`${currentStats.shots[0]} — ${currentStats.shots[1]}`:"—"}</strong></div><div><span>EXPECTED GOALS</span><strong>{currentStats?`${currentStats.xg[0].toFixed(2)} — ${currentStats.xg[1].toFixed(2)}`:"—"}</strong></div></div>
         <div className="scoreboard-trim"/>
       </section>
-      <GoalRibbon goals={revealedGoals} homeName={homeName} awayName={awayName} homeGoals={homeGoals} awayGoals={awayGoals}/>
+      <GoalRibbon events={revealed} homeName={homeName} awayName={awayName} homeGoals={homeGoals} awayGoals={awayGoals}/>
       {shootout&&done?<ShootoutPanel shootout={shootout} homeName={homeName} awayName={awayName} homeClubId={homeClubId} awayClubId={awayClubId}/>:<MatchPulse events={revealed} minute={minute} endMinute={endMinute} homeName={homeName} awayName={awayName} homeColor={homeColor} awayColor={awayColor}/>} 
 
       {stats && (

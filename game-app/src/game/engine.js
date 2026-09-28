@@ -3,6 +3,8 @@ import { buildClubs, buildChampionshipClubs, buildLaLigaClubs, buildSerieAClubs,
 import { buildEuropeanGuestClubs } from "./uclSelection.js";
 import { attachSeasonSchedule } from "./seasonSchedule.js";
 import { firstSeasonLeagueOrder } from "./firstSeasonFixtures.js";
+import { squadGroups } from "./squadSelection.js";
+import { ensurePlayerLife, mapLifeClubs, recordPlayerMinutes } from './playerLife.js';
 export function slotAccepts(slotRole, player){
   if (!player) return false;
   if (player.role === slotRole) return true;
@@ -219,14 +221,16 @@ export function myTactics(s){
   const club = s.clubs.find(c=>c.id===s.myClubId);
   return { formation: s.formation, style:s.tacticalStyle || "balanced", line:s.defensiveLine ?? 50, trap:!!s.offsideTrap, aggression:s.defensiveAggression??50,
     halftimeStyle:s.halftimeStyle || "keep", autoSubs:s.autoSubs !== false,
-    bench:club.players.filter(p=>!Object.values(s.lineup).includes(p.id) && !suspended.has(p.id)) };
+    bench:squadGroups(club.players,s.lineup,suspended,s.benchSelection).bench };
 }
-export function aiTactics(club){
+export function aiTactics(club,state){
+  if(state)club={...club,players:club.players.filter(p=>!(state.worldInjuries?.[p.id]?.matches>0))};
   const formation = bestFormation(club.players, club.preferredFormation || "4-4-2");
   const style=inferStyle(club.players,formation,club.id,club.leagueAvg),profile=CLUB_TACTIC_PROFILES[club.id];
   const defaults={tiki:[66,true,42],gegen:[72,true,68],bus:[30,false,35],counter:[42,false,50],direct:[50,false,56]};
   const [line,trap,aggression]=defaults[style]||[50,false,50];
-  return { formation, style, line:profile?.line??line, trap:profile?.trap??trap, aggression:profile?.aggression??aggression, autoSubs:true, bench:club.players };
+  const xi=topXI(club.players,formation),lineup=Object.fromEntries(xi.map((p,i)=>[i,p.id]));
+  return { formation, style, line:profile?.line??line, trap:profile?.trap??trap, aggression:profile?.aggression??aggression, autoSubs:true, bench:squadGroups(club.players,lineup).bench };
 }
 // Attack-vs-defense model: formation-shape tactics, playing-style identity and matchups, defensive line/offside
 // trap, home advantage, and a per-match variance swing (widened or narrowed by playing style).
@@ -237,6 +241,7 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
   const initialPlayers = active.map(team=>team.map(p=>({...p})));
   const playerLogs = initialPlayers.map(team=>new Map(team.map(p=>[p.id,{playerId:p.id,name:p.name,role:p.role,group:p.group,start:0,end:minutes,goals:0,assists:0,shots:0,sot:0,xg:0,yellow:0,red:false}])));
   const tactics = [tacticsA,tacticsB].map(t=>({...t}));
+  const substitutionsUsed=[0,0];
   const events = [], goals = [0,0], goalLists = [[],[]], redCards = [null,null], yellowCards=[new Set(),new Set()], injuries=[[],[]];
   const totals = {shots:[0,0],sot:[0,0],xg:[0,0],touches:[0,0],bigChances:[0,0],bigChancesMissed:[0,0],passes:[0,0],accPasses:[0,0],fouls:[0,0],offsides:[0,0],corners:[0,0],tacklesWon:[0,0],interceptions:[0,0],clearances:[0,0],saves:[0,0],crosses:[0,0],successfulCrosses:[0,0],yellowCards:[0,0],redCards:[0,0]};
   const possession = [0,0], history=[];
@@ -252,20 +257,20 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
         tac.style=tac.halftimeStyle;
         events.push({minute,side,type:"tactics",text:`Switch to ${STYLES[tac.style].name}`});
       }
-      if((minute===55 || minute===70) && tac.autoSubs){
+      if((minute===55 || minute===70 || minute===80) && tac.autoSubs){
         const unavailable = new Set([...playerLogs[side].keys(),...active[side].map(p=>p.id)]);
         const tired=[...active[side]].filter(p=>p.group!=="GK" && (p.energy??100)<(minute===55?84:78)).sort((a,b)=>(a.energy??100)-(b.energy??100));
         let substitutions=0;
         for(const out of tired){
-          if(substitutions===(minute===55?3:2))break;
+          if(substitutions===2||substitutionsUsed[side]>=5)break;
           const role=out.assignedRole || out.role;
           const incoming=[...(tac.bench||[])].filter(p=>!unavailable.has(p.id)&&slotAccepts(role,p)).sort((a,b)=>(b.energy??100)*b.ovr-(a.energy??100)*a.ovr)[0];
           if(!incoming || (incoming.energy??100)*matchOvr(incoming) <= (out.energy??100)*matchOvr(out)+300) continue;
-          unavailable.add(incoming.id);substitutions++;
+          unavailable.add(incoming.id);substitutions++;substitutionsUsed[side]++;
           active[side]=active[side].map(p=>p.id===out.id?{...incoming,assignedRole:role,group:ROLE_GROUP[role]}:p);
           const outLog=playerLogs[side].get(out.id);if(outLog)outLog.end=minute;
           playerLogs[side].set(incoming.id,{playerId:incoming.id,name:incoming.name,role:incoming.role,group:ROLE_GROUP[role],start:minute,end:95,goals:0,assists:0,shots:0,sot:0,xg:0,yellow:0,red:false});
-          events.push({minute,side,type:"sub",playerId:incoming.id,outId:out.id,text:`${incoming.name} replaces ${out.name}`});
+          events.push({minute,side,type:"sub",playerId:incoming.id,outId:out.id,inName:incoming.name,outName:out.name,text:`${incoming.name} replaces ${out.name}`});
         }
       }
       // A low-energy, low-stamina player is more exposed. Most injuries are short,
@@ -286,10 +291,11 @@ export function simMatchSmart(teamAPlayers, teamBPlayers, homeA, tacticsA, tacti
             const used=new Set(playerLogs[side].keys());
             const role=vulnerable.assignedRole||vulnerable.role;
             const incoming=[...(tac.bench||[])].filter(player=>!used.has(player.id)&&slotAccepts(role,player)).sort((a,b)=>(b.energy??100)*b.ovr-(a.energy??100)*a.ovr)[0];
-            if(incoming){
+            if(incoming&&substitutionsUsed[side]<5){
+              substitutionsUsed[side]++;
               active[side].push({...incoming,assignedRole:role,group:ROLE_GROUP[role]});
               playerLogs[side].set(incoming.id,{playerId:incoming.id,name:incoming.name,role:incoming.role,group:ROLE_GROUP[role],start:minute,end:minutes,goals:0,assists:0,shots:0,sot:0,xg:0,yellow:0,red:false});
-              events.push({minute,side,type:"injury",playerId:vulnerable.id,outId:vulnerable.id,inId:incoming.id,matches,severity,text:`${vulnerable.name} leaves injured (${severity}, ${matches} match${matches===1?"":"es"}) — ${incoming.name} comes on`});
+              events.push({minute,side,type:"injury",playerId:vulnerable.id,outId:vulnerable.id,inId:incoming.id,inName:incoming.name,outName:vulnerable.name,matches,severity,text:`${vulnerable.name} leaves injured (${severity}, ${matches} match${matches===1?"":"es"}) — ${incoming.name} comes on`});
             }else events.push({minute,side,type:"injury",playerId:vulnerable.id,matches,severity,text:`${vulnerable.name} leaves injured (${severity}, ${matches} match${matches===1?"":"es"})`});
           }
         }
@@ -477,11 +483,12 @@ export function performanceUpdatesForMatch(simulation,homeClubId,awayClubId,comp
   const [homeXI,awayXI]=simulation.match.initialPlayers;
   const strength=xi=>Math.round(xi.reduce((total,p)=>total+matchOvr(p),0)/Math.max(1,xi.length));
   return [
-    {clubId:homeClubId,ratings:simulation.match.playerRatings[0],competition,opponentStrength:strength(awayXI)},
-    {clubId:awayClubId,ratings:simulation.match.playerRatings[1],competition,opponentStrength:strength(homeXI)},
+    {clubId:homeClubId,ratings:simulation.match.playerRatings[0],injuries:simulation.match.injuries?.[0]||[],competition,opponentStrength:strength(awayXI)},
+    {clubId:awayClubId,ratings:simulation.match.playerRatings[1],injuries:simulation.match.injuries?.[1]||[],competition,opponentStrength:strength(homeXI)},
   ];
 }
-export function applyPerformanceUpdates(s,updates=[],recoverUnplayed=true){
+export function applyPerformanceUpdates(s,updates=[]){
+  s=ensurePlayerLife(s);
   const byClub=new Map();
   for(const update of updates){
     if(!byClub.has(update.clubId))byClub.set(update.clubId,[]);
@@ -489,17 +496,19 @@ export function applyPerformanceUpdates(s,updates=[],recoverUnplayed=true){
   }
   const updateClub=club=>{
     const ratings=byClub.get(club.id)||[];
-    if(!recoverUnplayed&&!ratings.length)return club;
+    if(!byClub.has(club.id))return club;
+    const quality=[...club.players].sort((a,b)=>b.ovr-a.ovr).slice(0,11).reduce((v,p)=>v+p.ovr,0)/Math.min(11,club.players.length);
     const byPlayer=new Map(ratings.map(r=>[r.playerId,r]));
     return {...club,players:club.players.map(player=>{
       const r=byPlayer.get(player.id);
-      const energy=player.energy??100,fitness=player.condition??100;
-      if(!r)return {...player,energy:clamp(energy+20,15,100),condition:clamp(fitness+5,60,100)};
+      const energy=player.energy??100;
+      const date=s.currentDate||'2026-08-15';
+      const absent=club.id===s.myClubId?unavailablePlayerIds(s).includes(player.id):s.worldInjuries?.[player.id]?.matches>0;
+      if(!r)return recordPlayerMinutes(player,0,date,quality,!absent&&!player.loan);
       const style=club.id===s.myClubId?s.tacticalStyle:aiTactics(club).style;
       const styleLoad=style==="gegen"?1.28:style==="tiki"?1.10:style==="bus"?0.85:1;
       const load=((r.minutes??95)/95)*(13+(r.opponentStrength-70)*0.25)*styleLoad*(84/(player.stamina??80))*(player.group==="GK"?0.55:1);
-      const nextEnergy=clamp(Math.round(energy+15-load),15,99);
-      const nextFitness=clamp(Math.round(fitness+2-((r.minutes??95)/95)*(style==="gegen"?5:3)*(84/(player.stamina??80))),60,100);
+      const nextEnergy=clamp(Math.round(energy-load*1.65),15,100);
       const oldConfidence=player.confidence||0;
       const faded=oldConfidence>0?oldConfidence-1:oldConfidence<0?oldConfidence+1:0;
       const previous=player.competitionStats?.[r.competition]||{};
@@ -510,8 +519,8 @@ export function applyPerformanceUpdates(s,updates=[],recoverUnplayed=true){
         ratingTotal:+((previous.ratingTotal||0)+r.rating).toFixed(2),ratedMatches:(previous.ratedMatches||0)+1,
         bestRating:Math.max(previous.bestRating||0,r.rating),motm:(previous.motm||0)+(r.isMotm?1:0),
       }};
-      return {...player,
-        energy:nextEnergy,condition:nextFitness,
+      return recordPlayerMinutes({...player,
+        energy:nextEnergy,
         competitionStats,
         appearances:(player.appearances||0)+1,
         seasonGoals:(player.seasonGoals||0)+r.goals,
@@ -526,13 +535,17 @@ export function applyPerformanceUpdates(s,updates=[],recoverUnplayed=true){
         seasonMinutes:(player.seasonMinutes||0)+r.minutes,
         lastRating:r.rating,
         lastConfidenceChange:r.confidenceDelta,
-        confidence:clamp(faded+r.confidenceDelta,-2,2)};
+        confidence:clamp(faded+r.confidenceDelta,-2,2)},r.minutes??95,date,quality);
     })};
   };
-  const poolKeys=["clubs","plClubs","laligaClubs","serieaClubs","bundesligaClubs","ligue1Clubs","championshipClubs","laliga2Clubs","serieBClubs","bundes2Clubs","ligue2Clubs","europeanGuestClubs"];
-  const next={...s};
-  for(const key of poolKeys)if(Array.isArray(s[key]))next[key]=s[key].map(updateClub);
-  if(s.ucl?.clubs)next.ucl={...s.ucl,clubs:s.ucl.clubs.map(updateClub)};
+  const next=mapLifeClubs(s,updateClub);
+  const worldInjuries={...(s.worldInjuries||{})};
+  for(const update of updates){
+    if(update.clubId===s.myClubId)continue;
+    for(const [id,injury] of Object.entries(worldInjuries))if(injury.clubId===update.clubId){if(injury.matches>1)worldInjuries[id]={...injury,matches:injury.matches-1};else delete worldInjuries[id];}
+    for(const injury of update.injuries||[])worldInjuries[injury.playerId]={...injury,clubId:update.clubId};
+  }
+  next.worldInjuries=worldInjuries;
   return next;
 }
 export function playerSeasonAverage(player){return player.ratedMatches?player.ratingTotal/player.ratedMatches:0;}
@@ -614,7 +627,7 @@ export function ovrLabel(o){
   if (o>=66) return "Average";
   return "Weak";
 }
-export function fmtM(v){ return `£${v}m`; }
+export { formatMoney as fmtM } from './finance.js';
 export function ord(n){ return n===1?"st":n===2?"nd":n===3?"rd":"th"; }
 export function autoLineup(formationSlots, players, rating=p=>p.ovr){
   const used = new Set();
@@ -662,10 +675,23 @@ export function applyInjuries(s, incidents=[]){
   for(const injury of incidents||[])injuries[injury.playerId]={name:injury.name,matches:injury.matches,severity:injury.severity};
   return {...s,injuries};
 }
+export function moveMedicalRecord(s,playerId,clubId){
+  const injury=s.injuries?.[playerId]||s.worldInjuries?.[playerId];
+  if(!injury)return s;
+  const injuries={...s.injuries},worldInjuries={...s.worldInjuries};
+  delete injuries[playerId];delete worldInjuries[playerId];
+  if(clubId===s.myClubId)injuries[playerId]={name:injury.name,matches:injury.matches,severity:injury.severity};
+  else worldInjuries[playerId]={...injury,clubId};
+  return {...s,injuries,worldInjuries};
+}
 export function getMatchPlayers(s, competition="domestic"){
   const myClub = s.clubs.find(c=>c.id===s.myClubId);
   const suspended = new Set(unavailablePlayerIds(s,competition));
   return playersForLineup(myClub.players,s.lineup,s.formation).filter(p=>!suspended.has(p.id));
+}
+export function aiMatchPlayers(s,club){
+  const eligible=club.players.filter(p=>!(s.worldInjuries?.[p.id]?.matches>0));
+  return topXI(eligible.length>=11?eligible:club.players,club.preferredFormation);
 }
 export function simulateRound(s, round, gw){
   const lineupPlayers = getMatchPlayers(s);
@@ -674,10 +700,10 @@ export function simulateRound(s, round, gw){
   const updates = [],performanceUpdates=[];
   round.forEach(([home, away]) => {
     const homeClub = s.clubs.find(c=>c.id===home), awayClub = s.clubs.find(c=>c.id===away);
-    const homePlayers = home===s.myClubId ? lineupPlayers : topXI(homeClub.players,homeClub.preferredFormation);
-    const awayPlayers = away===s.myClubId ? lineupPlayers : topXI(awayClub.players,awayClub.preferredFormation);
-    const homeTactics = home===s.myClubId ? myTactics(s) : aiTactics(homeClub);
-    const awayTactics = away===s.myClubId ? myTactics(s) : aiTactics(awayClub);
+    const homePlayers = home===s.myClubId ? lineupPlayers : aiMatchPlayers(s,homeClub);
+    const awayPlayers = away===s.myClubId ? lineupPlayers : aiMatchPlayers(s,awayClub);
+    const homeTactics = home===s.myClubId ? myTactics(s) : aiTactics(homeClub,s);
+    const awayTactics = away===s.myClubId ? myTactics(s) : aiTactics(awayClub,s);
     const simulation = simMatchSmart(homePlayers, awayPlayers, true, homeTactics, awayTactics);
     const {goalsA,goalsB}=simulation;
     fixtures.push({competition:s.league,round:gw,homeId:home,awayId:away,homeGoals:goalsA,awayGoals:goalsB});
@@ -768,8 +794,8 @@ export function simulateCupMatch(s, comp, round){
   const opp = scheduled?findClubAnywhere(s,scheduled.homeId===s.myClubId?scheduled.awayId:scheduled.homeId):(avail.length ? avail : pool)[Math.floor(Math.random()*(avail.length ? avail.length : pool.length))];
   if(!opp)throw new Error("The cup draw is not ready.");
   const lineupPlayers = getMatchPlayers(s);
-  const oppPlayers = topXI(opp.players,opp.preferredFormation);
-  const oppTactics = aiTactics(opp);
+  const oppPlayers = aiMatchPlayers(s,opp);
+  const oppTactics = aiTactics(opp,s);
   const myTac = myTactics(s);
   const neutralVenue = round === "Final";
   const homeA = scheduled?scheduled.homeId===s.myClubId:Math.random() < 0.5;
@@ -809,10 +835,10 @@ export function uclZoneBg(rank, isMe){
 }
 export function simulateUclMatch(s, homeClub, awayClub){
   const lineupPlayers = getMatchPlayers(s, "ucl");
-  const homePlayers = homeClub.id===s.myClubId ? lineupPlayers : topXI(homeClub.players,homeClub.preferredFormation);
-  const awayPlayers = awayClub.id===s.myClubId ? lineupPlayers : topXI(awayClub.players,awayClub.preferredFormation);
-  const homeTactics = homeClub.id===s.myClubId ? myTactics(s) : aiTactics(homeClub);
-  const awayTactics = awayClub.id===s.myClubId ? myTactics(s) : aiTactics(awayClub);
+  const homePlayers = homeClub.id===s.myClubId ? lineupPlayers : aiMatchPlayers(s,homeClub);
+  const awayPlayers = awayClub.id===s.myClubId ? lineupPlayers : aiMatchPlayers(s,awayClub);
+  const homeTactics = homeClub.id===s.myClubId ? myTactics(s) : aiTactics(homeClub,s);
+  const awayTactics = awayClub.id===s.myClubId ? myTactics(s) : aiTactics(awayClub,s);
   return simMatchSmart(homePlayers, awayPlayers, true, homeTactics, awayTactics);
 }
 export function simulateUclRound(s, uclClubs, round){
@@ -843,8 +869,8 @@ export function simulateUclSingleMatch(s, opponent, stageLabel, forcedIsHome, al
   const neutralVenue = forcedIsHome === null;
   const scheduled=s.seasonSchedule?.find(e=>e.id===s.activeFixtureId);
   const isHome = neutralVenue ? (scheduled?scheduled.homeId===s.myClubId:Math.random()<0.5) : forcedIsHome!==undefined ? forcedIsHome : Math.random() < 0.5;
-  const oppPlayers = topXI(opponent.players,opponent.preferredFormation);
-  const oppTactics = aiTactics(opponent);
+  const oppPlayers = aiMatchPlayers(s,opponent);
+  const oppTactics = aiTactics(opponent,s);
   const myTac = myTactics(s);
   const homePlayers=isHome?lineupPlayers:oppPlayers, awayPlayers=isHome?oppPlayers:lineupPlayers;
   const homeTactics=isHome?myTac:oppTactics, awayTactics=isHome?oppTactics:myTac;
@@ -977,19 +1003,19 @@ export function freshState(){
   const bundesligaClubs = buildBundesligaClubs();
   const ligue1Clubs = buildLigue1Clubs();
   const portugalClubs = buildPortugalClubs();
-  return {
+  return ensurePlayerLife({
     stage: "league-select", league: null, division:1, clubs: plClubs,
-    season:1, history:[], loans:[], finances:[], shortlist:[], halftimeStyle:"keep", autoSubs:true,
+    season:1, history:[], loans:[], finances:[], shortlist:[], halftimeStyle:"keep", autoSubs:true, market:null, marketNotice:null, marketNotices:[],
     plClubs, laligaClubs, serieaClubs, bundesligaClubs, ligue1Clubs, portugalClubs, championshipClubs: buildChampionshipClubs(), laliga2Clubs:buildLaLiga2Clubs(), serieBClubs:buildSerieBClubs(), bundes2Clubs:buildBundes2Clubs(), ligue2Clubs:buildLigue2Clubs(), europeanGuestClubs:buildEuropeanGuestClubs(),
     myClubId: null, simMode: null,
     formation: "4-3-3", lineup: {}, budget: 0, tacticalStyle: "balanced", defensiveLine: 50, defensiveAggression: 50, offsideTrap: false,
-    suspensions: { domestic: [], ucl: [] }, injuries: {},
+    suspensions: { domestic: [], ucl: [] }, injuries: {},worldInjuries:{},
     half: 1, roundIndex: 0, roundsHalf1: null, roundsHalf2: null, tableRaw: null, lastResult: null,
     results1: [], results2: [], fixtureResults: [], seasonSchedule: [], mail:[], table1: null, tableFinal: null,
     clubForm: {},
     cupStatus: { fa: emptyCupStatus(), carabao: emptyCupStatus(), copa: emptyCupStatus(), coppa:emptyCupStatus(), dfb:emptyCupStatus(), coupe:emptyCupStatus(), taca:emptyCupStatus() }, lastCupResult: null,
     cups: { ucl: null, uel: null, uecl: null }, ucl: null, uel: null, uecl: null,
-  };
+  });
 }
 
 
