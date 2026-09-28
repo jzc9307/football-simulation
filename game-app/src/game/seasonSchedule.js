@@ -77,7 +77,7 @@ export function resolveCalendarConflicts(schedule){
  const events=schedule.map(e=>({...e}));
  // Europe keeps its match windows. Move domestic cup rounds as a unit before
  // fitting league rounds around them, including clashes involving opponents.
- const protectedEvents=events.filter(e=>e.kind==="europe"&&e.status!=="cancelled");
+ const protectedEvents=events.filter(e=>(e.kind==="europe"||e.kind==="league"&&e.publishedDate)&&e.status!=="cancelled");
  const cupRounds=new Map();
  for(const e of events.filter(e=>e.kind==="cup"&&!["cancelled","bye"].includes(e.status))){
   const key=`${e.competition}:${e.roundIndex}`;

@@ -1,10 +1,11 @@
 import { freshState, ensureFixtures, computeTableArray, STYLES, clamp } from './engine.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { repairUclField } from './uclSelection.js';
+import { repairSaleOffers } from './career.js';
 const KEY='football-manager-save-v1';
 const LEGACY_KEY='pl-manager-save-v8';
 const SAVE_VERSION=7;
-const STAGES=new Set(['league-select','select','mode','squad','squad2','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
+const STAGES=new Set(['league-select','select','mode','squad','squad2','calendar-event','matchday-prep','matchday-live','matchday-result','cup-live','cup-result','half-results','full-results','summary','ucl','game-over']);
 const POOL_KEYS=['clubs','plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
@@ -112,7 +113,10 @@ export function validateSave(raw){
   s.cupStatus={...defaults.cupStatus,...s.cupStatus};
   for(const c of Object.values(s.cupStatus))requireValid(c&&Array.isArray(c.playedRounds)&&Array.isArray(c.results)&&Array.isArray(c.faced)&&c.record,'invalid cup progress.');
   requireValid(s.cups&&typeof s.cups==='object','invalid cup records.');
-  for(const loan of s.loans)requireValid(loan&&typeof loan.playerId==='string'&&typeof loan.ownerId==='string'&&typeof loan.borrowerId==='string','invalid loan contract.');
+  for(const loan of s.loans){
+    requireValid(loan&&typeof loan.playerId==='string'&&typeof loan.ownerId==='string'&&typeof loan.borrowerId==='string','invalid loan contract.');
+    if(loan.endsDate)requireValid(/^\d{4}-\d{2}-\d{2}$/.test(loan.endsDate)&&Number.isFinite(loan.seasons)&&loan.seasons>=.5&&loan.seasons<=3&&Number.isInteger(loan.seasons*2),'invalid loan duration.');
+  }
   if(s.roundsHalf1){
     requireValid(Array.isArray(s.roundsHalf1)&&Array.isArray(s.roundsHalf2)&&s.tableRaw,'invalid fixtures.');
     requireValid(Number.isInteger(s.roundIndex)&&s.roundIndex>=0&&[1,2].includes(s.half),'invalid matchday.');
@@ -164,7 +168,7 @@ export function validateSave(raw){
   if(!s.clubForm||typeof s.clubForm!=='object'||Array.isArray(s.clubForm))s.clubForm={};
   if(!s.clubForm[s.myClubId]&&s.myClubId)s.clubForm[s.myClubId]=[...s.results1,...s.results2].slice(-5).map(result=>result.result);
   // Legacy loan flags do not contain ownership; block resale instead of inventing an owner.
-  return s;
+  return repairSaleOffers(s);
 }
 export function loadGame(storage){
   const current=storage.getItem(KEY),legacy=current===null?storage.getItem(LEGACY_KEY):null;

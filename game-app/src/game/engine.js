@@ -915,7 +915,7 @@ export function analyzeMatchup(myPlayers, oppPlayers, myTac, oppTac){
     lineMe, lineOpp, aggressionMe:myTac.aggression??50, aggressionOpp:oppTac.aggression??50, effAttackMe, effAttackOpp, effDefenseMe, effDefenseOpp };
 }
 export function findClubAnywhere(s, id){
-  const pools = [s.clubs, s.europeanGuestClubs, s.championshipClubs, s.laliga2Clubs, s.serieBClubs, s.bundes2Clubs, s.ligue2Clubs, s.plClubs, s.laligaClubs, s.serieaClubs, s.bundesligaClubs, s.ligue1Clubs];
+  const pools = [s.clubs, s.europeanGuestClubs, s.championshipClubs, s.laliga2Clubs, s.serieBClubs, s.bundes2Clubs, s.ligue2Clubs, s.plClubs, s.laligaClubs, s.serieaClubs, s.bundesligaClubs, s.ligue1Clubs, s.portugalClubs, s.ucl?.clubs, s.uel?.clubs, s.uecl?.clubs];
   for (const pool of pools){ if (pool){ const found = pool.find(c=>c.id===id); if (found) return found; } }
   return null;
 }

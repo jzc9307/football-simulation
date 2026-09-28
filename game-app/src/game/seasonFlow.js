@@ -8,7 +8,7 @@ import { autoLineup, unavailablePlayerIds } from "./engine.js";
 import { FORMATIONS } from "./config.js";
 import { playLeagueRound, playDomesticCup, playEuropeanLeague, advanceEuropeanLeague, startEuropeanKnockout, playEuropeanKnockout, advanceEuropeanKnockout } from "./actions.js";
 import { nextFixture, syncKnockoutSchedule, recordScheduledResult, isMyFixture, addMail, advanceCupDraws, CUP_KEYS, buildUclSchedule, buildUelSchedule, buildUeclSchedule, resolveCalendarConflicts } from "./seasonSchedule.js";
-import { advanceSaleOffers } from "./career.js";
+import { advanceSaleOffers, returnExpiredLoans } from "./career.js";
 
 function advanceEuropeanWorld(state,round){
  const {updates,performanceUpdates,fixtures}=simulateUclRound({...state,ucl:{...state.ucl,roundIndex:round-1}},state.ucl.clubs,state.ucl.rounds[round-1]);
@@ -93,8 +93,14 @@ export function prepareNextFixture(input){
  }
  if(!s.uecl){const uecl=createConferenceCampaign(s,roundRobin,initTable);s={...s,uecl,seasonSchedule:resolveCalendarConflicts([...s.seasonSchedule,...buildUeclSchedule({season:s.season,rounds:uecl.rounds})])};}
  s=syncKnockoutSchedule(s);
+ const target=nextFixture(s);
+ const returnDate=s.loans.filter(l=>l.endsDate&&l.endsDate<=target?.date).map(l=>l.endsDate).sort()[0];
+ const saleProgress=target?advanceSaleOffers(s,returnDate||target.date):{state:s,arrived:false};
+ const stopDate=saleProgress.arrived?saleProgress.date:returnDate||target?.date;
+ s=stopDate?returnExpiredLoans(saleProgress.state,stopDate):saleProgress.state;
+ const loanReturned=!!returnDate&&stopDate===returnDate;
  for(let pass=0;pass<120;pass++){
-  const next=nextFixture(s),limit=next?.date||s.seasonSchedule.at(-1)?.date;
+  const next=nextFixture(s),limit=stopDate||next?.date||s.seasonSchedule.at(-1)?.date;
   if(!limit)break;
   // A European league-phase round is simulated as one batch.  Never advance
   // that batch in the background if it contains the manager's fixture: doing
@@ -113,11 +119,8 @@ export function prepareNextFixture(input){
  // first-class event, so it interrupts progression before the next fixture
  // rather than disappearing behind an instant simulation.
  const upcoming=nextFixture(s);
- if(upcoming){
-  const saleProgress=advanceSaleOffers(s,upcoming.date);
-  if(saleProgress.arrived){
-   return {...saleProgress.state,currentDate:saleProgress.date||upcoming.date,activeFixtureId:null,activeEuropeanCompetition:null,stage:s.midSeasonDone?"squad2":"squad",transferNotice:"A new transfer offer has arrived."};
-  }
+ if((saleProgress.arrived||loanReturned)&&upcoming&&stopDate<upcoming.date){
+   return {...s,currentDate:stopDate,activeFixtureId:null,activeEuropeanCompetition:null,stage:"calendar-event",transferNotice:loanReturned?"A player has returned from loan.":"A new transfer offer has arrived."};
  }
  const event=upcoming;
  if(!event){
@@ -184,6 +187,7 @@ export function simulateScheduledHalf(input,half){
  let s=prepareNextFixture({...input,midSeasonDone:half===2||input.midSeasonDone});
  for(let guard=0;guard<120;guard++){
   if(s.stage==="full-results"||s.stage==="half-results")return s;
+  if(s.stage==="calendar-event"){s=prepareNextFixture(s);continue;}
   const event=nextFixture(s);
   if(!event)throw new Error("No scheduled fixture is available.");
   const unavailable=new Set(unavailablePlayerIds(s,event.kind==="europe"?"ucl":"domestic"));

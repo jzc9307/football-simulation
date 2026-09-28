@@ -61,17 +61,17 @@ export const FORMATIONS = {
     {role:"ST",x:50,y:10}
   ],
   "3-5-2": [
-    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},
+    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},
     {role:"LB",x:12,y:48},{role:"CM",x:32,y:46},{role:"CM",x:50,y:50},{role:"CM",x:68,y:46},{role:"RB",x:88,y:48},
     {role:"ST",x:38,y:12},{role:"ST",x:62,y:12}
   ],
   "3-4-3": [
-    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},
+    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},
     {role:"LB",x:10,y:50},{role:"CM",x:35,y:48},{role:"CM",x:65,y:48},{role:"RB",x:90,y:50},
     {role:"LW",x:20,y:14},{role:"ST",x:50,y:10},{role:"RW",x:80,y:14}
   ],
   "5-3-2": [
-    {role:"GK",x:50,y:90},{role:"LB",x:10,y:66},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},{role:"RB",x:90,y:66},
+    {role:"GK",x:50,y:90},{role:"LB",x:10,y:66},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},{role:"RB",x:90,y:66},
     {role:"CM",x:30,y:46},{role:"CM",x:50,y:50},{role:"CM",x:70,y:46},
     {role:"ST",x:38,y:12},{role:"ST",x:62,y:12}
   ],
@@ -79,7 +79,7 @@ export const FORMATIONS = {
     {role:"GK",x:50,y:90},{role:"LB",x:15,y:68},{role:"CB",x:38,y:73},{role:"CB",x:62,y:73},{role:"RB",x:85,y:68},
     {role:"CDM",x:50,y:58},
     {role:"CM",x:30,y:42},{role:"CM",x:70,y:42},
-    {role:"CAM",x:50,y:26},
+    {role:"CAM",x:50,y:30},
     {role:"ST",x:38,y:12},{role:"ST",x:62,y:12}
   ],
   "4-1-4-1": [
@@ -100,26 +100,26 @@ export const FORMATIONS = {
   ],
   "4-5-1": [
     {role:"GK",x:50,y:90},{role:"LB",x:15,y:68},{role:"CB",x:38,y:73},{role:"CB",x:62,y:73},{role:"RB",x:85,y:68},
-    {role:"LM",x:15,y:39},{role:"CM",x:35,y:47},{role:"CDM",x:50,y:53},{role:"CM",x:65,y:47},{role:"RM",x:85,y:39},{role:"ST",x:50,y:10}
+    {role:"LM",x:10,y:39},{role:"CM",x:30,y:47},{role:"CDM",x:50,y:53},{role:"CM",x:70,y:47},{role:"RM",x:90,y:39},{role:"ST",x:50,y:10}
   ],
   "4-3-2-1": [
     {role:"GK",x:50,y:90},{role:"LB",x:15,y:68},{role:"CB",x:38,y:73},{role:"CB",x:62,y:73},{role:"RB",x:85,y:68},
     {role:"CM",x:30,y:48},{role:"CDM",x:50,y:54},{role:"CM",x:70,y:48},{role:"CAM",x:36,y:28},{role:"CAM",x:64,y:28},{role:"ST",x:50,y:10}
   ],
   "3-4-2-1": [
-    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},
+    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},
     {role:"LM",x:12,y:48},{role:"CM",x:38,y:49},{role:"CM",x:62,y:49},{role:"RM",x:88,y:48},{role:"CAM",x:36,y:28},{role:"CAM",x:64,y:28},{role:"ST",x:50,y:10}
   ],
   "3-4-1-2": [
-    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},
+    {role:"GK",x:50,y:90},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},
     {role:"LM",x:12,y:48},{role:"CM",x:38,y:49},{role:"CM",x:62,y:49},{role:"RM",x:88,y:48},{role:"CAM",x:50,y:29},{role:"ST",x:38,y:10},{role:"ST",x:62,y:10}
   ],
   "5-2-1-2": [
-    {role:"GK",x:50,y:90},{role:"LB",x:10,y:66},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},{role:"RB",x:90,y:66},
+    {role:"GK",x:50,y:90},{role:"LB",x:10,y:66},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},{role:"RB",x:90,y:66},
     {role:"CM",x:38,y:48},{role:"CM",x:62,y:48},{role:"CAM",x:50,y:28},{role:"ST",x:38,y:10},{role:"ST",x:62,y:10}
   ],
   "5-4-1": [
-    {role:"GK",x:50,y:90},{role:"LB",x:10,y:66},{role:"CB",x:30,y:73},{role:"CB",x:50,y:76},{role:"CB",x:70,y:73},{role:"RB",x:90,y:66},
+    {role:"GK",x:50,y:90},{role:"LB",x:10,y:66},{role:"CB",x:30,y:73},{role:"CB",x:50,y:70},{role:"CB",x:70,y:73},{role:"RB",x:90,y:66},
     {role:"LM",x:16,y:42},{role:"CM",x:39,y:47},{role:"CM",x:61,y:47},{role:"RM",x:84,y:42},{role:"ST",x:50,y:10}
   ],
 };
