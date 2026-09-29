@@ -12,6 +12,7 @@ contract negotiations, player relationships and connected club finances.</p>
 
 <p>
 <a href="#quick-start">Quick start</a> ·
+<a href="#gameplay-gallery">Gameplay gallery</a> ·
 <a href="#the-connected-career">Explore the systems</a> ·
 <a href="game-app/docs/GAMEPLAY.md">Gameplay guide</a> ·
 <a href="game-app/docs/CALCULATIONS.md">Calculations</a> ·
@@ -40,6 +41,7 @@ contract negotiations, player relationships and connected club finances.</p>
 ## Contents
 
 - [Quick start](#quick-start)
+- [Gameplay gallery](#gameplay-gallery)
 - [The connected career](#the-connected-career)
 - [World, competitions and calendar](#world-competitions-and-calendar)
 - [The management dashboard](#the-management-dashboard)
@@ -74,6 +76,49 @@ Open the local URL printed by Vite. Pick a league, open a club dossier, select y
 | Instant Half-Season | Advance fixture-by-fixture toward the halfway or final review | The same tools; fast-forward pauses for manager-relevant events |
 
 Instant mode is **not** permission for the AI to sell your players or skip an important offer. Both modes share the same calendar, world fixtures, medical state, records and financial clock.
+
+## Gameplay gallery
+
+Actual screens from the running game—not concept art. These previews were captured on 30 September 2026 in a separate demo career. Clubs, budgets, dates and statistics reflect that simulated save, not current real-world results. Select any image to open the full-size preview.
+
+### A transfer market you can explore
+
+[![Transfer Centre with player cards, club navigation, Free Agents, detailed position filters and the Active Talks shortcut](docs/screenshots/transfer-centre.png)](docs/screenshots/transfer-centre.png)
+
+Search the football world, narrow your shortlist and open a full scout report before entering negotiations. [Explore the transfer system →](#transfers-and-the-intelligent-market)
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<a href="docs/screenshots/matchday-studio.png"><img src="docs/screenshots/matchday-studio.png" alt="Matchday Studio with a formation pitch, squad-strength pentagon, tactics and saved team sheets" /></a>
+<p><strong>Matchday Studio</strong><br />Formation, lineup and match plan in one workspace. <a href="#squad-selection-tactics-and-team-sheets">See how it works →</a></p>
+</td>
+<td width="50%" valign="top">
+<a href="docs/screenshots/squad-hub.png"><img src="docs/screenshots/squad-hub.png" alt="Squad Hub with the player selector, energy, sharpness and visible playing-time expectations" /></a>
+<p><strong>Squad Hub</strong><br />Know the player and see their involvement against expectations. <a href="#performance-centre-and-squad-hub">Explore the hub →</a></p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<a href="docs/screenshots/player-scout-report.png"><img src="docs/screenshots/player-scout-report.png" alt="Nuno Mendes scout report with attributes, market value, Club interest and the deal room" /></a>
+<p><strong>Player scouting &amp; Club interest</strong><br />Compare attributes, affordability and approaches before committing. <a href="#transfers-and-the-intelligent-market">Read the recruitment guide →</a></p>
+</td>
+<td width="50%" valign="top">
+<a href="docs/screenshots/contract-negotiation.png"><img src="docs/screenshots/contract-negotiation.png" alt="Contract negotiation with agent expectations, contract length, weekly wage and squad-role proposals" /></a>
+<p><strong>Personal terms</strong><br />Discuss the length, wage and role—with funding visible before signing. <a href="#contracts-and-squad-role-negotiation">Follow the negotiation flow →</a></p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<a href="docs/screenshots/budget-overview.png"><img src="docs/screenshots/budget-overview.png" alt="Budget Overview showing transfer funds, weekly payroll, wage reserve and the season-resources chart" /></a>
+<p><strong>Budget Overview</strong><br />Transfer cash, wage reserves and spending tell one financial story. <a href="#club-finances-and-competition-rewards">Understand the money →</a></p>
+</td>
+<td width="50%" valign="top">
+<a href="docs/screenshots/board-objectives.png"><img src="docs/screenshots/board-objectives.png" alt="Board objectives window with the board-trust gauge and season-target progress" /></a>
+<p><strong>The boardroom</strong><br />Live confidence and ambitions tailored to your team’s quality. <a href="#assistant-advice-and-board-objectives">Review the objectives →</a></p>
+</td>
+</tr>
+</table>
 
 ## The connected career
 
@@ -147,6 +192,8 @@ Stops include relevant received offers, rival bids, signing decisions, ready per
 ### Five-tile season bar
 
 Desktop order is **Season → Budget → Board objectives → Squad readiness → League form**. The strip wraps on smaller screens instead of squeezing five unreadable tiles together.
+
+[![Career dashboard with the continuous five-tile season bar, next fixture, event-aware date simulation and first-team desk](docs/screenshots/career-dashboard.png)](docs/screenshots/career-dashboard.png)
 
 | Tile | Information | Interaction |
 | --- | --- | --- |
@@ -575,7 +622,7 @@ The assistant can highlight:
 - A short turnaround and saved cup/rotation sheet.
 - An out-of-position starter or tactical risk before the next opponent.
 
-At most three priorities appear. Suggestions require your action; advice does not silently renegotiate or rewrite tactics.
+At most three priorities appear. Select anywhere on a notebook card to open its action, or focus it and press Enter or Space. Suggestions require your action; advice does not silently renegotiate or rewrite tactics.
 
 ### The board's season mandate
 

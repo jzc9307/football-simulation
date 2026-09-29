@@ -125,7 +125,7 @@ Cup/European advancement adds modest game-balanced transfer funding immediately 
 
 Board ambitions depend on squad quality and relative league strength, not hardcoded club names. Strong clubs may be asked to win the league/cups; others target Europe, mid-table or survival. Europe targets appear only when qualified. Finance asks for sustainable funded wages. Live scores soften early-season results; final review uses the whole campaign and partial credit. Confidence below **40/100 at final review** ends the career. One missed target alone does not.
 
-Assistant advice prioritizes outstanding minutes promises, tired starters with rested positional cover, expiring happy players, congested fixtures/rotation sheets and role/tactical risks. Suggested changes require your action.
+Assistant advice prioritizes outstanding minutes promises, tired starters with rested positional cover, expiring happy players, congested fixtures/rotation sheets and role/tactical risks. Select anywhere on a notebook card to open its action; keyboard users can focus the card and press Enter or Space. Suggested changes require your action.
 
 ## Multi-season progression and limits
 

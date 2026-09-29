@@ -25,7 +25,7 @@
 @media(max-width:600px){.performance-toolbar{gap:7px}.performance-toolbar .performance-player-search{flex-basis:100%}.performance-control{min-width:0;flex:1}.performance-direction{min-width:36px;padding:10px}.performance-direction>span{display:none}.performance-shown{flex-basis:100%}.market-desk-tools .market-shortlist-toggle{width:auto}}
 .season-command-deck{margin:18px 0 24px;border-radius:15px}
 .season-command-deck{grid-template-columns:minmax(180px,1.2fr) minmax(210px,1.2fr) minmax(165px,.9fr) minmax(155px,.9fr) minmax(210px,1fr)}
-.season-command-deck>button{min-width:0;min-height:82px;padding:12px 17px;background:linear-gradient(135deg,#102017,#0c1710)}
+.season-command-deck>button{min-width:0;min-height:82px;padding:12px 17px;border:0;border-radius:0;background:linear-gradient(135deg,#102017,#0c1710)}
 .season-board-button{width:100%;border:0;text-align:left;color:inherit;cursor:pointer}
 .season-board-button>span{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .season-board-button strong>em{font-size:12px;font-weight:600;font-style:normal;letter-spacing:0;color:#88a791;margin-left:4px}
