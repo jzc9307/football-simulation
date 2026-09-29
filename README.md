@@ -1,14 +1,5 @@
 <div align="center">
 
-  <img src="docs/assets/readme-banner.svg" alt="Open Football Banner" width="100%">
-
-  <h1>Open Football</h1>
-  <p><strong>Autonomous football world simulator. Watch the game evolve by itself.</strong></p>
-
-</div
-    
-<div align="center">
-
 <img src="docs/assets/readme-banner.svg" alt="Football Manager Simulation — win on the pitch, build beyond it" width="1200" />
 
 <h1>Football Manager Simulation</h1>
