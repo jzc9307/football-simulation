@@ -10,6 +10,7 @@ import { playLeagueRound, playDomesticCup, playEuropeanLeague, advanceEuropeanLe
 import { nextFixture, syncKnockoutSchedule, recordScheduledResult, isMyFixture, addMail, advanceCupDraws, CUP_KEYS, buildUclSchedule, buildUelSchedule, buildUeclSchedule, resolveCalendarConflicts } from "./seasonSchedule.js";
 import { advanceTransferCalendar } from "./market.js";
 import { ensurePlayerLife } from './playerLife.js';
+import { deadlineActive } from './deadlineDay.js';
 
 function advanceEuropeanWorld(state,round){
  const {updates,performanceUpdates,fixtures}=simulateUclRound({...state,ucl:{...state.ucl,roundIndex:round-1}},state.ucl.clubs,state.ucl.rounds[round-1]);
@@ -98,6 +99,7 @@ function advanceBackgroundFixtures(state,throughDate){
 
 export function prepareNextFixture(input){
  let s=ensurePlayerLife(ensureFixtures(input));
+ if(deadlineActive(s))return {...s,stage:'calendar-event',activeFixtureId:null,transferNotice:'Deadline day is live. Finish the hourly clock in the Deadline Day hub before advancing the calendar.'};
  if(!s.ucl){
   const ucl=createUclCampaign(s,roundRobin,initTable);
   const uel=createEuropaCampaign(s,roundRobin,initTable);

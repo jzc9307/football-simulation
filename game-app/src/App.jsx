@@ -14,8 +14,12 @@ import { validateSave, exportGame } from "./game/storage.js";
 import { createSaveRepository, indexedDBRecords } from "./game/browserStorage.js";
 import { squadGroups, moveToSquadGroup } from "./game/squadSelection.js";
 import { lockPageScroll } from "./components/pageScroll.js";
-import { agreeTransferFee, approachFreeAgent, cancelMarketTalk, negotiatePlayerContract } from "./game/market.js";
-import { FREE_AGENT_CLUB_ID, freeAgentClub } from "./game/freeAgents.js";
+import { agreeTransferFee, approachFreeAgent, cancelMarketTalk, negotiatePlayerContract, advanceDeadlineHour } from "./game/market.js";
+import { ensureBoard, reviewBoardSeason, boardReport } from './game/board.js';
+import { respondToPlayer } from './game/conversations.js';
+import { deadlineActive } from './game/deadlineDay.js';
+import { PlayerConversation, AssistantAdvice, BoardHub, DeadlineHub } from './components/ManagementHub.jsx';
+import { FREE_AGENT_CLUB_ID, freeAgentClub, isFreeAgentSearch } from "./game/freeAgents.js";
 import { negotiateRenewal } from './game/playerLife.js';
 import SquadHub from './components/SquadHub.jsx';
 import ContractTalks from './components/ContractTalks.jsx';
@@ -32,7 +36,7 @@ import { CompetitionMark } from "./components/CompetitionBrand.jsx";
 import { competitionBrand, competitionTheme } from "./components/competitionBrand.js";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeftRight, ArrowUpRight, ArrowUp, ArrowDown, ChevronsUpDown, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins, CalendarDays, Mail, Gamepad2, FastForward, Star, FileSignature } from "lucide-react";
+import { ArrowLeftRight, ArrowUpRight, ArrowUp, ArrowDown, ChevronsUpDown, Search, X, RotateCcw, Trophy, ChevronLeft, Building2, SlidersHorizontal, Sparkles, HandCoins, CalendarDays, Mail, Gamepad2, FastForward, Star, FileSignature, ShieldCheck, Clock3 } from "lucide-react";
 import "./workspaces.css";
 import "./components/TransferRefinements.css";
 
@@ -50,6 +54,8 @@ export default function App(){
   const [contractTalk,setContractTalk]=useState(null);
   const [budgetOpen,setBudgetOpen]=useState(false);
   const [playerHub,setPlayerHub]=useState(null);
+  const [boardOpen,setBoardOpen]=useState(false);
+  const [deadlineOpen,setDeadlineOpen]=useState(false);
   const [marketFilter, setMarketFilter] = useState({ q:"", pos:"ALL", league:"ALL", club:"ALL", sort:"ovr_desc", ageMin:16, ageMax:45, priceMin:0, priceMax:250 });
   const [toast, setToast] = useState("");
   const [halfSimulation, setHalfSimulation] = useState(null);
@@ -58,16 +64,18 @@ export default function App(){
   const dragMeta = useRef(null);
   const saveRepository=useRef(null);
   useEffect(()=>{
-    if(!marketOpen&&!offersOpen&&!tacticsOpen&&!calendarOpen&&!mailOpen&&!selectedCup&&!halfSimulation&&!playerHub)return;
+    if(!marketOpen&&!offersOpen&&!tacticsOpen&&!calendarOpen&&!mailOpen&&!selectedCup&&!halfSimulation&&!playerHub&&!boardOpen&&!deadlineOpen)return;
     return lockPageScroll(document);
-  },[marketOpen,offersOpen,tacticsOpen,calendarOpen,mailOpen,selectedCup,halfSimulation,playerHub]);
+  },[marketOpen,offersOpen,tacticsOpen,calendarOpen,mailOpen,selectedCup,halfSimulation,playerHub,boardOpen,deadlineOpen]);
+  const activeDeadlineDate=state&&deadlineActive(state)?state.deadlineDay.date:null;
+  useEffect(()=>{setDeadlineOpen(!!activeDeadlineDate);},[activeDeadlineDate]);
 
   useEffect(() => {
     let active=true;
     saveRepository.current??=createSaveRepository({records:indexedDBRecords(window.indexedDB),legacy:window.localStorage});
     saveRepository.current.load().then(({state:saved,recovered})=>{
       if(!active)return;
-      setState(saved.myClubId?ensureTeamSheets(ensureClubFinance(migrateSeason(saved))):saved);
+      setState(saved.myClubId?ensureBoard(ensureTeamSheets(ensureClubFinance(migrateSeason(saved)))):saved);
       if(recovered)setToast("Recovered the last good save. Export a backup when convenient.");
     }).catch(error=>{
       if(!active)return;
@@ -90,6 +98,18 @@ export default function App(){
   }, [state,loaded,saveBlocked]);
 
   const flashToast=useCallback(msg=>{setToast(msg);},[]);
+  function replyToPlayer(messageId,choiceId){
+    try{setState(respondToPlayer(state,messageId,choiceId));return {};}
+    catch(error){return {error:error.message};}
+  }
+  async function advanceDeadline(hours){
+    try{const result=advanceDeadlineHour(state,hours);setState(result.state);if(result.arrived&&!result.state.deadlineDay.closed)setDeadlineOpen(false);
+      try{await saveRepository.current.save(result.state);setSaveError('');}catch(error){setSaveError(`Progress is not saved: ${error.message}. Export a backup.`);return {error:'Progress could not be saved. Export a backup before refreshing.'};}
+      return {};
+    }
+    catch(error){flashToast(error.message);return {error:error.message};}
+  }
+  function actOnAdvice(tip){if(tip.kind==='start'){if(Number.isInteger(tip.slotIndex))swapStudioPlayer(tip.slotIndex,tip.playerId);else startPlayer(tip.playerId);}else if(tip.kind==='renew')setContractTalk({playerId:tip.playerId});else setTacticsOpen(true);}
   async function submitContract({talkId,playerId,...offer}){
     try{
       const result=talkId?negotiatePlayerContract(state,{talkId,...offer}):negotiateRenewal(state,playerId,offer);
@@ -238,7 +258,7 @@ export default function App(){
     setState(s => {
       const selected={...s,myClubId:clubId,budget:club.budget,formation:club.preferredFormation||s.formation,lineup:autoLineup(FORMATIONS[club.preferredFormation||s.formation],club.players),tacticalStyle:identity.style,defensiveLine:identity.line,defensiveAggression:identity.aggression,offsideTrap:identity.trap,stage:"mode"};
       const withEurope=!selected.ucl?{...selected,ucl:createUclCampaign(selected,roundRobin,initTable),uel:createEuropaCampaign(selected,roundRobin,initTable),uecl:createConferenceCampaign(selected,roundRobin,initTable)}:selected;
-      return attachSeasonSchedule(ensureFixtures(withEurope));
+      return ensureBoard(attachSeasonSchedule(ensureFixtures(withEurope)));
     });
   }
   function pickMode(mode){ setState(s => ensureTeamSheets({ ...s, simMode: mode, stage: "squad" })); }
@@ -305,18 +325,19 @@ export default function App(){
     try{setState(transform(state));}catch(error){flashToast(error.message);}
   }
 
-  function nextSeason(){commitGame(s=>{const next=startNextSeason(s);return next.stage==="game-over"?next:ensureFixtures({...next,scheduleMigrationDone:true,ucl:createUclCampaign(next,roundRobin,initTable),uel:createEuropaCampaign(next,roundRobin,initTable),uecl:createConferenceCampaign(next,roundRobin,initTable)});});}
+  function nextSeason(){commitGame(s=>{const next=startNextSeason(s);return next.stage==="game-over"?next:ensureBoard(ensureFixtures({...next,scheduleMigrationDone:true,ucl:createUclCampaign(next,roundRobin,initTable),uel:createEuropaCampaign(next,roundRobin,initTable),uecl:createConferenceCampaign(next,roundRobin,initTable)}));});}
   function downloadSave(){
     const url=URL.createObjectURL(new Blob([exportGame(state)],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download="football-manager-save.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   async function importSave(event){
     const file=event.target.files?.[0];if(!file)return;
-    try{const next=validateSave(JSON.parse(await file.text()));setState(next.myClubId?migrateSeason(next):next);setSaveBlocked(false);setSaveError("");flashToast("Save imported");}
+    try{const next=validateSave(JSON.parse(await file.text()));setState(next.myClubId?ensureBoard(migrateSeason(next)):next);setSaveBlocked(false);setSaveError("");flashToast("Save imported");}
     catch(error){flashToast(error.message);}event.target.value="";
   }
 
   function beginMatchday(half){
+    if(deadlineActive(state)){setDeadlineOpen(true);return;}
     if(halfSimulation)return;
     if(state.simMode!=="half"){
       commitGame(s=>prepareNextFixture({...s,midSeasonDone:half===2||s.midSeasonDone}));
@@ -344,10 +365,10 @@ export default function App(){
     commitGame(s => ({ ...s, stage: s.stage==="matchday-live" ? "matchday-result" : s.stage==="cup-live" ? "cup-result" : s.stage }));
   }
   function continueAfterCup(){ commitGame(prepareNextFixture); }
-  function nextMatch(){if(state.stage==='calendar-event'&&state.simMode==='half')beginMatchday(state.half||1);else commitGame(prepareNextFixture);}
+  function nextMatch(){if(deadlineActive(state)){setDeadlineOpen(true);return;}if(state.stage==='calendar-event'&&state.simMode==='half')beginMatchday(state.half||1);else commitGame(prepareNextFixture);}
 
   function goToMidWindow(){ commitGame(enterMidSeasonWindow); }
-  function finalizeSeason(){ commitGame(s => ({ ...s, stage: "summary" })); }
+  function finalizeSeason(){ commitGame(s => {const summary={...s,stage:'summary'};return ['ucl','uel','uecl'].every(k=>!s[k]||s[k].stage==='final')?reviewBoardSeason(summary):summary;}); }
 
   function uclGoToPrep(){commitGame(prepareNextFixture);}
   function uclPlayLeagueMatch(){commitGame(s=>playEuropeanLeague(s,"UCL"));}
@@ -377,7 +398,7 @@ export default function App(){
   const uelActions = { ...uclActions, uclContinueAfterPhaseSummary:()=>commitGame(s=>startEuropeanKnockout(s,"UEL")), uclPlayLeagueMatch:uelPlayLeagueMatch, uclFinishLiveMatch:uelFinishLiveMatch, uclContinueAfterMatch:uelContinueAfterMatch };
   const ueclActions = { ...uclActions, uclContinueAfterPhaseSummary:()=>commitGame(s=>startEuropeanKnockout(s,"UECL")), uclPlayLeagueMatch:ueclPlayLeagueMatch, uclFinishLiveMatch:ueclFinishLiveMatch, uclContinueAfterMatch:ueclContinueAfterMatch };
 
-  const squadCommonProps = { state, myClub, onActivateSheet:activateSheet, onRenew:id=>setContractTalk({playerId:id}), onRecall:recallPlayer, onSetFormation: setFormation, onDragStart: startDrag, onStartPlayer:startPlayer, onBenchPlayer:benchPlayer, onAvailablePlayer:availablePlayer, onEditNumber: editNumber, onSell: sellPlayer, onAcceptSaleOffer:acceptSaleOffer, onRejectSaleOffer:rejectSaleOffer, onCounterSaleOffer:negotiateSaleOffer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenOffers: ()=>setOffersOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
+  const squadCommonProps = { state, myClub, onOpenBoard:()=>setBoardOpen(true), onOpenDeadline:()=>setDeadlineOpen(true), onAdvice:actOnAdvice, onActivateSheet:activateSheet, onRenew:id=>setContractTalk({playerId:id}), onRecall:recallPlayer, onSetFormation: setFormation, onDragStart: startDrag, onStartPlayer:startPlayer, onBenchPlayer:benchPlayer, onAvailablePlayer:availablePlayer, onEditNumber: editNumber, onSell: sellPlayer, onAcceptSaleOffer:acceptSaleOffer, onRejectSaleOffer:rejectSaleOffer, onCounterSaleOffer:negotiateSaleOffer, onLoanOut: loanOut, onOpenMarket: ()=>setMarketOpen(true), onOpenCups: id=>setSelectedCup(id), onOpenCalendar: ()=>setCalendarOpen(true), onOpenMail: ()=>setMailOpen(true), onOpenOffers: ()=>setOffersOpen(true), onOpenTactics: ()=>setTacticsOpen(true), draggingPlayer: dragMeta.current?.player || null, hoverSlot, suspendedIds: state.suspensions?.[state.stage==="ucl"?"ucl":"domestic"] || [], injuries: state.injuries || {} };
 
   let stageEl = null;
   if (state.stage === "league-select") stageEl = <LeagueSelect onPick={pickLeague} />;
@@ -435,7 +456,7 @@ export default function App(){
   else if (state.stage === "half-results") stageEl = <ResultsScreen title="First Half of the Season" results={state.results1} table={state.table1} clubs={state.clubs} myClubId={state.myClubId} onContinue={goToMidWindow} continueLabel="Go to Transfer Window →" cupStatus={state.cupStatus} league={state.league} division={state.division} ucl={state.ucl} uel={state.uel} uecl={state.uecl} onOpenCup={setSelectedCup} />;
   else if (state.stage === "full-results") stageEl = <ResultsScreen title="Final Season Results" results={state.results2} table={state.tableFinal} clubs={state.clubs} myClubId={state.myClubId} onContinue={finalizeSeason} continueLabel="Finalise Season →" projectedTable={state.table1} cupStatus={state.cupStatus} league={state.league} division={state.division} ucl={state.ucl} uel={state.uel} uecl={state.uecl} onOpenCup={setSelectedCup} />;
   else if (state.stage === "summary") stageEl = <SummaryScreen state={state} myClub={myClub} onNextSeason={nextSeason} onOpenCup={setSelectedCup} />;
-  else if (state.stage === "game-over") stageEl = <div style={{maxWidth:620,margin:"54px auto",padding:36,textAlign:"center",border:"1px solid #703b3e",borderRadius:18,background:"linear-gradient(145deg,#251416,#100b0c)"}}><div style={{fontSize:34}}>⌁</div><h1 style={{margin:"10px 0",fontSize:30}}>Managerial contract ended</h1><p style={{color:"#d6a1a4",lineHeight:1.6}}>{state.movement||"Relegation from the second division"}. The board has dismissed you, ending this career.</p><p style={{color:"#879589",fontSize:12}}>Your save remains available to export from this screen.</p></div>;
+  else if (state.stage === "game-over") stageEl = <div style={{maxWidth:620,margin:"54px auto",padding:36,textAlign:"center",border:"1px solid #703b3e",borderRadius:18,background:"linear-gradient(145deg,#251416,#100b0c)"}}><div style={{fontSize:34}}>⌁</div><h1 style={{margin:"10px 0",fontSize:30}}>Managerial contract ended</h1><p style={{color:"#d6a1a4",lineHeight:1.6}}>{state.movement||"Relegation from the second division"}. The board has dismissed you, ending this career.</p><p style={{color:"#879589",fontSize:12}}>Your save remains available to export. Restart to begin a new challenge.</p><button style={primaryBtnStyle} onClick={restart}>Restart career →</button>{state.board&&<button className="mail-player-secondary" onClick={()=>setBoardOpen(true)}>Read the board verdict</button>}</div>;
   else if (state.stage === "ucl" && ({UCL:state.ucl,UEL:state.uel,UECL:state.uecl}[state.activeEuropeanCompetition||"UCL"])) stageEl = <UclPage state={state} myClub={myClub} squadCommonProps={squadCommonProps} actions={state.activeEuropeanCompetition==="UEL"?uelActions:state.activeEuropeanCompetition==="UECL"?ueclActions:uclActions} competition={state.activeEuropeanCompetition||"UCL"}/>;
 
   return (
@@ -476,6 +497,7 @@ export default function App(){
         <SaveToolbar state={state} saveBlocked={saveBlocked} saveError={saveError}
           onExport={downloadSave} onImport={importSave} />
         {myClub && !isLive && !["matchday-result","cup-result"].includes(state.stage) && !(state.stage==="ucl"&&["UEL","UECL"].includes(state.activeEuropeanCompetition)) && <SeasonStatus state={state} myClub={myClub} onOpenOffers={()=>setOffersOpen(true)} onOpenBudget={()=>setBudgetOpen(true)}/>}
+        {myClub&&['summary','full-results','half-results'].includes(state.stage)&&<button className="command-tile board-command" style={{margin:'14px 0'}} onClick={()=>setBoardOpen(true)}><ShieldCheck size={17}/><span><strong>Board objectives</strong><small>Review your season mandate</small></span></button>}
         {state.development?.length>0 && state.stage==="squad" && <DevelopmentPanel changes={state.development} />}
         {state.market?.talks.filter(t=>t.status==='pending'&&t.buyerId===state.myClubId&&t.phase==='contract-ready').map(t=><div className="personal-terms-ready" key={t.id}><FileSignature size={19}/><span>{t.playerName} chose your club. Personal terms are ready.</span><button onClick={()=>setContractTalk({talkId:t.id})}>Open contract talks →</button></div>)}
         {stageEl}
@@ -490,7 +512,9 @@ export default function App(){
         renderStandings={()=>{const campaign=selectedCup==="UEL"?state.uel:selectedCup==="UECL"?state.uecl:state.ucl;return campaign?<UclTable table={computeTableArray(campaign.tableRaw,campaign.clubs)} myClubId={state.myClubId} competition={selectedCup}/>:null;}}
         renderBracket={()=>{const campaign=state[selectedCup.toLowerCase()];return campaign?.knockoutBracket?<UclBracket bracket={campaign.knockoutBracket} clubs={campaign.clubs} myClubId={state.myClubId}/>:null;}}/>}
       {calendarOpen && myClub && <CalendarHub state={state} onClose={()=>setCalendarOpen(false)} />}
-      {mailOpen && myClub && <MailHub state={state} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} onOpenTransfer={()=>{setMailOpen(false);setMarketOpen(true);}} onOpenOffers={()=>{setMailOpen(false);setOffersOpen(true);}} onOpenPlayer={id=>{setMailOpen(false);setPlayerHub(id);}} onRenew={id=>{setMailOpen(false);setContractTalk({playerId:id});}} />}
+      {mailOpen && myClub && <MailHub state={state} onReply={replyToPlayer} onClose={()=>setMailOpen(false)} onRead={id=>setState(s=>markMailRead(s,id))} onOpenTransfer={()=>{setMailOpen(false);setMarketOpen(true);}} onOpenOffers={()=>{setMailOpen(false);setOffersOpen(true);}} onOpenPlayer={id=>{setMailOpen(false);setPlayerHub(id);}} onRenew={id=>{setMailOpen(false);setContractTalk({playerId:id});}} />}
+      {boardOpen&&myClub&&<BoardHub state={state} onClose={()=>setBoardOpen(false)}/>}
+      {deadlineOpen&&state.deadlineDay&&myClub&&<DeadlineHub state={state} onClose={()=>setDeadlineOpen(false)} onAdvance={advanceDeadline} onMarket={()=>{setDeadlineOpen(false);setMarketOpen(true);}} onOffers={()=>{setDeadlineOpen(false);setOffersOpen(true);}} onMail={()=>{setDeadlineOpen(false);setMailOpen(true);}} onContract={id=>{setDeadlineOpen(false);setContractTalk({talkId:id});}}/>}
       {budgetOpen&&myClub&&<BudgetOverview state={state} onClose={()=>setBudgetOpen(false)}/>}
       {playerHub&&myClub&&<div className="hub-overlay" onClick={()=>setPlayerHub(null)}><section className="player-hub-sheet" role="dialog" aria-modal="true" aria-label="Player Squad Hub" onClick={e=>e.stopPropagation()}><header><div><span>PLAYER CARE</span><h2>Squad Hub</h2></div><button aria-label="Close player Squad Hub" onClick={()=>setPlayerHub(null)}><X size={20}/></button></header><SquadHub state={state} club={myClub} onSell={sellPlayer} onLoanOut={loanOut} focusId={playerHub} onRenew={id=>{setPlayerHub(null);setContractTalk({playerId:id});}} renderBadge={club=><ClubBadge club={club} size="md"/>}/></section></div>}
       {offersOpen && myClub && <TransferOffersHub state={state} myClub={myClub} onClose={()=>setOffersOpen(false)} onAccept={acceptSaleOffer} onReject={rejectSaleOffer} onCounter={negotiateSaleOffer}/>} 
@@ -1051,7 +1075,7 @@ function SquadMoveControls({player,category,unavailable,onStart,onBench,onAvaila
     {category!=="available"&&<button className="move-available" onClick={()=>onAvailable(player.id)} aria-label={`Move ${player.name} to available`} title="Rest this player outside the matchday squad">↓ Available</button>}
   </div>;
 }
-function SquadScreen({ state, myClub, onRenew, onActivateSheet, onDragStart, onStartPlayer, onBenchPlayer, onAvailablePlayer, onEditNumber, onSell, onLoanOut, onRecall, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
+function SquadScreen({ state, myClub, onOpenBoard, onOpenDeadline, onAdvice, onRenew, onActivateSheet, onDragStart, onStartPlayer, onBenchPlayer, onAvailablePlayer, onEditNumber, onSell, onLoanOut, onRecall, onOpenMarket, onOpenCups, onOpenCalendar, onOpenMail, onOpenTactics, onSimulate, simulateLabel, draggingPlayer, hoverSlot, showMarketBar=true, showSimulate=true, suspendedIds, injuries={} }){
   const [workspaceTab,setWorkspaceTab]=useState("squad");
   const listRef=useRef(null);
   useEffect(()=>{
@@ -1078,9 +1102,13 @@ function SquadScreen({ state, myClub, onRenew, onActivateSheet, onDragStart, onS
           {showMarketBar&&onOpenCalendar&&<button className="command-tile" onClick={onOpenCalendar}><CalendarDays size={17}/><span><strong>Calendar</strong><small>Season schedule</small></span></button>}
           {showMarketBar&&onOpenMail&&<button className="command-tile" onClick={onOpenMail}><Mail size={17}/><span><strong>Mail</strong><small>{(state.mail||[]).filter(item=>!item.read).length?`${(state.mail||[]).filter(item=>!item.read).length} unread`:"Staff inbox"}</small></span></button>}
           {onOpenTactics&&<button className="command-tile matchday-studio-command" onClick={onOpenTactics}><SlidersHorizontal size={17}/><span><strong>Matchday Studio</strong><small>{state.formation} · {STYLES[state.tacticalStyle||"balanced"].name}</small></span><b>Open →</b></button>}
+          {onOpenBoard&&<button className="command-tile board-command" onClick={onOpenBoard}><ShieldCheck size={17}/><span><strong>Board objectives</strong><small>{boardReport(state).confidence}/100 · Board trust</small></span></button>}
+          {deadlineActive(state)&&<button className="command-tile deadline-command" onClick={onOpenDeadline}><Clock3 size={17}/><span><strong>Deadline Day</strong><small>{20-state.deadlineDay.hour} hours remain</small></span></button>}
           {showSimulate&&<button className="kickoff-command" onClick={onSimulate} disabled={!!issue}><span>{simulateLabel}</span><small>{issue||"Lineup ready"}</small></button>}
         </div>
       </section>
+
+      {onAdvice&&<AssistantAdvice state={state} onAction={onAdvice}/>}
 
       <div className="workspace-tabs" role="tablist">
         <button className={workspaceTab==="squad"?"active":""} onClick={()=>setWorkspaceTab("squad")}><b>Squad</b><small>XI & bench</small></button>
@@ -1595,7 +1623,7 @@ function UclPage({ state, myClub, squadCommonProps, actions, competition="UCL" }
   if (u.stage === "final") return <UclFinal myClub={myClub} rec={{ results:u.campaignResults, record:u.campaignRecord, outcome:u.outcome }} onBack={actions.uclBackToSeason} bracket={u.knockoutBracket} clubs={u.clubs} />;
   return null;
 }
-function MailHub({state,onClose,onRead,onOpenTransfer,onOpenOffers,onOpenPlayer,onRenew}){
+function MailHub({state,onClose,onRead,onOpenTransfer,onOpenOffers,onOpenPlayer,onRenew,onReply}){
   const items=state.mail||[],[selectedId,setSelectedId]=useState(items[0]?.id||null),selected=items.find(item=>item.id===selectedId)||items[0];
   const open=item=>{setSelectedId(item.id);onRead(item.id);};
   const icon=item=>item.type==="medical"?"✚":item.type==="discipline"?"!":item.type==="fixture"?"↻":item.type==="cup"?"★":"•";
@@ -1603,7 +1631,18 @@ function MailHub({state,onClose,onRead,onOpenTransfer,onOpenOffers,onOpenPlayer,
     <header><div><span>CLUB CORRESPONDENCE</span><strong>Inbox</strong><small>{items.filter(item=>!item.read).length} unread · {items.length} messages</small></div><button onClick={onClose} aria-label="Close mail"><X size={18}/></button></header>
     {!items.length?<div className="mail-empty">No staff updates yet. Your medical team, match analyst and secretary will write here as the season develops.</div>:<div className="mail-reader-layout">
       <nav className="mail-reader-list" aria-label="Messages">{items.map(item=><button key={item.id} className={`${item.id===selected?.id?"is-selected":""} ${!item.read?"is-unread":""}`} onClick={()=>open(item)}><i className={item.playerCard?"player-mail-rating":""}>{item.playerCard?.ovr||icon(item)}</i><span><small>{item.competition?competitionBrand(item.competition).name:item.playerCard?"PLAYER & AGENT":"CLUB STAFF"} · {formatDate(item.date,{day:"numeric",month:"short"})}</small><strong>{item.subject}</strong><em>{item.body}</em></span></button>)}</nav>
-      <article className="mail-reader-message" key={selected.id}><div className="mail-message-top"><span className={`mail-type mail-${selected.type||"update"}`}>{icon(selected)}</span><div><small>{selected.competition?competitionBrand(selected.competition).name:"CLUB STAFF"}</small><h2>{selected.type==='renewal-invite'?'A future at this club.':selected.type==='transfer-request'?'I want a new challenge.':selected.type==='player-opportunity'?'Ready for my chance.':selected.type==='player-concern'?'Playing time matters.':selected.subject}</h2><p>{formatDate(selected.date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p></div></div><div className="mail-message-rule"/>{selected.playerCard&&<PlayerLetter message={selected} onPlayer={onOpenPlayer} onRenew={onRenew} onTransfer={onOpenOffers}/>}<p className="mail-message-greeting">Manager,</p>{selected.prize&&<div className="mail-prize-card"><CompetitionMark id={selected.competition}/><div><small>{selected.prize.milestone.toUpperCase()} · PERFORMANCE REWARD</small><b>{pounds(selected.prize.amount*1000000)}</b><span>Added to your transfer budget</span></div><Trophy size={32}/></div>}<p className="mail-message-body">{selected.body}</p>{selected.type==="transfer"&&<button className="mail-transfer-cta" onClick={onOpenTransfer}>Open Transfer Centre →</button>}<p className="mail-message-signoff">Keep this message in mind when choosing your next XI and planning the coming fixture.</p><footer><span>Club Operations</span><b>{selected.type==="medical"?"Medical department":selected.type==="discipline"?"Head of football":selected.type==="fixture"?"Fixture secretary":"First-team staff"}</b></footer></article>
+      <article className="mail-reader-message" key={selected.id}>
+        <div className="mail-message-top"><span className={`mail-type mail-${selected.type||"update"}`}>{icon(selected)}</span><div><small>{selected.competition?competitionBrand(selected.competition).name:selected.playerCard?'PLAYER & AGENT':"CLUB STAFF"}</small><h2>{selected.type==='renewal-invite'?'A future at this club.':selected.type==='transfer-request'?'I want a new challenge.':selected.type==='player-opportunity'?'Ready for my chance.':selected.type==='player-concern'?'Playing time matters.':selected.subject}</h2><p>{formatDate(selected.date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p></div></div>
+        <div className="mail-message-rule"/>
+        {selected.playerCard&&<PlayerLetter state={state} message={selected} onPlayer={onOpenPlayer} onRenew={onRenew} onTransfer={onOpenOffers}/>}
+        <p className="mail-message-greeting">Manager,</p>
+        {selected.prize&&<div className="mail-prize-card"><CompetitionMark id={selected.competition}/><div><small>{selected.prize.milestone.toUpperCase()} · PERFORMANCE REWARD</small><b>{pounds(selected.prize.amount*1000000)}</b><span>Added to your transfer budget</span></div><Trophy size={32}/></div>}
+        <p className="mail-message-body">{selected.body}</p>
+        {selected.playerCard&&<PlayerConversation state={state} message={selected} onReply={onReply}/>}
+        {selected.type==="transfer"&&<button className="mail-transfer-cta" onClick={onOpenTransfer}>Open Transfer Centre →</button>}
+        {!selected.playerCard&&<p className="mail-message-signoff">Keep this message in mind when choosing your next XI and planning the coming fixture.</p>}
+        <footer><span>{selected.playerCard?'Private correspondence':'Club Operations'}</span><b>{selected.playerCard?selected.playerCard.name:selected.type==="medical"?"Medical department":selected.type==="discipline"?"Head of football":selected.type==="fixture"?"Fixture secretary":"First-team staff"}</b></footer>
+      </article>
     </div>}
   </section></div>;
 }
@@ -1694,10 +1733,11 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onFr
   const agentAvailable=isFreeAgent&&state.freeAgents?.some(p=>p.id===selected.id);
   let players=clubs.flatMap(club=>club.players.map(player=>({...player,sellerClub:club,league:club.league})));
   const query=filter.q.trim().toLowerCase();
-  if(query)players=players.filter(p=>p.name.toLowerCase().includes(query)||p.sellerClub.name.toLowerCase().includes(query));
+  const freeAgentSearch=isFreeAgentSearch(query);
+  if(query)players=players.filter(p=>p.name.toLowerCase().includes(query)||p.sellerClub.name.toLowerCase().includes(query)||freeAgentSearch&&p.league==='FREE');
   if(filter.pos!=="ALL")players=players.filter(p=>matchesPosition(p,filter.pos));
-  if(filter.league!=="ALL")players=players.filter(p=>p.league===filter.league);
-  if(filter.club!=="ALL")players=players.filter(p=>p.sellerClub.id===filter.club);
+  if(filter.league!=="ALL"&&!freeAgentSearch)players=players.filter(p=>p.league===filter.league);
+  if(filter.club!=="ALL"&&!freeAgentSearch)players=players.filter(p=>p.sellerClub.id===filter.club);
   if(shortlistOnly)players=players.filter(player=>shortlistedIds.has(player.id));
   const maxPrice=Math.max(1,Math.ceil(Math.max(...players.map(player=>player.value),...(clubs.flatMap(club=>club.players.map(player=>player.value))),1)));
   const ageMin=Number.isFinite(filter.ageMin)?filter.ageMin:16,ageMax=Number.isFinite(filter.ageMax)?filter.ageMax:45;
@@ -1732,13 +1772,13 @@ function TransferMarket({ state, myClub, filter, setFilter, onClose, onBuy, onFr
       <header className="transfer-header">
         <button className="transfer-back" onClick={goBack}><ChevronLeft size={18}/><span>{screen==="browse"?"Close":"Back"}</span></button>
         <div className="transfer-brand"><span>GLOBAL RECRUITMENT</span><strong>Transfer Centre</strong></div>
-        <div className="transfer-budget"><small>{transferWindowOpen?`WINDOW OPEN · LOANS ${incomingLoans}/3`:`WINDOW CLOSED · SCOUTING ONLY`}{reservedBudget(state)>0?` · ${fmtM(reservedBudget(state))} RESERVED`:''}</small><strong>{fmtM(spendable)}</strong></div>
+        <div className="transfer-budget"><small>{transferWindowOpen?`WINDOW OPEN · LOANS ${incomingLoans}/3`:`WINDOW CLOSED · FREE AGENTS OPEN`}{reservedBudget(state)>0?` · ${fmtM(reservedBudget(state))} RESERVED`:''}</small><strong>{fmtM(spendable)}</strong></div>
       </header>
 
       <main className={`transfer-stage transfer-screen-${screen}`} key={screen}>
         {screen==="browse"&&<>
           <section className="market-hero">
-            <div><span>SCOUTING NETWORK · 6 COMPETITIONS</span><h2>Find the player who changes your season.</h2><p>{transferWindowOpen?"Search any player or club, compare the market, then enter direct negotiations.":"The window is closed. Scout every player and keep your targets ready for the next opening."}</p></div>
+            <div><span>SCOUTING NETWORK · 6 COMPETITIONS</span><h2>Find the player who changes your season.</h2><p>{transferWindowOpen?"Search any player or club, compare the market, then enter direct negotiations.":"Scout your next signing, or discuss a contract with a free agent while the window is closed."}</p></div>
             <div className="market-hero-tools"><div className="market-search"><Search size={18}/><input autoFocus aria-label="Search player or club" value={filter.q} onChange={e=>setFilter(f=>({...f,q:e.target.value,club:"ALL"}))} placeholder="Search player or club"/><kbd>⌘ K</kbd></div><nav className="market-desk-tools" aria-label="Transfer desk"><button className="market-active-talks" onClick={()=>setTalksOpen(true)}><ArrowLeftRight size={16}/><span>Active Talks</span><b>{activeTalkCount}</b></button>{(state.saleOffers||[]).some(o=>o.status==='pending')&&<button className="market-offers-shortcut" onClick={onOpenOffers}><HandCoins size={16}/><span>Offers</span><b>{state.saleOffers.filter(o=>o.status==='pending').length}</b></button>}<button className={`market-shortlist-toggle ${shortlistOnly?"active":""}`} onClick={()=>setShortlistOnly(value=>!value)}><Star size={15} fill={shortlistOnly?"currentColor":"none"}/>{shortlistOnly?"Shortlisted":"Shortlist"}<b>{shortlistedIds.size}</b></button></nav></div>
           </section>
           <div className="market-filters">

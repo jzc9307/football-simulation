@@ -4,7 +4,7 @@ import { buildEuropeanGuestClubs } from "./uclSelection.js";
 import { attachSeasonSchedule } from "./seasonSchedule.js";
 import { firstSeasonLeagueOrder } from "./firstSeasonFixtures.js";
 import { squadGroups } from "./squadSelection.js";
-import { ensurePlayerLife, mapLifeClubs, recordPlayerMinutes, playerConcernMessages } from './playerLife.js';
+import { ensurePlayerLife, mapLifeClubs, recordPlayerMinutes, playerConcernMessages, isBackupGoalkeeper } from './playerLife.js';
 export function slotAccepts(slotRole, player){
   if (!player) return false;
   if (player.role === slotRole) return true;
@@ -483,14 +483,15 @@ export function performanceUpdatesForMatch(simulation,homeClubId,awayClubId,comp
   const [homeXI,awayXI]=simulation.match.initialPlayers;
   const strength=xi=>Math.round(xi.reduce((total,p)=>total+matchOvr(p),0)/Math.max(1,xi.length));
   return [
-    {clubId:homeClubId,ratings:simulation.match.playerRatings[0],injuries:simulation.match.injuries?.[0]||[],competition,opponentStrength:strength(awayXI)},
-    {clubId:awayClubId,ratings:simulation.match.playerRatings[1],injuries:simulation.match.injuries?.[1]||[],competition,opponentStrength:strength(homeXI)},
+    {clubId:homeClubId,ratings:simulation.match.playerRatings[0],injuries:simulation.match.injuries?.[0]||[],competition,opponentStrength:strength(awayXI),result:simulation.goalsA>simulation.goalsB?'W':simulation.goalsA<simulation.goalsB?'L':'D'},
+    {clubId:awayClubId,ratings:simulation.match.playerRatings[1],injuries:simulation.match.injuries?.[1]||[],competition,opponentStrength:strength(homeXI),result:simulation.goalsB>simulation.goalsA?'W':simulation.goalsB<simulation.goalsA?'L':'D'},
   ];
 }
 export function applyPerformanceUpdates(s,updates=[]){
   s=ensurePlayerLife(s);
-  const byClub=new Map();
+  const byClub=new Map(),results=new Map();
   for(const update of updates){
+    results.set(update.clubId,update.result||null);
     if(!byClub.has(update.clubId))byClub.set(update.clubId,[]);
     byClub.get(update.clubId).push(...update.ratings.map(r=>({...r,competition:update.competition||"league",opponentStrength:update.opponentStrength??78})));
   }
@@ -504,7 +505,8 @@ export function applyPerformanceUpdates(s,updates=[]){
       const energy=player.energy??100;
       const date=s.currentDate||'2026-08-15';
       const absent=club.id===s.myClubId?unavailablePlayerIds(s).includes(player.id):s.worldInjuries?.[player.id]?.matches>0;
-      if(!r)return recordPlayerMinutes(player,0,date,quality,!absent&&!player.loan);
+      const selection={backupKeeper:isBackupGoalkeeper(player,club),started:r?r.start==null?null:r.start===0:false};
+      if(!r)return recordPlayerMinutes(player,0,date,quality,!absent&&!player.loan,results.get(club.id),selection);
       const style=club.id===s.myClubId?s.tacticalStyle:aiTactics(club).style;
       const styleLoad=style==="gegen"?1.28:style==="tiki"?1.10:style==="bus"?0.85:1;
       const load=((r.minutes??95)/95)*(13+(r.opponentStrength-70)*0.25)*styleLoad*(84/(player.stamina??80))*(player.group==="GK"?0.55:1);
@@ -535,7 +537,7 @@ export function applyPerformanceUpdates(s,updates=[]){
         seasonMinutes:(player.seasonMinutes||0)+r.minutes,
         lastRating:r.rating,
         lastConfidenceChange:r.confidenceDelta,
-        confidence:clamp(faded+r.confidenceDelta,-2,2)},r.minutes??95,date,quality);
+        confidence:clamp(faded+r.confidenceDelta,-2,2)},r.minutes??95,date,quality,true,results.get(club.id),selection);
     })};
   };
   const next=mapLifeClubs(s,updateClub);

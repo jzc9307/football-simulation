@@ -6,6 +6,7 @@ import { addDays, nextFixture } from './seasonSchedule.js';
 import { OPENING_DEADLINE, OPENING_TRANSFERS, transferSquadLimit } from './openingTransfers.js';
 import { ensurePlayerLife, advancePlayerLife, agentTerms, signedContract, evaluatePersonalTerms, contractMonths, beginPlayerStint, playerMailCard } from './playerLife.js';
 import { FREE_AGENT_CLUB_ID, marketPlayer } from './freeAgents.js';
+import { deadlineActive, isDeadlineDate, enterDeadline, deadlineFeed, DEADLINE_HOURS } from './deadlineDay.js';
 
 const pending = t => t.status === 'pending';
 const windowKey = date => `${date.slice(0,4)}-${date.slice(5,7)==='01'?'winter':'summer'}`;
@@ -68,6 +69,7 @@ function slotsAvailable(s,club) {
   return club.players.length+(s.market?.talks||[]).filter(t=>pending(t)&&t.buyerId===club.id).length<(club.id===s.myClubId?30:34);
 }
 function addTalk(s,talk) {
+  if(deadlineActive(s)&&talk.dueDate===s.currentDate&&talk.deadlineHour==null)talk={...talk,deadlineHour:Math.min(20,s.deadlineDay.hour+2)};
   return {...s,market:{...s.market,talks:[...s.market.talks.filter(t=>pending(t)),talk].slice(-180)}};
 }
 function addMarketMail(s,subject,body,date,id) {
@@ -87,10 +89,10 @@ export function agreeTransferFee(input,{sellerId,playerId,fee}) {
   const id=`talk:${s.season}:${playerId}:${s.myClubId}:${date}`;
   // All bidders for a player resolve together; an earlier AI deal cannot steal
   // the player before an already agreed user decision is due.
-  s={...s,market:{...s.market,talks:s.market.talks.map(t=>pending(t)&&t.playerId===playerId?{...t,dueDate}:t)}};
+  s={...s,market:{...s.market,talks:s.market.talks.map(t=>pending(t)&&t.playerId===playerId?{...t,dueDate,...(deadlineActive(s)?{deadlineHour:Math.min(20,s.deadlineDay.hour+2)}:{})}:t)}};
   s=addTalk(s,{id,playerId,playerName:terms.player.name,sellerId,buyerId:s.myClubId,fee:amount,date,dueDate,status:'pending',phase:'fee-agreed',reason:'Your target',window:windowKey(date)});
   s={...s,market:{...s.market,invitations:(s.market.invitations||[]).filter(t=>t.playerId!==playerId)}};
-  return addMarketMail(s,`Fee agreed for ${terms.player.name}`,`The club accepted £${amount}m. The player will decide on ${dueDate}. Funds are reserved, not spent.`,date,id);
+  return addMarketMail(s,`Fee agreed for ${terms.player.name}`,`The club accepted £${amount}m. ${deadlineActive(s)?'The player will decide within two deadline-day hours.':`The player will decide on ${dueDate}.`} Funds are reserved, not spent.`,date,id);
 }
 export function approachFreeAgent(input,playerId) {
   const s=ensureMarket(input),p=s.freeAgents?.find(p=>p.id===playerId),club=allClubs(s).find(c=>c.id===s.myClubId);
@@ -207,7 +209,7 @@ function completeAiTransfer(s,t,p) {
   if(!canRelease(seller,p)||buyer.players.length>=transferSquadLimit(s,t.openingDealId,seller.id,buyer.id,p)||availableBudget(s,buyer.id,t.id)<t.fee)throw new Error('Deal conditions changed.');
   let number=1;while(buyer.players.some(p=>p.number===number)&&number<99)number++;
   const date=s.currentDate||t.dueDate,terms=agentTerms(p,clubQuality(buyer),date);
-  return moveMedicalRecord(commitClubs(s,clubs.map(c=>c.id===seller.id?{...c,budget:money(c.budget+t.fee),players:c.players.filter(x=>x.id!==p.id)}:c.id===buyer.id?{...c,budget:money(c.budget-t.fee),players:[...c.players,{...beginPlayerStint(p,seller.id,s.season),club:c.id,number,contract:signedContract(p,terms,date),life:{...p.life,happiness:82,status:'settled',reason:'New sporting project',transferRequested:false,complaintStage:0,recoveryMatches:0,recentMinutes:[],missedMatches:0,joinedDate:date}}]}:c)),p.id,buyer.id);
+  return moveMedicalRecord(commitClubs(s,clubs.map(c=>c.id===seller.id?{...c,budget:money(c.budget+t.fee),players:c.players.filter(x=>x.id!==p.id)}:c.id===buyer.id?{...c,budget:money(c.budget-t.fee),players:[...c.players,{...beginPlayerStint(p,seller.id,s.season),club:c.id,number,contract:signedContract(p,terms,date),life:{...p.life,promise:null,happiness:82,status:'settled',reason:'New sporting project',transferRequested:false,forcedTransferListing:false,complaintStage:0,recoveryMatches:0,recentSelections:[],backupKeeper:false,recentMinutes:[],recentResults:[],missedMatches:0,playingTimeDays:0,lastSelectionDate:date,lastSelectionEligible:true,joinedDate:date}}]}:c)),p.id,buyer.id);
 }
 export function nextWindowDate(date){
   if(marketOpen({currentDate:date}))return date;
@@ -243,7 +245,7 @@ function signFreeAgents(s,date){
       .sort((a,b)=>playerChoiceScore(s,b.club,p)-playerChoiceScore(s,a.club,p));
     const buyer=candidates[0]?.club;if(!buyer)continue;
     let number=1;while(buyer.players.some(p=>p.number===number)&&number<99)number++;
-    const terms=agentTerms(p,clubQuality(buyer),date),joined={...beginPlayerStint(p,p.formerClubId,s.season),club:buyer.id,number,contract:signedContract(p,terms,date),life:{...p.life,happiness:82,status:'settled',transferRequested:false,complaintStage:0,recentMinutes:[],missedMatches:0,joinedDate:date}};
+    const terms=agentTerms(p,clubQuality(buyer),date),joined={...beginPlayerStint(p,p.formerClubId,s.season),club:buyer.id,number,contract:signedContract(p,terms,date),life:{...p.life,promise:null,happiness:82,status:'settled',transferRequested:false,forcedTransferListing:false,complaintStage:0,recentSelections:[],backupKeeper:false,recentMinutes:[],recentResults:[],missedMatches:0,playingTimeDays:0,lastSelectionDate:date,lastSelectionEligible:true,joinedDate:date}};
     delete joined.freeAgentDecisionDate;delete joined.formerClubId;
     s=commitClubs(s,allClubs(s).map(c=>c.id===buyer.id?{...c,players:[...c.players,joined]}:c));
     s={...s,freeAgents:s.freeAgents.filter(x=>x.id!==p.id)};
@@ -251,21 +253,36 @@ function signFreeAgents(s,date){
   }
   return {state:s,arrived};
 }
+function decisionBlocker(s,t,p,clubs){
+  const buyer=clubs.get(t.buyerId),seller=clubs.get(t.sellerId);
+  if(!p||!seller)return 'The player is no longer at the selling club.';
+  if(!buyer)return 'The buying club is no longer available.';
+  if(p.loan||s.loans.some(l=>l.playerId===p.id))return 'The player is now on loan and cannot complete a permanent transfer.';
+  const limit=transferSquadLimit(s,t.openingDealId,t.sellerId,t.buyerId,p);
+  if(buyer.players.length>=limit)return t.buyerId===s.myClubId?'Your squad is full. Free a squad place before trying again.':'The buying club has no room in its squad to register the player.';
+  if(availableBudget(s,t.buyerId,t.id)<t.fee)return 'There are no longer enough unreserved transfer funds to honour the agreed fee.';
+  if(!canRelease(seller,p))return 'The selling club can no longer release the player without losing its minimum playable squad.';
+  return null;
+}
 function resolveDecisions(s,date) {
   let userDecision=false;
-  const ids=[...new Set(s.market.talks.filter(t=>pending(t)&&t.phase!=='contract-ready'&&t.dueDate<=date).map(t=>t.playerId))];
+  const ids=[...new Set(s.market.talks.filter(t=>pending(t)&&t.phase!=='contract-ready'&&t.dueDate<=date&&(!deadlineActive(s)||t.dueDate<date||(t.deadlineHour||0)<=s.deadlineDay.hour)).map(t=>t.playerId))];
   for(const id of ids){
     const talks=s.market.talks.filter(t=>pending(t)&&t.playerId===id);
     const player=allClubs(s).find(c=>c.id===talks[0].sellerId)?.players.find(p=>p.id===id);
     const clubs=new Map(allClubs(s).map(c=>[c.id,c]));
-    const valid=player?talks.filter(t=>clubs.has(t.buyerId)&&clubs.get(t.buyerId).players.length<transferSquadLimit(s,t.openingDealId,t.sellerId,t.buyerId,player)&&availableBudget(s,t.buyerId,t.id)>=t.fee&&eligible(s,clubs.get(t.sellerId),player)):[];
+    const ownTalk=talks.find(t=>t.buyerId===s.myClubId);
+    let failureReason=decisionBlocker(s,ownTalk||talks[0],player,clubs);
+    const valid=player?talks.filter(t=>!decisionBlocker(s,t,player,clubs)):[];
     const ranked=valid.map(t=>{const terms=agentTerms(player,clubQuality(clubs.get(t.buyerId)),date);return {talk:t,terms,score:playerChoiceScore(s,clubs.get(t.buyerId),player,t.role)+Math.min(5,terms.wage/Math.max(1000,player.contract?.wage||terms.wage))*2+stableFraction(`${t.id}:choice`)*4};}).sort((a,b)=>b.score-a.score);
     let chosen=ranked[0]?.talk;
     const ownSeller=talks.some(t=>t.sellerId===s.myClubId);
     const ambitious=p=>p.age<=25&&p.ovr>=80&&p.life?.ambition==='high';
     const confirmedReplay=chosen?.openingDealId&&chosen.sellerId!==s.myClubId&&chosen.buyerId!==s.myClubId;
-    if(chosen&&!confirmedReplay&&ambitious(player)&&clubQuality(clubs.get(chosen.buyerId))<clubQuality(clubs.get(chosen.sellerId))-5&&player.life?.status!=='wants-move')chosen=null;
-    if(chosen&&ownSeller&&!s.saleListings?.includes(id)&&player.life?.status!=='wants-move'&&ranked[0].score<playerChoiceScore(s,clubs.get(s.myClubId),player)+3)chosen=null;
+    if(chosen&&!confirmedReplay&&ambitious(player)&&clubQuality(clubs.get(chosen.buyerId))<clubQuality(clubs.get(chosen.sellerId))-5&&player.life?.status!=='wants-move'){
+      failureReason='The player declined because the buying club is a weaker sporting project than their current club.';chosen=null;
+    }
+    if(chosen&&ownSeller&&!s.saleListings?.includes(id)&&player.life?.status!=='wants-move'&&ranked[0].score<playerChoiceScore(s,clubs.get(s.myClubId),player)+3){failureReason='The player prefers to stay at your club; the offered sporting project and personal terms were not attractive enough.';chosen=null;}
     let winner=null;
     let ready=false,scheduled=false;
     if(chosen){
@@ -279,7 +296,7 @@ function resolveDecisions(s,date) {
           s={...s,saleOffers:(s.saleOffers||[]).filter(o=>o.playerId!==id),saleListings:(s.saleListings||[]).filter(pid=>pid!==id),saleFollowUps:(s.saleFollowUps||[]).filter(e=>e.playerId!==id)};
         }
         winner=chosen;
-      }catch{ /* A withdrawn seller or a full squad cancels the deal safely. */ }
+      }catch(error){failureReason=error.message;}
     }
     const outcomes=talks.filter(t=>!((ready||scheduled)&&t.id===winner?.id)).map(t=>({...t,status:t.id===winner?.id?'signed':winner?'lost':'cancelled',resolvedDate:date,winnerId:winner?.buyerId||null}));
     if(winner&&!ready&&!scheduled){
@@ -294,7 +311,7 @@ function resolveDecisions(s,date) {
     if(own||ownSeller){
       userDecision=true;
       const tracked=own||talks[0],signed=!!winner&&!ready&&!scheduled&&(ownSeller||winner.id===own?.id);
-      const reason=ready?'The player chose your project. Agree contract length, wage and squad role to complete the signing. The fee is still reserved, not spent.':scheduled?`Personal terms are agreed. The player remains usable until registration on ${readyTalk.dueDate}. The fee will be paid on that date.`:signed?'Personal terms are agreed. The transfer is confirmed and the fee has been paid.':winner?`${clubs.get(winner.buyerId).name} offered a more attractive sporting project.`:ownSeller?'The player did not agree personal terms. They remain in your squad and no fee was received.':'The deal conditions changed. Reserved funds have been released.';
+      const reason=ready?'The player chose your project. Agree contract length, wage and squad role to complete the signing. The fee is still reserved, not spent.':scheduled?`Personal terms are agreed. The player remains usable until registration on ${readyTalk.dueDate}. The fee will be paid on that date.`:signed?'Personal terms are agreed. The transfer is confirmed and the fee has been paid.':winner&&!(own&&failureReason)?`${clubs.get(winner.buyerId).name} offered a more attractive sporting project.`:ownSeller?`${failureReason||'The player did not agree personal terms.'} They remain in your squad and no fee was received.`:`${failureReason||'The player did not accept this move.'} Reserved funds have been released.`;
       const notice={id:tracked.id,talkId:readyTalk?.id,status:ready?'contract-ready':scheduled?'scheduled':signed?'signed':'failed',outgoing:ownSeller,playerName:tracked.playerName,ovr:player?.ovr,fee:winner?.fee||tracked.fee,buyerId:winner?.buyerId,sellerId:tracked.sellerId,date,reason};
       s={...s,marketNotice:notice,marketNotices:[...(s.marketNotices||[]),notice]};
       s=addMarketMail(s,`${ready?'Personal talks ready':scheduled?'Transfer scheduled':signed?'Transfer confirmed':'Transfer unsuccessful'}: ${tracked.playerName}`,reason,date,`${tracked.id}:resolved`);
@@ -318,7 +335,7 @@ export function negotiatePlayerContract(input,{talkId,...offer}){
   let next;
   if(talk.kind==='free-agent'){
     let number=1;while(club.players.some(p=>p.number===number)&&number<99)number++;
-    const joined={...beginPlayerStint(p,p.formerClubId,s.season),club:club.id,number,loan:false,contract,life:{...p.life,happiness:82,status:'settled',reason:'Excited by a new sporting project',transferRequested:false,complaintStage:0,recoveryMatches:0,recentMinutes:[],missedMatches:0,joinedDate:date}};
+    const joined={...beginPlayerStint(p,p.formerClubId,s.season),club:club.id,number,loan:false,contract,life:{...p.life,promise:null,happiness:82,status:'settled',reason:'Excited by a new sporting project',transferRequested:false,forcedTransferListing:false,complaintStage:0,recoveryMatches:0,recentSelections:[],backupKeeper:false,recentMinutes:[],recentResults:[],missedMatches:0,playingTimeDays:0,lastSelectionDate:date,lastSelectionEligible:true,joinedDate:date}};
     delete joined.formerClubId;delete joined.freeAgentDecisionDate;
     next=moveMedicalRecord(commitClubs(released,allClubs(released).map(c=>c.id===club.id?{...c,players:[...c.players,joined]}:c)),p.id,club.id);
     next={...next,freeAgents:next.freeAgents.filter(x=>x.id!==p.id),shortlist:(next.shortlist||[]).filter(id=>id!==p.id)};
@@ -390,6 +407,7 @@ export function marketDay(input,date) {
 // decisions. Only manager-relevant events interrupt; each date is consumed once.
 export function advanceTransferCalendar(input,throughDate,{advanceWorld}={}) {
   let s=ensureMarket(input);
+  if(deadlineActive(s))return {state:s,arrived:true,date:s.currentDate,notice:'Deadline day is live. Finish the hourly clock in the Deadline Day hub before advancing the calendar.'};
   // Match simulation can create a player letter before the date loop starts.
   // Consume that attention event once, rather than losing it to mail deduplication.
   if(s.lifeAttentionPending)return {state:{...s,lifeAttentionPending:false},arrived:true,date:s.currentDate,notice:'A player has written to you. Review their concern or contract invitation.'};
@@ -405,17 +423,48 @@ export function advanceTransferCalendar(input,throughDate,{advanceWorld}={}) {
   for(const date of [...dates].sort()){
     const life=advancePlayerLife(s,date);s={...life.state,currentDate:date};
     if(advanceWorld)s=advanceWorld(s,date);
+    const entering=s.managementVersion===1&&isDeadlineDate(date)&&s.deadlineDay?.date!==date;
+    if(entering)s=enterDeadline(s);
     const day=date>s.market.lastDate?marketDay(s,date):{state:s,arrived:false};s=day.state;
     const decisions=date<=s.market.lastDate?resolveDecisions(s,date):{state:s,userDecision:false};s=decisions.state;
     const offers=advanceSaleOffers(s,date);s=offers.state;
     const returned=s.loans.some(l=>l.endsDate&&l.endsDate<=date&&(l.ownerId===s.myClubId||l.borrowerId===s.myClubId));
     s=returnExpiredLoans(s,date);
+    if(entering)return {state:{...s,lifeAttentionPending:false},arrived:true,date,notice:'Deadline day: 20 hours remain. Track the final approaches and move the clock one hour at a time.'};
     if(day.arrived||decisions.userDecision||offers.arrived||returned||life.arrived){
       return {state:{...s,lifeAttentionPending:false},arrived:true,date:date<(input.currentDate||'')?input.currentDate:date,notice:life.arrived?'A squad or contract decision needs your attention.':decisions.userDecision?'A signing decision has arrived.':offers.arrived?'A new transfer offer has arrived.':returned?'A player has returned from loan.':day.notice};
     }
     // A background draw may create an earlier manager fixture. Never simulate
     // the market beyond that newly scheduled match before it has been played.
     if(nextFixture(s)?.date<=date)break;
+  }
+  return {state:s,arrived:false};
+}
+// The football/date clock stays fixed. Each consumed hour is persisted, and a
+// two-hour skip still stops at the first manager-relevant decision.
+export function advanceDeadlineHour(input,hours=1){
+  let s=ensureMarket(input);
+  if(!deadlineActive(s))throw Error('There is no active deadline day.');
+  if(![1,2].includes(hours))throw Error('Advance one or two hours.');
+  const personal=()=>s.market.talks.some(t=>pending(t)&&t.buyerId===s.myClubId&&t.phase==='contract-ready');
+  if(personal())throw Error('Agree personal terms or withdraw your ready signing before advancing the clock.');
+  if(s.marketNotices?.length||s.marketNotice)throw Error('Read your transfer decision before advancing the clock.');
+  for(let i=0;i<hours;i++){
+    const hour=Math.min(DEADLINE_HOURS,s.deadlineDay.hour+1);
+    s={...s,deadlineDay:{...s.deadlineDay,hour}};
+    const decisions=resolveDecisions(s,s.currentDate);s=decisions.state;
+    let arrived=decisions.userDecision;
+    if(hour<20&&hour%5===0&&!(s.season===1&&s.currentDate.slice(5,7)!=='01')){
+      const recruitment=recruit(s,s.currentDate);s=recruitment.state;arrived=arrived||recruitment.rivalArrived;
+      const offers=unsolicited(s,s.currentDate);s=offers.state;arrived=arrived||offers.arrived;
+    }
+    for(const t of s.market.history.filter(t=>t.resolvedDate===s.currentDate))s=deadlineFeed(s,`${t.playerName}: ${t.status==='signed'?'transfer confirmed':t.status==='lost'?'a rival won the race':'talks ended'}.`,t.id);
+    if(arrived){s=deadlineFeed(s,'A new approach or player decision needs your attention.',`attention:${hour}`);return {state:s,arrived:true};}
+    if(hour===20){
+      s=deadlineFeed(s,'The window has closed. Existing fee agreements can finish personal terms; no new club bids can be made.',`close:${s.currentDate}`);
+      s={...s,deadlineDay:{...s.deadlineDay,closed:true},saleOffers:(s.saleOffers||[]).filter(o=>o.offWindow),mail:[{id:`deadline:${s.currentDate}:closed`,type:'transfer',date:s.currentDate,read:false,subject:'Transfer window closed',body:'Deadline day is complete. New transfer bids are closed until the next window. Free-agent negotiations remain available.'},...(s.mail||[])].slice(0,120)};
+      return {state:s,arrived:true};
+    }
   }
   return {state:s,arrived:false};
 }

@@ -15,7 +15,11 @@ const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES
 const SECOND_POOL={PL:'championshipClubs',LALIGA:'laliga2Clubs',SERIEA:'serieBClubs',BUNDES:'bundes2Clubs',LIGUE1:'ligue2Clubs'};
 function requireValid(ok,message){if(!ok)throw new Error(`Save could not be loaded: ${message}`);}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
-function validPersonalTerms(t){return t&&Number.isInteger(t.years)&&t.years>=1&&t.years<=5&&Number.isFinite(t.wage)&&t.wage>=500&&t.wage<=2000000&&!!SQUAD_ROLES[t.role];}
+function validPersonalTerms(t,roleReview=false){return t&&(roleReview?t.years===0&&t.keepExpiry===true:t.keepExpiry!==true&&Number.isInteger(t.years)&&t.years>=1&&t.years<=5)&&Number.isFinite(t.wage)&&t.wage>=500&&t.wage<=2000000&&!!SQUAD_ROLES[t.role];}
+const validDate=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d+'T12:00:00Z'));
+function validPromise(p){return !p||['minutes','renewal'].includes(p.kind)&&['active','fulfilled','failed'].includes(p.status)&&typeof p.sourceMailId==='string'&&validDate(p.date)&&(p.kind==='renewal'?validDate(p.deadline):Number.isInteger(p.remaining)&&p.remaining>=0&&p.remaining<=5&&p.needed===2&&Number.isInteger(p.fulfilled)&&p.fulfilled>=0&&p.fulfilled<=2);}
+function validSelectionLife(life){return (life.playingTimeDays==null||Number.isFinite(life.playingTimeDays)&&life.playingTimeDays>=0)&&(life.lastSelectionDate==null||validDate(life.lastSelectionDate))&&(life.lastSelectionEligible==null||typeof life.lastSelectionEligible==='boolean')&&(life.forcedTransferListing==null||typeof life.forcedTransferListing==='boolean')&&(life.recentResults==null||Array.isArray(life.recentResults)&&life.recentResults.length<=6&&life.recentResults.every(r=>['W','D','L'].includes(r)));}
+function validPlayingTimeLog(life){return (life.backupKeeper==null||typeof life.backupKeeper==='boolean')&&(life.recentSelections==null||Array.isArray(life.recentSelections)&&life.recentSelections.length<=10&&life.recentSelections.every(m=>m&&Number.isFinite(m.minutes)&&m.minutes>=0&&m.minutes<=130&&(m.started===null||typeof m.started==='boolean')&&(m.date===null||validDate(m.date))));}
 // A club can move between the top flight and its second tier. Look up the
 // canonical roster across every default pool when hydrating a compact save,
 // rather than assuming it is still in the division where it began.
@@ -92,8 +96,9 @@ export function validateSave(raw){
     const activity=s.market.activity;
     if(activity)requireValid(typeof activity.key==='string'&&activity.signingsByClub&&typeof activity.signingsByClub==='object'&&Object.entries(activity.signingsByClub).every(([id,count])=>byId.has(id)&&Number.isInteger(count)&&count>=0)&&Array.isArray(activity.movedPlayerIds)&&activity.movedPlayerIds.every(id=>typeof id==='string'),'invalid market window activity.');
     for(const talk of s.market.talks)if(talk.phase==='contract-ready')requireValid(Number.isInteger(talk.round)&&talk.round>=1&&talk.round<=3&&validPersonalTerms(talk.demands),'invalid personal contract talks.');
+    for(const talk of s.market.talks)if(talk.deadlineHour!=null)requireValid(Number.isInteger(talk.deadlineHour)&&talk.deadlineHour>=0&&talk.deadlineHour<=20,'invalid deadline decision hour.');
   }
-  if(s.renewalTalks){requireValid(typeof s.renewalTalks==='object'&&!Array.isArray(s.renewalTalks),'invalid renewal sessions.');for(const talk of Object.values(s.renewalTalks))if(talk)requireValid(Number.isInteger(talk.round)&&talk.round>=1&&talk.round<=3&&validPersonalTerms(talk.demands),'invalid renewal terms.');}
+  if(s.renewalTalks){requireValid(typeof s.renewalTalks==='object'&&!Array.isArray(s.renewalTalks),'invalid renewal sessions.');for(const talk of Object.values(s.renewalTalks))if(talk)requireValid((talk.mode==null||['renewal','role-review'].includes(talk.mode))&&Number.isInteger(talk.round)&&talk.round>=1&&talk.round<=3&&validPersonalTerms(talk.demands,talk.mode==='role-review'),'invalid renewal terms.');}
   requireValid(STYLES[s.tacticalStyle]&&Number.isFinite(s.defensiveLine)&&s.defensiveLine>=0&&s.defensiveLine<=100&&Number.isFinite(s.defensiveAggression)&&s.defensiveAggression>=0&&s.defensiveAggression<=100,'invalid tactics.');
   requireValid(s.halftimeStyle==='keep'||STYLES[s.halftimeStyle],'invalid halftime plan.');
   const playerIds=new Set();
@@ -107,8 +112,8 @@ export function validateSave(raw){
         requireValid(typeof p.id==='string'&&!ids.has(p.id)&&typeof p.name==='string'&&ROLE_GROUP[p.role]&&p.group===ROLE_GROUP[p.role]&&Number.isFinite(p.ovr)&&p.ovr>0&&p.ovr<=100&&Number.isFinite(p.age)&&Number.isFinite(p.value)&&p.value>=0,'invalid player.');
         requireValid(p.condition===undefined||(Number.isFinite(p.condition)&&p.condition>=0&&p.condition<=100),'invalid player condition.');
         requireValid(p.energy===undefined||(Number.isFinite(p.energy)&&p.energy>=0&&p.energy<=100),'invalid player energy.');
-        if(p.contract){requireValid((p.contract.endDate===null||/^\d{4}-\d{2}-\d{2}$/.test(p.contract.endDate))&&(p.contract.wage===null||Number.isFinite(p.contract.wage)&&p.contract.wage>=0&&p.contract.wage<=2000000)&&SQUAD_ROLES[p.contract.role],`invalid player contract: ${p.name} (${p.contract.endDate}, ${p.contract.wage}, ${p.contract.role}).`);}
-        if(p.life)requireValid(Number.isFinite(p.life.happiness)&&p.life.happiness>=0&&p.life.happiness<=100&&Array.isArray(p.life.recentMinutes)&&p.life.recentMinutes.length<=8&&p.life.recentMinutes.every(n=>Number.isFinite(n)&&n>=0&&n<=130),'invalid player mindset.');
+        if(p.contract){requireValid((p.contract.endDate===null||/^\d{4}-\d{2}-\d{2}$/.test(p.contract.endDate))&&(p.contract.amendedDate==null||validDate(p.contract.amendedDate))&&(p.contract.wage===null||Number.isFinite(p.contract.wage)&&p.contract.wage>=0&&p.contract.wage<=2000000)&&SQUAD_ROLES[p.contract.role],`invalid player contract: ${p.name} (${p.contract.endDate}, ${p.contract.wage}, ${p.contract.role}).`);}
+        if(p.life)requireValid(Number.isFinite(p.life.happiness)&&p.life.happiness>=0&&p.life.happiness<=100&&Array.isArray(p.life.recentMinutes)&&p.life.recentMinutes.length<=8&&p.life.recentMinutes.every(n=>Number.isFinite(n)&&n>=0&&n<=130)&&validPromise(p.life.promise)&&validSelectionLife(p.life)&&validPlayingTimeLog(p.life),'invalid player mindset.');
         requireValid(p.stamina===undefined||(Number.isFinite(p.stamina)&&p.stamina>=1&&p.stamina<=100),'invalid player stamina.');
         requireValid(p.potential===undefined||(Number.isFinite(p.potential)&&p.potential>=p.ovr&&p.potential<=100),'invalid player potential.');
         requireValid(p.confidence===undefined||(Number.isFinite(p.confidence)&&p.confidence>=-2&&p.confidence<=2),'invalid player confidence.');
@@ -122,8 +127,8 @@ export function validateSave(raw){
     const rosterIds=new Set([...byId.values()].flatMap(c=>c.players.map(p=>p.id))),ids=new Set();
     for(const p of s.freeAgents){
       requireValid(p&&typeof p.id==='string'&&!ids.has(p.id)&&!rosterIds.has(p.id)&&typeof p.name==='string'&&typeof p.slug==='string'&&ROLE_GROUP[p.role]&&Number.isFinite(p.ovr)&&p.ovr>=1&&p.ovr<=100&&Number.isFinite(p.age)&&p.age>=14&&Number.isFinite(p.value)&&p.value>=0&&!p.loan,'invalid free-agent player.');
-      if(p.contract)requireValid((p.contract.endDate===null||/^\d{4}-\d{2}-\d{2}$/.test(p.contract.endDate))&&(p.contract.wage===null||Number.isFinite(p.contract.wage)&&p.contract.wage>=0&&p.contract.wage<=2000000)&&SQUAD_ROLES[p.contract.role],'invalid free-agent contract.');
-      if(p.life)requireValid(Number.isFinite(p.life.happiness)&&p.life.happiness>=0&&p.life.happiness<=100&&Array.isArray(p.life.recentMinutes)&&p.life.recentMinutes.length<=8&&p.life.recentMinutes.every(n=>Number.isFinite(n)&&n>=0&&n<=130),'invalid free-agent mindset.');
+      if(p.contract)requireValid((p.contract.endDate===null||/^\d{4}-\d{2}-\d{2}$/.test(p.contract.endDate))&&(p.contract.amendedDate==null||validDate(p.contract.amendedDate))&&(p.contract.wage===null||Number.isFinite(p.contract.wage)&&p.contract.wage>=0&&p.contract.wage<=2000000)&&SQUAD_ROLES[p.contract.role],'invalid free-agent contract.');
+      if(p.life)requireValid(Number.isFinite(p.life.happiness)&&p.life.happiness>=0&&p.life.happiness<=100&&Array.isArray(p.life.recentMinutes)&&p.life.recentMinutes.length<=8&&p.life.recentMinutes.every(n=>Number.isFinite(n)&&n>=0&&n<=130)&&validPromise(p.life.promise)&&validSelectionLife(p.life)&&validPlayingTimeLog(p.life),'invalid free-agent mindset.');
       ids.add(p.id);
     }
     for(const t of s.market?.talks||[])if(t.kind==='free-agent')requireValid(ids.has(t.playerId),'free agent in personal talks is missing.');
@@ -209,6 +214,9 @@ export function validateSave(raw){
     requireValid(Array.isArray(s.teamSheets)&&s.teamSheets.length>=1&&s.teamSheets.length<=3&&s.teamSheets.every(t=>typeof t.id==='string'&&typeof t.name==='string'&&t.name.trim().length>0&&t.name.length<=28&&validTeamPlan(t))&&new Set(s.teamSheets.map(t=>t.id)).size===s.teamSheets.length&&s.teamSheets.some(t=>t.id===s.activeTeamSheetId),'invalid team sheets.');
   }
   requireValid(s.rewardClaims==null||Array.isArray(s.rewardClaims)&&s.rewardClaims.length<=600&&s.rewardClaims.every(id=>typeof id==='string'),'invalid competition rewards.');
+  if(s.deadlineDay){const d=s.deadlineDay;requireValid(validDate(d.date)&&Number.isInteger(d.hour)&&d.hour>=0&&d.hour<=20&&typeof d.closed==='boolean'&&(!d.closed||d.hour===20)&&Array.isArray(d.feed)&&d.feed.length<=60&&d.feed.every(e=>typeof e.id==='string'&&typeof e.text==='string'&&Number.isInteger(e.hour)&&e.hour>=0&&e.hour<=d.hour),'invalid deadline-day clock.');}
+  if(s.board){const b=s.board;requireValid(Number.isInteger(b.season)&&b.season>=1&&typeof b.clubId==='string'&&['active','reviewed'].includes(b.status)&&Array.isArray(b.objectives)&&b.objectives.length>=3&&b.objectives.length<=4&&b.objectives.every(o=>typeof o.id==='string'&&typeof o.title==='string'&&['league','domestic','europe','finance'].includes(o.kind)&&Number.isInteger(o.target)&&o.target>=1&&Number.isFinite(o.weight)&&o.weight>0),'invalid board objectives.');if(b.review)requireValid(Number.isInteger(b.review.confidence)&&b.review.confidence>=0&&b.review.confidence<=100&&Array.isArray(b.review.objectives),'invalid board review.');}
+  for(const m of s.mail||[])if(m.reply)requireValid(typeof m.reply.choiceId==='string'&&typeof m.reply.text==='string'&&typeof m.reply.answer==='string'&&validDate(m.reply.date)&&[m.reply.happinessBefore,m.reply.happinessAfter].every(n=>Number.isFinite(n)&&n>=0&&n<=100),'invalid player conversation.');
   return ensureTeamSheets(ensureClubFinance(ensurePlayerLife(repairSaleOffers(s))));
 }
 export function loadGame(storage){

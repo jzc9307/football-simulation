@@ -86,8 +86,8 @@ test('underplaying hurts happiness/sharpness; injury absence does not; playing u
   p=recordPlayerMinutes(p,0,'2026-08-15',80);assert.equal(p.condition,100);
   p=recordPlayerMinutes(p,0,'2026-08-18',80);assert.equal(p.condition,97);
   for(let i=0;i<10;i++)p=recordPlayerMinutes(p,0,'2026-08-21',80);
-  assert.equal(p.life.status,'wants-move');assert.ok(p.life.happiness<35);
-  assert.deepEqual(recordPlayerMinutes(original,0,'2026-08-18',80,false),original);
+  assert.notEqual(p.life.status,'wants-move');assert.equal(p.life.happiness,72);
+  const injured=recordPlayerMinutes(original,0,'2026-08-18',80,false);assert.equal(injured.life.happiness,original.life.happiness);assert.equal(injured.condition,original.condition);assert.equal(injured.life.missedMatches,original.life.missedMatches);
   const active=recordPlayerMinutes({...p,condition:80},90,'2026-08-24',80);assert.ok(active.condition>80);
   const rested=recoverPlayerDays({...active,energy:60},'2026-08-27');assert.ok(rested.energy>60&&rested.energy<100);assert.equal(rested.condition,active.condition);
 });

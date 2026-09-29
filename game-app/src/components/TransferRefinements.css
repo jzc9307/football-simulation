@@ -1,6 +1,6 @@
 /* Icon-only dismissal controls share a real centred content box. Global
    button padding used to push the SVG off-centre in smaller fixed controls. */
-:root button:has(> .lucide-x:only-child){display:grid;place-items:center;padding:0;line-height:1;flex-shrink:0;box-sizing:border-box}
+:root button:has(> .lucide-x:only-child){display:grid;place-items:center;min-width:40px;min-height:40px;padding:0;line-height:1;flex-shrink:0;box-sizing:border-box}
 :root button:has(> .lucide-x:only-child)>svg{display:block;margin:0;flex-shrink:0;transform:none}
 .free-agents-directory{border-top:1px solid #294b35!important;margin-top:6px!important;padding-top:12px!important;padding-bottom:12px!important}
 .free-agent-mark{display:grid;place-items:center;width:36px;height:40px;flex:0 0 36px;border:1px solid #507d63;border-radius:10px;color:#a7e3bd;background:linear-gradient(145deg,#29503a,#112219)}

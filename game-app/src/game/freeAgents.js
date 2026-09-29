@@ -1,5 +1,6 @@
 // A directory entry, not a club: it must never enter fixtures or league pools.
 export const FREE_AGENT_CLUB_ID = 'free-agents';
+export const isFreeAgentSearch = query => /^freeagents?$/.test(query.toLowerCase().replace(/[\s-]/g,''));
 export function freeAgentClub(state) {
   return {id:FREE_AGENT_CLUB_ID,name:'Free Agents',color:'#78b99a',league:'FREE',players:state.freeAgents||[]};
 }

@@ -1,11 +1,13 @@
 import { autoLineup, freshState, topXI, clamp, moveMedicalRecord } from './engine.js';
-import { initialPlayerLife, archivePlayerSeason, beginPlayerStint, contractMonths, advancePlayerLife } from './playerLife.js';
+import { initialPlayerLife, archivePlayerSeason, beginPlayerStint, contractMonths, advancePlayerLife, loanThankYou } from './playerLife.js';
 import { FORMATIONS, ROLE_GROUP } from './config.js';
 import { money, cash, availableBudget, ensureClubFinance, releasePlayerWages, recordFinance } from './finance.js';
 import { openingDeal, transferSquadLimit } from './openingTransfers.js';
 import { addDays } from './seasonSchedule.js';
 import { isTransferWindowOpen } from './transferWindows.js';
 import { premierLeaguePrize, leaguePrizeLetter } from './rewards.js';
+import { deadlineActive } from './deadlineDay.js';
+import { reviewBoardSeason } from './board.js';
 
 const POOLS=['plClubs','laligaClubs','serieaClubs','bundesligaClubs','ligue1Clubs','portugalClubs','championshipClubs','laliga2Clubs','serieBClubs','bundes2Clubs','ligue2Clubs','europeanGuestClubs'];
 const LEAGUE_POOL={PL:'plClubs',LALIGA:'laligaClubs',SERIEA:'serieaClubs',BUNDES:'bundesligaClubs',LIGUE1:'ligue1Clubs',PORTUGAL:'portugalClubs'};
@@ -32,7 +34,7 @@ export function commitClubs(s,clubs){
 // played. The confirmed 2026 deadline is inclusive of 1 September. January
 // window remains available through the existing squad2 stage.
 export function marketOpen(s){
-  return isTransferWindowOpen(s.currentDate);
+  return isTransferWindowOpen(s.currentDate)&&!(s.deadlineDay?.date===s.currentDate&&s.deadlineDay.closed);
 }
 export function projectedPotential(p){
   if(Number.isFinite(p.potential))return clamp(p.potential,p.ovr,96);
@@ -103,7 +105,7 @@ export function repairSaleOffers(s){
   // Replace legacy unaffordable lowball approaches with funded buyers, rather
   // than leaving a listed player stuck with an impossible negotiation.
   if(marketOpen(s))for(const old of s.saleOffers||[]){
-    if(offers.includes(old)||old.kind==='loan'||!(s.saleListings||[]).includes(old.playerId)||offers.some(o=>o.playerId===old.playerId)||s.market?.talks?.some(t=>t.playerId===old.playerId&&t.status==='pending'))continue;
+    if(offers.includes(old)||old.kind==='loan'||!Number.isFinite(old.maxFee)||typeof old.date!=='string'||!(s.saleListings||[]).includes(old.playerId)||offers.some(o=>o.playerId===old.playerId)||s.market?.talks?.some(t=>t.playerId===old.playerId&&t.status==='pending'))continue;
     const player=seller?.players.find(p=>p.id===old.playerId);
     if(player&&!player.loan&&canRelease(seller,player)){const replacement=makeSaleOffer(s,seller,player,s.currentDate);if(replacement)offers.push(replacement);}
   }
@@ -277,7 +279,7 @@ export function evaluateOffer(s,{sellerId,playerId,offer,round=1},rng=Math.rando
   const ratio=amount/terms.minimumPrice;
   const acceptanceChance=ratio>=1?Math.min(0.72,0.12+round*0.12+(ratio-1)*1.2-terms.strictness*0.1):0;
   if(acceptanceChance>0&&rng()<acceptanceChance)return {...terms,status:'accepted',fee:amount,message:'The club accepted after considering the structure of your offer.'};
-  if(round>=3||amount<terms.minimumPrice*0.72)return {...terms,status:'rejected',message:round>=3?'The club has ended negotiations.':'The club considers the offer far below the player’s value.'};
+  if(round>=3||amount<terms.minimumPrice*0.72)return {...terms,status:'rejected',message:round>=3?`${terms.seller.name} declined your final offer of £${amount}m because it did not meet their valuation. Negotiations have ended.`:'The club considers the offer far below the player’s value.'};
   const baseConcession=[0,0.98,0.955,0.94][Math.min(3,round)]||0.94;
   const concession=1-(1-baseConcession)*(1-terms.strictness*0.65);
   const counter=Math.max(terms.minimumPrice,Math.round(terms.askingPrice*concession));
@@ -332,9 +334,10 @@ export function respondToSaleOffer(s,offerId,decision){
   if(!player||!buyer||!canRelease(club,player)||buyer.players.length>=transferSquadLimit(s,offer.openingDealId,club.id,buyer.id,player)||availableBudget(s,buyer.id)<offer.amount)throw Error('Deal conditions changed.');
   const market=s.market||{version:1,lastDate:addDays(date,-1),talks:[],history:[],invitations:[],openingStartedDate:date,openingProcessed:[]};
   if(market.talks.some(t=>t.status==='pending'&&t.playerId===player.id&&t.buyerId===buyer.id))throw Error('That club already has an agreed fee.');
-  const dueDate=addDays(date,1+Math.floor(stableFraction(`${offer.id}:personal-delay`)*3));
+  const delay=1+Math.floor(stableFraction(`${offer.id}:personal-delay`)*3),dueDate=deadlineActive(s)?date:addDays(date,delay);
   const talk={id:`sale-talk:${offer.id}`,playerId:player.id,playerName:player.name,sellerId:club.id,buyerId:buyer.id,fee:offer.amount,date,dueDate,status:'pending',phase:'player-talks',role:player.role,reason:'Fee agreed · negotiating personal terms',openingDealId:offer.openingDealId,window:`${date.slice(0,4)}-${date.slice(5,7)==='01'?'winter':'summer'}`};
-  return {...s,market:{...market,talks:[...market.talks.map(t=>t.status==='pending'&&t.playerId===player.id?{...t,dueDate}:t),talk]},saleOffers:s.saleOffers.filter(o=>o.id!==offer.id),mail:[{id:`mail:fee:${offer.id}`,type:'transfer',subject:`Fee agreed for ${player.name}`,body:`${buyer.name} agreed £${offer.amount}m. Personal talks take 1–3 days. You may accept another club's fee; the player decides between them. No money has changed hands.`,date,read:false},...(s.mail||[])].slice(0,80)};
+  const deadlineHour=deadlineActive(s)?Math.min(20,s.deadlineDay.hour+delay):null;
+  return {...s,market:{...market,talks:[...market.talks.map(t=>t.status==='pending'&&t.playerId===player.id?{...t,dueDate,...(deadlineHour!==null?{deadlineHour}:{})}:t),{...talk,...(deadlineHour!==null?{deadlineHour}:{})}]},saleOffers:s.saleOffers.filter(o=>o.id!==offer.id),mail:[{id:`mail:fee:${offer.id}`,type:'transfer',subject:`Fee agreed for ${player.name}`,body:`${buyer.name} agreed £${offer.amount}m. Personal talks take ${deadlineHour!==null?'1–3 deadline-day hours':'1–3 days'}. You may accept another club's fee; the player decides between them. No money has changed hands.`,date,read:false},...(s.mail||[])].slice(0,80)};
 }
 export function counterSaleOffer(s,{offerId,ask}){
   const offer=(s.saleOffers||[]).find(item=>item.id===offerId&&item.status==='pending');
@@ -391,7 +394,7 @@ export function transfer(s,{type,playerId,sellerId,buyerId,fee,seasons=1,opening
   if(buyer.players.length>=transferSquadLimit(s,openingDealId,seller.id,buyer.id,player))throw new Error('Maximum squad size is 30 players.');
   if(!outgoing&&availableBudget(s)<price)throw new Error('Not enough unreserved budget for this deal.');
   if(buyer.players.length+(s.market?.talks||[]).filter(t=>t.status==='pending'&&t.buyerId===buyer.id).length>=transferSquadLimit(s,openingDealId,seller.id,buyer.id,player))throw new Error('Squad places are reserved for pending signings.');
-  const moved={...(isLoan?player:beginPlayerStint(player,seller.id,s.season)),club:buyer.id,number:numberFor(buyer.players),loan:isLoan,...(!isLoan&&contract?{contract,life:{...player.life,happiness:82,status:'settled',reason:'Excited by a new sporting project',transferRequested:false,complaintStage:0,recoveryMatches:0,recentMinutes:[],missedMatches:0,joinedDate:s.currentDate}}:{})};
+  const moved={...(isLoan?player:beginPlayerStint(player,seller.id,s.season)),club:buyer.id,number:numberFor(buyer.players),loan:isLoan,...(player.life?{life:{...player.life,promise:null}}:{}),...(!isLoan&&contract?{contract,life:{...player.life,promise:null,happiness:82,status:'settled',reason:'Excited by a new sporting project',transferRequested:false,forcedTransferListing:false,complaintStage:0,recoveryMatches:0,recentSelections:[],backupKeeper:false,recentMinutes:[],recentResults:[],missedMatches:0,playingTimeDays:0,lastSelectionDate:s.currentDate,lastSelectionEligible:true,joinedDate:s.currentDate}}:{})};
   const updated=clubs.map(c=>c.id===seller.id?{...c,budget:cash((c.id===s.myClubId?s.budget:c.budget||0)+price),players:c.players.filter(p=>p.id!==player.id)}:
     c.id===buyer.id?{...c,budget:cash((c.id===s.myClubId?s.budget:c.budget||0)-price),players:[...c.players,moved]}:c);
   const next=moveMedicalRecord(commitClubs(s,updated),player.id,buyer.id);
@@ -401,7 +404,8 @@ export function transfer(s,{type,playerId,sellerId,buyerId,fee,seasons=1,opening
     shortlist:(s.shortlist||[]).filter(id=>id!==player.id),
     finances:[...s.finances,{season:s.season,date:s.currentDate,type,player:player.name,amount:outgoing?price:-price}].slice(-100)};
   if(type==='sell')result=releasePlayerWages(result,player.id);
-  return recordFinance(result,{category:type==='buy'?'Player purchases':type==='sell'?'Player sales':'Loan fees',player:player.name,amount:outgoing?price:-price});
+  result=recordFinance(result,{category:type==='buy'?'Player purchases':type==='sell'?'Player sales':'Loan fees',player:player.name,amount:outgoing?price:-price});
+  return type==='loan-out'?loanThankYou(result,moved,buyer.name):result;
 }
 function promotionAndRelegation(league,topTable,secondTable,season){
   const ids=rows=>rows.map(row=>row.id);
@@ -428,6 +432,7 @@ function promotionAndRelegation(league,topTable,secondTable,season){
 export function startNextSeason(s){
   if(!s.tableFinal)throw new Error('Finish the league season first.');
   for(const [key,label] of [['ucl','Champions League'],['uel','Europa League'],['uecl','Conference League']])if(s[key]&&s[key].stage!=='final')throw new Error(`Finish your ${label} campaign first.`);
+  if(s.managementVersion===1){s=reviewBoardSeason(s);if(s.stage==='game-over')return s;}
   s=returnExpiredLoans(s,`${2026+s.season}-07-01`);
   s=advancePlayerLife(s,`${2026+s.season}-07-01`).state;
   let clubs=allClubs(s).map(c=>({...c,players:c.players.map(p=>({...p}))}));
@@ -485,7 +490,7 @@ export function startNextSeason(s){
   return ensureClubFinance({...next,season:s.season+1,stage:gameOver?'game-over':'squad',division:nextTier,budget:me.budget,loans:s.loans.filter(l=>l.endsDate),saleListings:me.players.filter(p=>p.life?.transferRequested).map(p=>p.id),loanListings:[],saleOffers:[],saleFollowUps:[],
     half:1,roundIndex:0,roundsHalf1:null,roundsHalf2:null,tableRaw:null,table1:null,tableFinal:null,
     results1:[],results2:[],clubForm:{},lastResult:null,lastCupResult:null,lastLiveContext:null,
-    scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:`${2026+s.season}-07-01`,midSeasonDone:false,activeFixtureId:null,market:s.market?{...s.market,talks:s.market.talks.filter(t=>t.status==='pending'),invitations:[]}:null,marketNotice:null,marketNotices:[],
+    scheduleVersion:null,seasonSchedule:[],fixtureResults:[],currentDate:`${2026+s.season}-07-01`,deadlineDay:null,midSeasonDone:false,activeFixtureId:null,market:s.market?{...s.market,talks:s.market.talks.filter(t=>t.status==='pending'),invitations:[]}:null,marketNotice:null,marketNotices:[],
     cupStatus:fresh.cupStatus,cups:fresh.cups,ucl:null,uel:null,uecl:null,qualificationTables,suspensions:fresh.suspensions,
     injuries:{},worldInjuries:{},benchSelection:null,lineup:autoLineup(FORMATIONS[s.formation],me.players),development:development.rows,retirements,movement,
     history:[...s.history,{season:s.season,rank,club:me.name,division:previousTier,ucl:s.cups.ucl?.outcome||null,movement}],

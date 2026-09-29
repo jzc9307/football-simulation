@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { freshState, autoLineup, applyPerformanceUpdates } from '../src/game/engine.js';
 import { FORMATIONS } from '../src/game/config.js';
 import { allClubs, commitClubs, clubQuality, unlistPlayer, respondToSaleOffer, marketOpen, transfer, loanEndDate } from '../src/game/career.js';
-import { initialPlayerLife, estimatedContract, ensurePlayerLife, recordPlayerMinutes, playerConcernMessages, advancePlayerLife } from '../src/game/playerLife.js';
+import { initialPlayerLife, estimatedContract, ensurePlayerLife, recordPlayerMinutes, playerConcernMessages, advancePlayerLife, PLAYING_TIME_POLICY } from '../src/game/playerLife.js';
+import { conversationChoices } from '../src/game/conversations.js';
 import { advanceTransferCalendar, ensureMarket, marketDay } from '../src/game/market.js';
 import { ensureClubFinance, advancePayroll, financeSummary, fundPlayerContract, releasePlayerWages, contractFunding, cash } from '../src/game/finance.js';
 import { simulateScheduledHalfAsync } from '../src/game/seasonFlow.js';
@@ -32,30 +33,95 @@ test('missing contracts use affordable estimated wages and age-aware terms witho
   const upgraded=ensurePlayerLife(legacy);assert.ok(own(upgraded).players[0].contract.wage>0);assert.equal(own(upgraded).players[0].contract.source,'estimated');
   if(verified.id!==own(s).players[0].id)assert.deepEqual(player(upgraded,verified.id).contract,verified.contract);
 });
-test('role promises use patient, distinct thresholds and genuine minutes restore trust',()=>{
-  for(const [role,threshold,request]of [['key',2,6],['starter',6,14],['rotation',10,22]]){
+const matchDate=n=>new Date(Date.parse('2026-08-15T12:00:00Z')+(n-1)*7*86400000).toISOString().slice(0,10);
+test('role promises need both eligible matches and calendar patience; genuine minutes restore trust',()=>{
+  for(const role of ['key','starter','rotation']){
+    const policy=PLAYING_TIME_POLICY[role];
     let p=example(role);
-    for(let n=1;n<=request;n++){
-      p=recordPlayerMinutes(p,0,'2026-10-01',80);
-      assert.equal(p.life.complaintStage,n<threshold?0:n<request?1:2);
+    for(let n=1;n<=100&&!p.life.transferRequested;n++){
+      p=recordPlayerMinutes(p,0,matchDate(n),80);
+      const warning=n>=policy.warn&&(n-1)*7>=policy.warnDays;
+      assert.equal(p.life.complaintStage,warning?p.life.transferRequested?2:1:0);
+      if(p.life.transferRequested){assert.ok(n>=policy.request);assert.ok(p.life.playingTimeDays>=policy.requestDays);assert.ok(p.life.happiness<=35);}
     }
-    assert.equal(p.life.happiness,0);assert.equal(p.life.transferRequested,true);
-    assert.deepEqual(recordPlayerMinutes(p,0,'2026-10-02',80,false),p);
-    for(let n=0;n<3;n++)p=recordPlayerMinutes(p,90,'2026-10-03',80);
+    assert.equal(p.life.transferRequested,true);assert.ok(p.life.happiness>0);
+    const injured=recordPlayerMinutes(p,0,matchDate(101),80,false);assert.equal(injured.life.happiness,p.life.happiness);assert.equal(injured.life.missedMatches,p.life.missedMatches);
+    for(let n=0;n<3;n++)p=recordPlayerMinutes(p,90,matchDate(102+n),80);
     assert.equal(p.life.transferRequested,false);assert.ok(p.life.happiness>=65);
   }
 });
-test('prospects ask politely after twelve misses and never force a playing-time departure',()=>{
+test('prospects wait at least six months to ask politely and never force a playing-time departure',()=>{
   let p=example('prospect');
-  for(let n=1;n<=40;n++){p=recordPlayerMinutes(p,0,'2026-10-01',80);assert.equal(p.life.complaintStage,n<12?0:1);assert.equal(p.life.transferRequested,false);assert.notEqual(p.life.status,'wants-move');}
+  for(let n=1;n<=80;n++){p=recordPlayerMinutes(p,0,matchDate(n),80);assert.equal(p.life.complaintStage,(n-1)*7<180?0:1);assert.equal(p.life.transferRequested,false);assert.notEqual(p.life.status,'wants-move');}
   let s=game();s=changePlayer(s,own(s).players[0].id,()=>({...p,id:own(s).players[0].id}));
   const letter=playerConcernMessages(s).state.mail.find(m=>m.type==='player-opportunity');assert.ok(letter);assert.match(letter.body,/not asking to leave/);
 });
-test('old premature role-based transfer requests are relaxed without rewriting key-player requests',()=>{
+test('old premature requests are relaxed once, with earlier letters marked resolved',()=>{
   let s=game(),p=own(s).players[0];
   s=changePlayer(s,p.id,x=>({...x,contract:{...x.contract,role:'starter'},life:{...x.life,missedMatches:7,transferRequested:true,complaintStage:2,happiness:0}}));
-  const upgraded=ensurePlayerLife({...s,playerLifeVersion:2,saleListings:[p.id]});
-  assert.equal(player(upgraded,p.id).life.transferRequested,false);assert.equal(player(upgraded,p.id).life.complaintStage,1);assert.ok(!upgraded.saleListings.includes(p.id));
+  const upgraded=ensurePlayerLife({...s,playerLifeVersion:3,saleListings:[p.id],mail:[{id:'old-request',type:'transfer-request',playerCard:{id:p.id},read:false}]});
+  assert.equal(player(upgraded,p.id).life.transferRequested,false);assert.equal(player(upgraded,p.id).life.complaintStage,0);assert.ok(!upgraded.saleListings.includes(p.id));
+  assert.ok(player(upgraded,p.id).life.happiness>=60);assert.ok(upgraded.mail[0].concernResolved);assert.ok(upgraded.mail[0].read);
+  assert.equal(conversationChoices(upgraded,upgraded.mail[0])[0].id,'support');
+  assert.equal(ensurePlayerLife(upgraded),upgraded);
+});
+test('busy fixture weeks cannot fast-forward a player into a transfer request',()=>{
+  for(const role of ['key','starter','rotation','prospect']){
+    let p=example(role);
+    for(let n=0;n<40;n++)p=recordPlayerMinutes(p,0,`2026-08-${15+Math.floor(n/10)}`,80);
+    assert.equal(p.life.transferRequested,false);assert.equal(p.life.complaintStage,0);assert.equal(p.life.happiness,72);
+  }
+});
+test('winning form softens bench frustration without making permanent exclusion harmless',()=>{
+  for(const role of ['starter','rotation']){
+    let winner=example(role),loser=example(role);
+    for(let n=1;n<=48;n++){
+      winner=recordPlayerMinutes(winner,0,matchDate(n),80,true,'W');
+      loser=recordPlayerMinutes(loser,0,matchDate(n),80,true,'L');
+    }
+    assert.ok(winner.life.happiness>loser.life.happiness);assert.equal(loser.life.transferRequested,true);
+    if(!winner.life.transferRequested)assert.match(winner.life.reason,/winning form/);
+    if(role==='rotation')assert.equal(winner.life.transferRequested,false);
+    for(let n=49;n<=80;n++)winner=recordPlayerMinutes(winner,0,matchDate(n),80,true,'W');
+    assert.equal(winner.life.transferRequested,true);
+  }
+});
+test('injuries and suspensions pause the playing-time clock and useful substitute appearances reset it',()=>{
+  let p=example('starter');
+  for(let n=1;n<=9;n++)p=recordPlayerMinutes(p,0,matchDate(n),80);
+  const before={...p.life};
+  for(let n=10;n<=20;n++)p=recordPlayerMinutes(p,0,matchDate(n),80,false);
+  assert.equal(p.life.happiness,before.happiness);assert.equal(p.life.playingTimeDays,before.playingTimeDays);assert.equal(p.life.missedMatches,before.missedMatches);
+  p=recordPlayerMinutes(p,0,matchDate(21),80);assert.equal(p.life.playingTimeDays,before.playingTimeDays);
+  p=recordPlayerMinutes(p,30,matchDate(22),80);assert.equal(p.life.missedMatches,0);assert.equal(p.life.playingTimeDays,0);assert.equal(p.life.complaintStage,0);
+  p=recordPlayerMinutes(p,0,matchDate(23),80);assert.equal(p.life.playingTimeDays,0);
+});
+test('save repair preserves deliberate listings, ambition and approved transfers',()=>{
+  let s=game();const [early,manual,ambitious,agreed,mature]=own(s).players;
+  for(const p of [early,manual,agreed])s=changePlayer(s,p.id,x=>({...x,contract:{...x.contract,role:'starter'},life:{...x.life,missedMatches:14,complaintStage:2,transferRequested:true,happiness:0,forcedTransferListing:p.id!==manual.id}}));
+  s=changePlayer(s,ambitious.id,x=>({...x,life:{...x.life,missedMatches:0,status:'wants-move',reason:'Ready for a stronger sporting project',happiness:40}}));
+  s=changePlayer(s,mature.id,x=>({...x,contract:{...x.contract,role:'key'},life:{...x.life,missedMatches:20,playingTimeDays:100,complaintStage:2,transferRequested:true,happiness:12}}));
+  const talks=[{playerId:agreed.id,status:'pending',phase:'agreed-future'}];
+  const repaired=ensurePlayerLife({...s,playerLifeVersion:3,saleListings:[early.id,manual.id,agreed.id,mature.id],market:{talks}});
+  assert.equal(player(repaired,early.id).life.transferRequested,false);assert.ok(!repaired.saleListings.includes(early.id));
+  assert.equal(player(repaired,manual.id).life.transferRequested,false);assert.ok(repaired.saleListings.includes(manual.id));
+  assert.equal(player(repaired,ambitious.id).life.status,'wants-move');assert.equal(player(repaired,ambitious.id).life.happiness,40);
+  assert.equal(player(repaired,agreed.id).life.transferRequested,true);assert.deepEqual(repaired.market.talks,talks);
+  assert.equal(player(repaired,mature.id).life.transferRequested,true);
+});
+test('match results reach both club squads and playing-time clocks survive save reload',()=>{
+  let s=game(),p=own(s).players.find(p=>p.role==='CM');
+  s=changePlayer(s,p.id,x=>({...x,contract:{...x.contract,role:'rotation'}}));
+  for(let n=1;n<=18;n++){
+    s=applyPerformanceUpdates({...s,currentDate:matchDate(n)},[{clubId:'liv',ratings:[],result:'W'},{clubId:'ars',ratings:[],result:'L'}]);
+  }
+  assert.deepEqual(player(s,p.id).life.recentResults,Array(6).fill('W'));assert.ok(player(s,p.id).life.happiness>65);
+  const arsenal=allClubs(s).find(c=>c.id==='ars');assert.deepEqual(arsenal.players[0].life.recentResults,Array(6).fill('L'));
+  const restored=validateSave(JSON.parse(exportGame(s)));assert.deepEqual(player(restored,p.id).life,player(s,p.id).life);
+  for(const patch of [{playingTimeDays:-1},{lastSelectionDate:'invalid'},{recentResults:['WIN']},{lastSelectionEligible:'yes'}]){
+    const raw=JSON.parse(exportGame(s)),saved=raw.state.plClubs.find(c=>c.id==='liv').players.find(x=>x.id===p.id);
+    saved.life={...player(s,p.id).life,...patch};assert.throws(()=>validateSave(raw),/invalid player mindset/);
+  }
 });
 test('player letters include rating cards, appear once, and formal requests cannot be casually unlisted',()=>{
   let s=acknowledgedCareer(game()),p=own(s).players.find(p=>p.role==='CM');
@@ -63,8 +129,9 @@ test('player letters include rating cards, appear once, and formal requests cann
   let result=playerConcernMessages(s);assert.equal(result.arrived,true);
   const warning=result.state.mail.find(m=>m.type==='player-concern');assert.equal(warning.playerCard.ovr,p.ovr);assert.equal(warning.playerCard.id,p.id);
   assert.equal(playerConcernMessages(result.state).arrived,false);
-  s=changePlayer(result.state,p.id,x=>({...x,life:{...x.life,complaintStage:2,transferRequested:true,happiness:0,missedMatches:6}}));
+  s=changePlayer(result.state,p.id,x=>({...x,life:{...x.life,complaintStage:2,transferRequested:true,forcedTransferListing:false,happiness:0,missedMatches:10}}));
   result=playerConcernMessages(s);assert.ok(result.state.saleListings.includes(p.id));assert.equal(result.state.mail[0].type,'transfer-request');
+  assert.equal(player(result.state,p.id).life.forcedTransferListing,true);
   assert.throws(()=>unlistPlayer(result.state,p.id),/formal transfer/);
 });
 test('happy short-contract players invite renewal and stop the initial date exactly once',()=>{
@@ -74,7 +141,7 @@ test('happy short-contract players invite renewal and stop the initial date exac
 });
 test('a match-generated playing-time warning stops instant simulation before another fixture',async()=>{
   let s=acknowledgedCareer(game()),p=own(s).players.find(p=>p.role==='CM');
-  s=changePlayer(s,p.id,x=>({...x,contract:{...x.contract,role:'key'},life:{...x.life,missedMatches:1}}));
+  s=changePlayer(s,p.id,x=>({...x,contract:{...x.contract,role:'key'},life:{...x.life,missedMatches:2,playingTimeDays:21}}));
   s=applyPerformanceUpdates(s,[{clubId:s.myClubId,ratings:[]}],false);
   assert.equal(s.lifeAttentionPending,true);
   const stopped=await simulateScheduledHalfAsync({...s,simMode:'half'},1,{yieldControl:async()=>{}});

@@ -51,6 +51,8 @@ export function deleteTeamSheet(s,id){
   return id===s.activeTeamSheetId?activateTeamSheet(next,next.teamSheets[0].id):next;
 }
 export function draftPlayerToSlot(state,slot,playerId){
+  const player=state.clubs.find(c=>c.id===state.myClubId)?.players.find(p=>p.id===playerId);
+  if(!Number.isInteger(slot)||slot<0||slot>=FORMATIONS[state.formation].length||!player||unavailablePlayerIds(state,state.stage==='ucl'?'ucl':'domestic').includes(playerId))return state;
   const lineup={...state.lineup},original=Object.keys(lineup).find(k=>lineup[k]===playerId),displaced=lineup[slot];
   Object.keys(lineup).forEach(k=>{if(lineup[k]===playerId)delete lineup[k];});lineup[slot]=playerId;
   if(original!==undefined&&Number(original)!==slot&&displaced)lineup[original]=displaced;
