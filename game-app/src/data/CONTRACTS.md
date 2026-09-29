@@ -1,6 +1,6 @@
 # Contracts: dataset, generated terms and lifecycle
 
-Implementation audited **29 September 2026**. The complete formulas are in [CALCULATIONS.md](../../docs/CALCULATIONS.md#initial-contracts-agent-demands-and-role-negotiation); the player-facing workflow is in [GAMEPLAY.md](../../docs/GAMEPLAY.md#buying-and-negotiating-contracts).
+Implementation audited **30 September 2026**. The complete formulas are in [CALCULATIONS.md](../../docs/CALCULATIONS.md#initial-contracts-agent-demands-and-role-negotiation); the player-facing workflow is in [GAMEPLAY.md](../../docs/GAMEPLAY.md#buying-and-negotiating-contracts).
 
 ## Source snapshot
 

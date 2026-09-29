@@ -1,6 +1,6 @@
 # Career competition rewards
 
-Implementation audited 29 September 2026 against [`rewards.js`](../game/rewards.js). See the [gameplay guide](../../docs/GAMEPLAY.md#budget-rewards-and-board-objectives) and [calculation reference](../../docs/CALCULATIONS.md#board-targets-confidence-and-funding) for budget/board integration.
+Implementation audited 30 September 2026 against [`rewards.js`](../game/rewards.js). See the [gameplay guide](../../docs/GAMEPLAY.md#budget-rewards-and-board-objectives) and [calculation reference](../../docs/CALCULATIONS.md#board-targets-confidence-and-funding) for budget/board integration.
 
 These are deliberately modest **game-balanced board allocations**, not a verified EA FC27 payout table or full real-world TV/prize income. No exact FC27 amounts are claimed. The source of truth for these amounts is this project's `PROGRESSION_PRIZES`, not an external prize table.
 

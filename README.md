@@ -18,7 +18,7 @@ contract negotiations, player relationships and connected club finances.</p>
 <a href="game-app/README.md">Developer guide</a>
 </p>
 
-<sub>Documentation and test badge audited against the implementation on 29 September 2026.</sub>
+<sub>Documentation and test badge audited against the implementation on 30 September 2026.</sub>
 
 </div>
 

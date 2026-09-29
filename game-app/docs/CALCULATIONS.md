@@ -1,6 +1,6 @@
 # Gameplay calculation reference
 
-Audited against the code on **29 September 2026**. Amounts are GBP; transfer values/budgets use **£millions**, wages/reserves/ledger amounts use **whole pounds**. Constants here are this project's rules, not official EA or real-world financial/contract models. Links identify the owning code so future changes can update this document and the relevant regression test together.
+Audited against the code on **30 September 2026**. Amounts are GBP; transfer values/budgets use **£millions**, wages/reserves/ledger amounts use **whole pounds**. Constants here are this project's rules, not official EA or real-world financial/contract models. Links identify the owning code so future changes can update this document and the relevant regression test together.
 
 ## Shared definitions and money
 

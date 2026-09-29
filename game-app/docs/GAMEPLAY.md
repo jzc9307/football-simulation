@@ -1,6 +1,6 @@
 # Gameplay guide
 
-Current implementation, audited 29 September 2026. For exact thresholds and formulas, see [Calculations](CALCULATIONS.md). These rules are balanced for this game, not an official EA career-mode specification.
+Current implementation, audited 30 September 2026. For exact thresholds and formulas, see [Calculations](CALCULATIONS.md). These rules are balanced for this game, not an official EA career-mode specification.
 
 ## Start, save and restart
 

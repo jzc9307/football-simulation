@@ -1,6 +1,6 @@
 # Game app — developer guide
 
-React 18, Vite 5, Lucide icons and ESLint 9. This is the maintained application; the repository [overview](../README.md), [gameplay guide](docs/GAMEPLAY.md) and [calculation reference](docs/CALCULATIONS.md) describe its current feature set. Last audited: 29 September 2026.
+React 18, Vite 5, Lucide icons and ESLint 9. This is the maintained application; the repository [overview](../README.md), [gameplay guide](docs/GAMEPLAY.md) and [calculation reference](docs/CALCULATIONS.md) describe its current feature set. Last audited: 30 September 2026.
 
 ## Commands
 
