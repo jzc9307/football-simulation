@@ -3,12 +3,22 @@ import assert from 'node:assert/strict';
 import { createSaveRepository, indexedDBRecords } from '../src/game/browserStorage.js';
 import { freshState } from '../src/game/engine.js';
 import { exportGame, validateSave } from '../src/game/storage.js';
+import { deadlineActive } from '../src/game/deadlineDay.js';
 
 const primary='football-manager-save-v1',oldKey='pl-manager-save-v8';
 function memory(entries=[]){const map=new Map(entries);return {getItem:key=>map.get(key)??null,setItem:(key,value)=>map.set(key,value),removeItem:key=>map.delete(key)};}
 function disk(initial=[]){let data=initial;return {read:async()=>data,write:async(current,previous)=>{data=[current,previous].filter(Boolean);}};}
 const fresh=freshState(),old={...fresh,season:4,budget:77,history:[{note:'old career'}]};
 
+test('fresh and restarted careers have no deadline day before a club is chosen',async()=>{
+  assert.equal(deadlineActive(fresh),false);
+  assert.equal(deadlineActive({...fresh,currentDate:'2026-08-01'}),false);
+  const repo=createSaveRepository({records:disk(),legacy:memory()});
+  await repo.reset(fresh);
+  assert.equal(deadlineActive((await repo.load()).state),false);
+  assert.equal(deadlineActive({currentDate:'2026-09-01',deadlineDay:{date:'2026-09-01',closed:false}}),true);
+  assert.equal(deadlineActive({currentDate:'2026-09-01',deadlineDay:{date:'2026-09-01',closed:true}}),false);
+});
 test('confirmed restart replaces both career snapshots and only the game legacy keys',async()=>{
   const json=exportGame(old,false,Date.now()+60000),records=disk([json,json]),legacy=memory([[primary,json],[oldKey,json],['unrelated','keep']]);
   const repo=createSaveRepository({records,legacy});await repo.load();await repo.reset(fresh);

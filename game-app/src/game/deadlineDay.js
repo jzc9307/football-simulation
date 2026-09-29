@@ -5,7 +5,7 @@ export function deadlineDate(date){
   return date.slice(5,7)==='01'?`${year}-01-31`:year==='2026'?OPENING_DEADLINE:`${year}-08-31`;
 }
 export const isDeadlineDate=date=>!!date&&date===deadlineDate(date);
-export const deadlineActive=s=>s.deadlineDay?.date===s.currentDate&&!s.deadlineDay.closed;
+export const deadlineActive=s=>!!s.deadlineDay&&s.deadlineDay.date===s.currentDate&&!s.deadlineDay.closed;
 export function enterDeadline(s){
   if(s.deadlineDay?.date===s.currentDate)return s;
   return {...s,deadlineDay:{date:s.currentDate,hour:0,closed:false,feed:[{id:`opening:${s.currentDate}`,hour:0,text:'The final 20 hours. Fees stay reserved until a signing is complete.'}]}};

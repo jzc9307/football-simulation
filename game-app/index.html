@@ -4,9 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Football Manager</title>
+    <link rel="stylesheet" href="/src/startup.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div id="root">
+      <main class="career-startup">
+        <div class="career-startup-inner" role="status" aria-live="polite">
+          <div class="career-startup-mark" aria-hidden="true"></div>
+          <span class="career-startup-label">FOOTBALL MANAGER</span>
+          <h1>Getting your career ready</h1>
+          <p>Loading the game. Your football story is almost ready.</p>
+          <div class="career-startup-pulse" aria-hidden="true"><i></i><i></i><i></i></div>
+          <button hidden>Reload game</button>
+          <noscript><p>Please enable JavaScript to play. Your saved career has not been cleared.</p></noscript>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/src/bootstrap.js"></script>
   </body>
 </html>

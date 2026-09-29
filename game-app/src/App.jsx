@@ -25,6 +25,7 @@ import SquadHub from './components/SquadHub.jsx';
 import ContractTalks from './components/ContractTalks.jsx';
 import BudgetOverview from './components/BudgetOverview.jsx';
 import RestartCareer from './components/RestartCareer.jsx';
+import StartupScreen from './components/StartupScreen.jsx';
 import PlayerLetter from './components/PlayerLetter.jsx';
 import TeamSheets, { TeamSheetButtons } from './components/TeamSheets.jsx';
 import { ensureTeamSheets, syncActiveTeamSheet, activateTeamSheet, saveTeamSheet, deleteTeamSheet } from './game/teamSheets.js';
@@ -243,7 +244,7 @@ export default function App(){
   }, [dragging,flashToast,movePlayerToSlot,setLineupSlot]);
 
   if (!loaded || !state) {
-    return <div style={{background:"#0a0e0a",minHeight:400,display:"flex",alignItems:"center",justifyContent:"center",color:"#8a8"}}>Loading squad data…</div>;
+    return <StartupScreen/>;
   }
 
   const myClub = state.clubs.find(c => c.id === state.myClubId);

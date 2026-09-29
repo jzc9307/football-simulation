@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1010" height="36" viewBox="0 0 1010 36" role="img" aria-labelledby="title">
+  <title id="title">React 18, Vite 5, JavaScript, local-first saves, six leagues and 138 passing tests at the 29 September 2026 audit</title>
+  <g font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1" text-anchor="middle" fill="#fff">
+    <rect width="151" height="36" rx="6" fill="#29363a"/><path d="M89 0h56a6 6 0 0 1 6 6v24a6 6 0 0 1-6 6H89Z" fill="#17647a"/><text x="45" y="22">REACT</text><text x="120" y="22">18</text>
+    <rect x="163" width="137" height="36" rx="6" fill="#34333e"/><path d="M249 0h45a6 6 0 0 1 6 6v24a6 6 0 0 1-6 6h-45Z" fill="#6953a4"/><text x="206" y="22">VITE</text><text x="274" y="22">5</text>
+    <rect x="312" width="151" height="36" rx="6" fill="#524b26"/><text x="388" y="22" fill="#f7e898">JAVASCRIPT</text>
+    <rect x="475" width="165" height="36" rx="6" fill="#254731"/><text x="557" y="22" fill="#b5e7c3">LOCAL-FIRST</text>
+    <rect x="652" width="154" height="36" rx="6" fill="#293d32"/><text x="729" y="22">6 LEAGUES</text>
+    <rect x="818" width="192" height="36" rx="6" fill="#2e6241"/><text x="914" y="22">138 TESTS PASSING</text>
+  </g>
+</svg>

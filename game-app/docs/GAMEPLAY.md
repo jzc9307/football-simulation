@@ -6,6 +6,8 @@ Current implementation, audited 29 September 2026. For exact thresholds and form
 
 Choose one of six top-flight leagues, then a club. **Match by Match** lets you prepare/replay fixtures individually. **Instant Half-Season** advances the same world fixture-by-fixture toward the halfway/end-season review; it still pauses for decisions. You are not giving the AI permission to sell your squad.
 
+The startup screen appears while loading game code and checking saved progress. There is no artificial waiting period or pretend percentage. If loading/rendering fails, a reload option replaces the activity indicator; it does not clear your career.
+
 The header shows save status. Autosaves normally use IndexedDB, with recovery snapshots and a localStorage fallback. Export a JSON backup for long careers or before making a fresh start. Import validates a save before applying it. Storage-full/invalid-save messages mean progress is not safely saved; do not refresh without a backup.
 
 Restart opens a confirmation inside the game. You can export first, keep playing, or confirm. Confirmation saves a fresh career and returns to league selection, including after a reload. It replaces the current and recovery career; importing an exported backup is the way to restore the old one. Opening or cancelling the confirmation changes nothing.
@@ -99,7 +101,7 @@ Other clubs can approach listed or unlisted players. Your approval is mandatory.
 
 After you accept a fee, the player negotiates for 1–3 career days (or deadline-day hours). You can accept more than one club's fee; the player chooses the most attractive valid deal. Fees arrive only on completion. Off-window formal-request transfers wait for the next open window.
 
-Loans support 1–3 seasons, availability rules, suitable borrowers and dated returns. No more than three incoming loans can be held at once. Their negotiated fee is separate from wages; currently wages remain with the owner. Outgoing loans can be recalled with compensation. A loaned player cannot be permanently sold/bought while the loan is active.
+Loans use availability rules, suitable borrowers and dated returns. Outgoing negotiations support 0.5–3 seasons in half-season steps. No more than three incoming loans can be held at once. Their fee is separate from wages; currently wages remain with the owner. Outgoing loans can be recalled with compensation. A loaned player cannot be permanently sold/bought while the loan is active.
 
 Type **free agent**/**free agents** or select the Free agents entry to browse unattached players. Expired unrenewed contracts enter this pool; AI clubs may choose not to renew ageing low-upside depth players. Signing skips club fee negotiation and goes directly to personal terms, including outside the transfer window. There is no transfer fee, but wages still need funding. Suitable AI clubs can sign free agents too; not every released player is guaranteed a destination.
 

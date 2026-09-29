@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Football Manager Simulation — build a club, shape a career</title>
+  <desc id="desc">A dark green football pitch banner introducing matches, transfers and player management. Six leagues, 286 clubs and 6473 players.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1510"/><stop offset="1" stop-color="#173a25"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#abedbb"/><stop offset="1" stop-color="#64b980"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#52aa70" stop-opacity=".18"/><stop offset="1" stop-color="#52aa70" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="360" rx="24" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1198" height="358" rx="23" fill="none" stroke="#35523e"/>
+  <ellipse cx="965" cy="180" rx="285" ry="230" fill="url(#glow)"/>
+  <g fill="none" stroke="#82c99b" stroke-opacity=".18" stroke-width="2" transform="translate(885 26) rotate(12 105 150)">
+    <rect width="210" height="302" rx="4"/><path d="M0 151h210"/><circle cx="105" cy="151" r="37"/><path d="M50 0v55h110V0M50 302v-55h110v55M80 0v23h50V0M80 302v-23h50v23"/>
+  </g>
+  <g fill="#a5e5b6" fill-opacity=".7"><circle cx="978" cy="108" r="6"/><circle cx="924" cy="154" r="6"/><circle cx="1030" cy="160" r="6"/><circle cx="975" cy="210" r="6"/></g>
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="64" y="66" fill="#8cbf9b" font-size="13" font-weight="700" letter-spacing="3">YOUR CLUB. YOUR CALL.</text>
+    <text x="60" y="130" fill="#f0f7f2" font-size="50" font-weight="800" letter-spacing="-2">FOOTBALL MANAGER</text>
+    <text x="64" y="166" fill="url(#accent)" font-size="23" font-weight="700" letter-spacing="5">SIMULATION</text>
+    <text x="64" y="218" fill="#b1c6b8" font-size="18">Win on the pitch. Build beyond it.</text>
+    <path d="M64 247h688" stroke="#406049"/>
+    <text x="64" y="289" fill="#d0e4d6" font-size="16" font-weight="700">6 LEAGUES</text>
+    <text x="210" y="289" fill="#50725b" font-size="16">/</text>
+    <text x="245" y="289" fill="#d0e4d6" font-size="16" font-weight="700">286 CLUBS</text>
+    <text x="394" y="289" fill="#50725b" font-size="16">/</text>
+    <text x="428" y="289" fill="#d0e4d6" font-size="16" font-weight="700">6,473 PLAYERS</text>
+    <text x="64" y="324" fill="#769882" font-size="12" letter-spacing="1">MATCHDAY · RECRUITMENT · CONTRACTS · PLAYER CARE · CLUB FINANCES</text>
+  </g>
+</svg>

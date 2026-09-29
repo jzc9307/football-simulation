@@ -36,6 +36,7 @@ The tests use Node's built-in runner and `.mjs` files; no browser is required fo
 | Progression and league rewards | `src/game/rewards.js` |
 | Save validation/compaction/import/export | `src/game/storage.js` |
 | Queued durable snapshots and explicit restart | `src/game/browserStorage.js` |
+| First-paint loading and startup-error recovery | `index.html`, `src/bootstrap.js`, `src/components/StartupScreen.jsx`, `src/startup.css` |
 | Nested modal scroll ownership | `src/components/pageScroll.js` |
 | Bundled roster/contract records | `src/data/` — see [contract provenance](src/data/CONTRACTS.md) |
 
@@ -71,7 +72,9 @@ Writes are serialized. App autosave debounces 500ms and also saves on `pagehide`
 3. Return success only after at least one store persists the fresh state. If both fail, retain the current in-memory career and show a retry/export message.
 4. Clear App workspace/drag/filter state after success. Async import/simulation completions from the old generation cannot overwrite the new career.
 
-No unrelated localStorage keys or entire databases are deleted. A confirmed restart intentionally replaces the game's current/recovery save; offer export first. Cancellation is read-only. The transfer-window check tolerates missing date/deadline state on league selection.
+No unrelated localStorage keys or entire databases are deleted. A confirmed restart intentionally replaces the game's current/recovery save; offer export first. Cancellation is read-only. Both transfer-window and deadline-day checks tolerate missing date/deadline state on league selection.
+
+The HTML contains a lightweight startup screen before the module graph downloads. `bootstrap.js` dynamically imports the React entry and replaces the loader with a reload option on import failure. App keeps the same visual while restoring the career; `StartupBoundary` catches render failures without clearing saves. No fake completion percentage or artificial minimum delay is used. This does not make synchronous roster validation faster or add a general network timeout.
 
 ## Testing and documentation maintenance
 
