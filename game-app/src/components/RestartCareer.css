@@ -1,0 +1,12 @@
+.restart-backdrop{position:fixed;inset:0;z-index:2200;display:grid;place-items:center;padding:20px;background:#030906d9;backdrop-filter:blur(14px)}
+.restart-dialog{width:min(490px,100%);max-height:90dvh;overflow:auto;overscroll-behavior:contain;border:1px solid #48664f;border-radius:24px;background:radial-gradient(ellipse at 10% 0,#21402b,#0c1911 70%);box-shadow:0 30px 110px #0009;color:#e8f3eb}
+.restart-dialog>header{padding:19px 22px;border-bottom:1px solid #314c39;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.restart-dialog>header>span{display:flex;align-items:center;gap:9px;font-size:10px;letter-spacing:.14em;font-weight:800;color:#a8d3b5}
+.restart-dialog>header>button{width:34px;height:34px;padding:0;display:grid;place-items:center;border:1px solid #47634e;border-radius:50%;background:#14291c;color:#cbe5d2}
+.restart-content{padding:25px 24px 14px}.restart-content h2{font-size:28px;letter-spacing:-.8px;margin:0 0 12px}.restart-content p{color:#a8bdae;font-size:13px;line-height:1.7}
+.restart-backup{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:16px;border:1px solid #45604c;border-radius:14px;background:#162b1e;color:#b9dfc5;margin:23px 0 15px}
+.restart-backup>span{flex:1}.restart-backup strong{display:block;font-size:13px}.restart-backup small{display:block;color:#8fab98;font-size:11px;margin-top:5px}
+.restart-content .restart-error{padding:12px;border:1px solid #9c6855;border-radius:10px;background:#41291f;color:#f1c2a9}.restart-content .restart-note{font-size:11px;margin:14px 0 0}
+.restart-dialog>footer{display:flex;justify-content:flex-end;gap:10px;padding:18px 24px 23px}.restart-dialog>footer button{min-height:41px;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 15px;border:1px solid #45644e;border-radius:11px;background:#172b1f;color:#d8e8dd;font-size:12px;font-weight:750}.restart-dialog>footer .restart-confirm{border-color:#91bd7d;background:#315b35;color:#f0f6e9}
+.restart-dialog button:disabled{opacity:.55;cursor:wait}.restart-dialog button:focus-visible{outline:2px solid #a1deb3;outline-offset:3px}
+@media(max-width:440px){.restart-dialog>footer{flex-direction:column}.restart-content h2{font-size:25px}}

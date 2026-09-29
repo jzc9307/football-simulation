@@ -26,6 +26,7 @@ export function indexedDBRecords(indexedDB) {
       await new Promise((resolve,reject)=>{
         const tx=db.transaction("snapshots","readwrite"),store=tx.objectStore("snapshots");
         if(previous)store.put(previous,"previous");
+        else store.delete("previous");
         store.put(current,"current");
         tx.oncomplete=resolve;
         tx.onabort=()=>reject(tx.error||new Error("Unable to save the career."));
@@ -34,7 +35,12 @@ export function indexedDBRecords(indexedDB) {
   };
 }
 export function createSaveRepository({records,legacy}) {
-  let lastGood=null,queue=Promise.resolve();
+  let lastGood=null,queue=Promise.resolve(),generation=0,resetting=null;
+  const serialize=state=>{
+    let previousTime=0;
+    try{previousTime=Number(JSON.parse(lastGood).savedAt)||0;}catch{/* First save. */}
+    return exportGame(state,false,Math.max(Date.now(),previousTime+1));
+  };
   return {
     async load(){
       let snapshots=[],readError;
@@ -55,17 +61,43 @@ export function createSaveRepository({records,legacy}) {
       return {state,recovered:!!invalid};
     },
     save(state){
+      if(resetting)return Promise.reject(new Error("A new career is being saved. Please wait."));
+      const owner=generation;
       const persist=async()=>{
-        const json=exportGame(state,false,Date.now());
+        // A queued autosave from the previous career must not follow a reset.
+        if(owner!==generation)return;
+        const json=serialize(state);
         try{await records.write(json,lastGood);lastGood=json;}
         catch(error){
           // Browsers with IndexedDB disabled can still save smaller careers.
-          try{legacy.setItem("football-manager-save-v1",json);}catch{throw error;}
+          try{legacy.setItem("football-manager-save-v1",json);lastGood=json;}catch{throw error;}
         }
       };
       const result=queue.then(persist);
       queue=result.catch(()=>{});
       return result;
+    },
+    reset(state){
+      if(resetting)return resetting;
+      generation++;
+      const persist=async()=>{
+        const json=serialize(state);
+        let durable=false,writeError;
+        // Current + deletion of the recovery snapshot commit in one transaction.
+        try{await records.write(json,null);durable=true;}catch(error){writeError=error;}
+        // Replace only this game's legacy save. Never clear unrelated site data.
+        try{legacy.setItem("football-manager-save-v1",json);durable=true;}
+        catch(error){
+          if(!durable)throw writeError||error;
+          try{legacy.removeItem?.("football-manager-save-v1");}catch{/* IndexedDB already committed. */}
+        }
+        try{legacy.removeItem?.("pl-manager-save-v8");}catch{/* The newer primary snapshot wins. */}
+        lastGood=json;
+      };
+      const result=queue.then(persist);
+      resetting=result.finally(()=>{resetting=null;});
+      queue=resetting.catch(()=>{});
+      return resetting;
     }
   };
 }

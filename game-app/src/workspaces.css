@@ -24,6 +24,16 @@
 @media(max-width:1000px){.transfer-screen-browse .market-hero{flex-direction:column;align-items:stretch}.transfer-screen-browse .market-hero-tools{width:100%}.market-desk-tools{justify-content:flex-start}}
 @media(max-width:600px){.performance-toolbar{gap:7px}.performance-toolbar .performance-player-search{flex-basis:100%}.performance-control{min-width:0;flex:1}.performance-direction{min-width:36px;padding:10px}.performance-direction>span{display:none}.performance-shown{flex-basis:100%}.market-desk-tools .market-shortlist-toggle{width:auto}}
 .season-command-deck{margin:18px 0 24px;border-radius:15px}
+.season-command-deck{grid-template-columns:minmax(180px,1.2fr) minmax(210px,1.2fr) minmax(165px,.9fr) minmax(155px,.9fr) minmax(210px,1fr)}
+.season-command-deck>button{min-width:0;min-height:82px;padding:12px 17px;background:linear-gradient(135deg,#102017,#0c1710)}
+.season-board-button{width:100%;border:0;text-align:left;color:inherit;cursor:pointer}
+.season-board-button>span{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.season-board-button strong>em{font-size:12px;font-weight:600;font-style:normal;letter-spacing:0;color:#88a791;margin-left:4px}
+.season-board-button small{display:flex;align-items:center;gap:6px}.season-board-button small>i{width:5px;height:5px;flex-shrink:0;border-radius:50%;background:#8de3a0}
+.season-board-button.board-review strong{color:#d7bd71}.season-board-button.board-review small>i{background:#d7bd71}.season-board-button.board-risk strong{color:#df9180}.season-board-button.board-risk small>i{background:#df9180}
+.season-command-deck>button:hover{background:#1e3928}.season-command-deck>button:focus-visible{outline:2px solid #8cdb9e;outline-offset:-4px}
+@media(max-width:1100px){.season-command-deck{grid-template-columns:repeat(2,minmax(0,1fr))}.season-command-identity{grid-column:1/-1}}
+@media(max-width:540px){.season-command-deck{grid-template-columns:minmax(0,1fr)}.season-command-identity{grid-column:auto}}
 .season-command-deck>div{min-height:82px;padding:12px 17px}
 .season-command-metric strong,.season-command-fitness strong{font-size:23px;margin-top:6px}
 .season-command-metric small,.season-command-fitness small{margin-top:5px}

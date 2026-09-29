@@ -34,7 +34,7 @@ export function commitClubs(s,clubs){
 // played. The confirmed 2026 deadline is inclusive of 1 September. January
 // window remains available through the existing squad2 stage.
 export function marketOpen(s){
-  return isTransferWindowOpen(s.currentDate)&&!(s.deadlineDay?.date===s.currentDate&&s.deadlineDay.closed);
+  return isTransferWindowOpen(s.currentDate)&&!(s.deadlineDay?.date===s.currentDate&&s.deadlineDay?.closed);
 }
 export function projectedPotential(p){
   if(Number.isFinite(p.potential))return clamp(p.potential,p.ovr,96);
